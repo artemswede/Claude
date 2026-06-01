@@ -1,0 +1,10 @@
+company,country,segment,founded,failure_event_year,outcome,root_cause
+Westfield Sportscars,UK,Kit cars (Lotus Seven style),1983,2024,Administration / assets sold,"Низкая маржа + расфокус (электро, беспилотники) при 13000 проданных авто"
+TVR,UK,Low-volume sports cars,1947,2006,Receivership; ~18 лет без новых авто,"Хроническое недофинансирование, смена владельцев, ""проклятие"" возрождений"
+Bristol Cars,UK,Luxury hand-built cars,1945,2020,Administration,"Возрождение Bullet (2016): ни одной из 70 машин не построено/продано"
+Spyker,Netherlands,Boutique supercars,1999,2014,Bankruptcy (повторно),"Покупка Saab 2010; продали 3 авто в 2012 (€700k), убыток €6 млн"
+Wiesmann,Germany,Boutique sports cars,1988,2014,Insolvency,Узкий рынок ретро-родстеров; недостаточный объём
+Gumpert (Apollo),Germany,Supercars,2004,2013,Insolvency,Экстремальная ниша; мизерные объёмы
+Local Motors,USA,3D-printed / micro-factory cars,2007,2022,Shut down,"Отсутствие спроса (не неспособность произвести)"
+Elio Motors,USA,Three-wheeler commuter,2009,2024 (dormant),Never reached production,"Бесконечные переносы с 2012; ""продажа мечты"" и мест в очереди; штраф $7.5 млн"
+DeLorean Motor Company,USA/UK,Sports car,1975,1982,Bankruptcy,"Слабый спрос, перерасход, скандал основателя — хрестоматийный кейс"
