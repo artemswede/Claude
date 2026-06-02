@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>THE GRAND TOUR — Инвестиционный меморандум</title>
+<style>
+  :root{
+    --paper:#e8ddc2;
+    --paper2:#ded2b3;
+    --ink:#1c1812;
+    --sepia:#5b4a32;
+    --gold:#a9802f;
+    --ox:#7a2820;
+    --rule:#3a2f20;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    font-family:"Times New Roman", Times, Georgia, serif;
+    color:var(--ink);
+    background:var(--paper);
+    /* состаренная газетная бумага */
+    background-image:
+      radial-gradient(circle at 18% 12%, rgba(120,90,40,.10), transparent 40%),
+      radial-gradient(circle at 82% 78%, rgba(90,60,25,.12), transparent 45%),
+      radial-gradient(circle at 50% 50%, rgba(255,250,230,.25), transparent 70%),
+      repeating-linear-gradient(0deg, rgba(60,45,20,.025) 0 2px, transparent 2px 4px);
+    -webkit-font-smoothing:antialiased;
+  }
+  .deck{scroll-snap-type:y mandatory;height:100vh;overflow-y:scroll;}
+  .slide{
+    scroll-snap-align:start;
+    min-height:100vh;
+    padding:6vh 8vw;
+    display:flex;flex-direction:column;justify-content:center;
+    position:relative;
+    border-bottom:3px double var(--rule);
+  }
+  .slide::after{ /* виньетка старения */
+    content:"";position:absolute;inset:0;pointer-events:none;
+    box-shadow:inset 0 0 140px rgba(70,50,20,.22);
+  }
+  .kicker{font-variant:small-caps;letter-spacing:.35em;font-size:.85rem;color:var(--ox);margin-bottom:1rem;text-transform:uppercase;}
+  h1{font-size:clamp(2.4rem,7vw,6rem);line-height:.95;font-weight:700;letter-spacing:.01em;text-transform:uppercase;}
+  h2{font-size:clamp(1.8rem,4.2vw,3.4rem);line-height:1;text-transform:uppercase;letter-spacing:.02em;border-bottom:2px solid var(--rule);padding-bottom:.4rem;margin-bottom:1.4rem;}
+  h3{font-size:1.3rem;font-variant:small-caps;letter-spacing:.06em;color:var(--sepia);margin-bottom:.4rem;}
+  p,li{font-size:clamp(1rem,1.5vw,1.25rem);line-height:1.5;}
+  .lead{font-size:clamp(1.15rem,2vw,1.6rem);font-style:italic;color:var(--sepia);}
+  .cols{column-count:2;column-gap:3rem;column-rule:1px solid rgba(60,45,20,.4);}
+  @media(max-width:780px){.cols{column-count:1;}}
+  .grid{display:grid;gap:1.6rem;}
+  .g2{grid-template-columns:1fr 1fr;}
+  .g3{grid-template-columns:repeat(3,1fr);}
+  .g4{grid-template-columns:repeat(4,1fr);}
+  @media(max-width:780px){.g2,.g3,.g4{grid-template-columns:1fr;}}
+  .stat{border-top:3px double var(--rule);padding-top:.6rem;}
+  .stat .num{font-size:clamp(2rem,4vw,3.2rem);font-weight:700;color:var(--ox);line-height:1;}
+  .stat .lbl{font-variant:small-caps;letter-spacing:.05em;color:var(--sepia);font-size:.95rem;}
+  ul{margin-left:1.2rem;}
+  li{margin-bottom:.5rem;}
+  .masthead{text-align:center;border-top:4px double var(--rule);border-bottom:4px double var(--rule);padding:.6rem 0;margin-bottom:2rem;font-variant:small-caps;letter-spacing:.3em;font-size:.95rem;display:flex;justify-content:space-between;padding-inline:1rem;}
+  table{width:100%;border-collapse:collapse;font-size:clamp(.85rem,1.4vw,1.1rem);}
+  th,td{border:1px solid var(--rule);padding:.55rem .7rem;text-align:left;}
+  th{background:rgba(60,45,20,.12);font-variant:small-caps;letter-spacing:.05em;}
+  .dropcap::first-letter{font-size:4.4rem;float:left;line-height:.7;padding:.15rem .55rem .1rem 0;color:var(--ox);font-weight:700;}
+  .tag{display:inline-block;border:1px solid var(--rule);padding:.15rem .6rem;font-variant:small-caps;letter-spacing:.08em;font-size:.85rem;margin:.2rem .3rem .2rem 0;}
+  .nav{position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:30;display:flex;flex-direction:column;gap:9px;}
+  .nav a{width:11px;height:11px;border:1px solid var(--rule);border-radius:50%;display:block;background:transparent;}
+  .nav a:hover{background:var(--ox);}
+  .fig{display:block;margin:0 auto;max-width:100%;}
+  .center{text-align:center;}
+  .small{font-size:.85rem;color:var(--sepia);font-style:italic;}
+  .ornament{font-size:1.4rem;letter-spacing:1rem;color:var(--gold);text-align:center;margin:1rem 0;}
+  .bull{color:#3c5a2a;font-weight:700;}
+  .bear{color:var(--ox);font-weight:700;}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <a href="#s1"></a><a href="#s2"></a><a href="#s3"></a><a href="#s4"></a><a href="#s5"></a>
+  <a href="#s6"></a><a href="#s7"></a><a href="#s8"></a><a href="#s9"></a><a href="#s10"></a>
+</nav>
+<div class="deck">
+
+<!-- 1. COVER -->
+<section class="slide" id="s1">
+  <div class="masthead"><span>Est. MMXXVI</span><span>Инвестиционный меморандум</span><span>Vol. I · № 1</span></div>
+  <div class="kicker">Люкс-конструктор классического автомобиля</div>
+  <h1>The Grand&nbsp;Tour</h1>
+  <p class="lead" style="margin:1rem 0 2rem;">Золотой век автомобиля — собранный вашими руками. Полный конструктор родстера в стиле ар-деко, доставленный в фирменном контейнере, который превращается в гараж-ателье.</p>
+  <!-- SVG: art-deco roadster -->
+  <svg class="fig" viewBox="0 0 620 230" width="720" role="img" aria-label="Силуэт ар-деко родстера 1930-х">
+    <g fill="none" stroke="#1c1812" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+      <!-- тело -->
+      <path d="M40 150 Q55 120 95 116 L150 112 Q175 80 235 78 Q280 76 300 100 L430 104 Q470 104 520 118 Q560 126 580 150" fill="#cdbd97"/>
+      <!-- кокпит -->
+      <path d="M250 100 Q262 84 300 86 L330 96 Q318 104 300 104 L262 104 Z" fill="#b6a47c"/>
+      <!-- лобовое стекло -->
+      <path d="M252 100 L246 78 L262 80 L266 100"/>
+      <!-- переднее крыло -->
+      <path d="M430 150 Q436 100 492 100 Q548 100 556 150" fill="#bfae86"/>
+      <!-- заднее крыло -->
+      <path d="M70 150 Q78 104 132 104 Q186 104 194 150" fill="#bfae86"/>
+      <!-- подножка -->
+      <path d="M196 150 L428 150" stroke-width="6"/>
+      <!-- решётка/фара -->
+      <path d="M566 120 L578 120 L580 150 L566 150 Z" fill="#a9802f"/>
+      <circle cx="548" cy="120" r="9" fill="#a9802f"/>
+      <!-- запаска -->
+      <circle cx="48" cy="124" r="14"/>
+    </g>
+    <!-- колёса со спицами -->
+    <g stroke="#1c1812" stroke-width="3">
+      <circle cx="132" cy="156" r="34" fill="#e8ddc2"/>
+      <circle cx="492" cy="156" r="34" fill="#e8ddc2"/>
+      <circle cx="132" cy="156" r="12" fill="#a9802f"/>
+      <circle cx="492" cy="156" r="12" fill="#a9802f"/>
+    </g>
+    <g stroke="#5b4a32" stroke-width="1.4">
+      <!-- спицы -->
+      <g><line x1="132" y1="122" x2="132" y2="190"/><line x1="98" y1="156" x2="166" y2="156"/><line x1="108" y1="132" x2="156" y2="180"/><line x1="156" y1="132" x2="108" y2="180"/></g>
+      <g><line x1="492" y1="122" x2="492" y2="190"/><line x1="458" y1="156" x2="526" y2="156"/><line x1="468" y1="132" x2="516" y2="180"/><line x1="516" y1="132" x2="468" y2="180"/></g>
+    </g>
+  </svg>
+  <p class="small center" style="margin-top:1.5rem;">Российский стартап · экспорт в Европу, Азию и на Ближний Восток · конфиденциально</p>
+</section>
+
+<!-- 2. THESIS -->
+<section class="slide" id="s2">
+  <div class="kicker">Тезис</div>
+  <h2>Мы продаём не машину — мы продаём эпоху</h2>
+  <div class="grid g2">
+    <div>
+      <p class="dropcap" style="text-align:justify;">Состоятельные мужчины 40+ всё реже покупают «вещи» и всё чаще — опыт, смысл и наследие. Пик люкс-трат приходится на 40–50 лет, и <b>69% бюджета роскоши уходит на впечатления, а не на предметы</b>. Одновременно растёт спрос на ручной труд, ремесло и «процесс как роскошь».</p>
+      <p style="margin-top:1rem;text-align:justify;">«The Grand Tour» стоит на пересечении двух рынков, растущих двузначными темпами: <b>experiential luxury</b> и <b>классические автомобили</b>. Продукт даёт и впечатление (90 вечеров в собственном гараже), и предмет (родстер мечты), и статус.</p>
+    </div>
+    <div class="grid" style="align-content:center;">
+      <div class="stat"><div class="num">~$246 млрд</div><div class="lbl">Рынок experiential luxury, 2025</div></div>
+      <div class="stat"><div class="num">~10,4%</div><div class="lbl">CAGR рынка опыта до 2034</div></div>
+      <div class="stat"><div class="num">69 / 31</div><div class="lbl">Опыт против вещей в люкс-бюджете</div></div>
+    </div>
+  </div>
+  <div class="ornament">✦ ✦ ✦</div>
+</section>
+
+<!-- 3. PRODUCT -->
+<section class="slide" id="s3">
+  <div class="kicker">Продукт</div>
+  <h2>Завод роскоши в одной коробке</h2>
+  <div class="grid g2">
+    <div>
+      <!-- SVG: container becomes garage -->
+      <svg class="fig" viewBox="0 0 460 280" aria-label="Контейнер, превращающийся в гараж">
+        <g stroke="#1c1812" stroke-width="3" fill="#cdbd97" stroke-linejoin="round">
+          <rect x="40" y="120" width="300" height="130"/>
+          <!-- рёбра контейнера -->
+          <g stroke="#5b4a32" stroke-width="2"><line x1="80" y1="120" x2="80" y2="250"/><line x1="120" y1="120" x2="120" y2="250"/><line x1="160" y1="120" x2="160" y2="250"/><line x1="200" y1="120" x2="200" y2="250"/></g>
+          <!-- откинутая створка-навес -->
+          <path d="M340 120 L450 70 L450 150 L340 250 Z" fill="#bfae86"/>
+          <!-- верстак -->
+          <rect x="250" y="200" width="80" height="14" fill="#a9802f"/>
+          <line x1="256" y1="214" x2="256" y2="248"/><line x1="324" y1="214" x2="324" y2="248"/>
+        </g>
+        <!-- мини-родстер внутри -->
+        <g stroke="#1c1812" stroke-width="2.4" fill="#e8ddc2">
+          <path d="M70 230 Q90 200 140 202 Q175 204 190 224 L70 224 Z" fill="#b6a47c"/>
+          <circle cx="100" cy="232" r="14"/><circle cx="170" cy="232" r="14"/>
+          <circle cx="100" cy="232" r="5" fill="#a9802f"/><circle cx="170" cy="232" r="5" fill="#a9802f"/>
+        </g>
+        <text x="390" y="60" font-size="13" fill="#7a2820" font-variant="small-caps" text-anchor="middle">контейнер → гараж</text>
+      </svg>
+    </div>
+    <div>
+      <h3>В комплекте</h3>
+      <ul>
+        <li>Полный конструктор родстера ар-деко 1930-х (современная безопасная механика под ретро-оболочкой)</li>
+        <li>Верстак, фирменный набор инструментов, кожаные перчатки</li>
+        <li>Люкс-документация и именной «паспорт сборки»</li>
+        <li>Контейнер 40 футов → личный гараж-ателье</li>
+      </ul>
+      <div style="margin-top:1.2rem;">
+        <span class="tag">приватность</span><span class="tag">ремесло</span>
+        <span class="tag">наследие</span><span class="tag">статус</span><span class="tag">контент</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4. MARKET -->
+<section class="slide" id="s4">
+  <div class="kicker">Рынок</div>
+  <h2>Два попутных ветра, растущих двузначно</h2>
+  <!-- SVG bar chart -->
+  <svg class="fig" viewBox="0 0 620 260" aria-label="Рост рынков 2025 к прогнозу">
+    <g stroke="#1c1812" stroke-width="2"><line x1="70" y1="20" x2="70" y2="210"/><line x1="70" y1="210" x2="600" y2="210"/></g>
+    <g font-size="13" fill="#5b4a32" font-variant="small-caps">
+      <!-- Experiential -->
+      <rect x="110" y="120" width="50" height="90" fill="#bfae86" stroke="#1c1812" stroke-width="2"/>
+      <rect x="170" y="40" width="50" height="170" fill="#a9802f" stroke="#1c1812" stroke-width="2"/>
+      <text x="165" y="230" text-anchor="middle">Experiential luxury</text>
+      <text x="135" y="113" text-anchor="middle">$246B</text>
+      <text x="195" y="33" text-anchor="middle">$598B</text>
+      <!-- Classic cars -->
+      <rect x="320" y="170" width="50" height="40" fill="#bfae86" stroke="#1c1812" stroke-width="2"/>
+      <rect x="380" y="120" width="50" height="90" fill="#a9802f" stroke="#1c1812" stroke-width="2"/>
+      <text x="375" y="230" text-anchor="middle">Классические авто</text>
+      <text x="345" y="163" text-anchor="middle">$41B</text>
+      <text x="405" y="113" text-anchor="middle">$94B</text>
+      <!-- legend -->
+      <rect x="500" y="40" width="16" height="16" fill="#bfae86" stroke="#1c1812"/><text x="522" y="53">2025</text>
+      <rect x="500" y="66" width="16" height="16" fill="#a9802f" stroke="#1c1812"/><text x="522" y="79">прогноз 2034/35</text>
+    </g>
+  </svg>
+  <div class="grid g4" style="margin-top:1rem;">
+    <div class="stat"><div class="num">22 млн+</div><div class="lbl">HNWI в мире</div></div>
+    <div class="stat"><div class="num">~510 тыс.</div><div class="lbl">UHNWI (&gt;$30 млн)</div></div>
+    <div class="stat"><div class="num">+13,1%</div><div class="lbl">CAGR опыта в Азии</div></div>
+    <div class="stat"><div class="num">+9 800</div><div class="lbl">Приток миллионеров в ОАЭ, 2025</div></div>
+  </div>
+</section>
+
+<!-- 5. CUSTOMER -->
+<section class="slide" id="s5">
+  <div class="kicker">Клиент</div>
+  <h2>Портрет покупателя</h2>
+  <div class="grid g2">
+    <div>
+      <p class="lead">Мужчина 45–65 лет. Предприниматель или топ-менеджер. Ностальгия по «золотому веку», страсть к ручному труду, ценит истории, приватность и эксклюзив.</p>
+      <p style="margin-top:1rem;">Покупает не транспорт, а <b>проект, идентичность и контент</b> для своего круга. Молодые HNWI (миллениалы, Gen Z) вдвое чаще старших коллекционируют классические авто и часы.</p>
+    </div>
+    <div>
+      <h3>Целевые рынки старта</h3>
+      <table>
+        <tr><th>Регион</th><th>Почему</th></tr>
+        <tr><td>ОАЭ / Бл. Восток</td><td>Приток богатства, пошлина ~5%</td></tr>
+        <tr><td>Япония</td><td>Лояльность к винтаж-классике, 0% пошлина</td></tr>
+        <tr><td>Европа</td><td>Авто и коллекционирование — европейская страсть</td></tr>
+        <tr><td>Китай</td><td>Премия за статус и импорт</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 6. COMPETITION -->
+<section class="slide" id="s6">
+  <div class="kicker">Конкуренция</div>
+  <h2>Белое пятно на карте</h2>
+  <p class="lead" style="margin-bottom:1.2rem;">Все толпятся в эпохе 1960-х (Cobra, Porsche, GT40). Эпоха 1920–30-х почти свободна — и никто не соединяет конструктор с контейнером-гаражом.</p>
+  <table>
+    <tr><th>Игрок</th><th>Эпоха</th><th>Цена</th><th>Объём/год</th><th>Контейнер-гараж</th></tr>
+    <tr><td>Caterham</td><td>1950-е (Seven)</td><td>~$70k</td><td>~600</td><td>—</td></tr>
+    <tr><td>KTM X-Bow</td><td>современная</td><td>€285k</td><td>до 1000</td><td>—</td></tr>
+    <tr><td>Westfield</td><td>1950-е</td><td>£35–64k</td><td>~400 (банкрот)</td><td>—</td></tr>
+    <tr><td>Morgan</td><td>ретро-стиль</td><td>£72–113k</td><td>~630</td><td>—</td></tr>
+    <tr><td>Pur Sang</td><td>1920–30-е</td><td>$250k+</td><td>штучно</td><td>—</td></tr>
+    <tr style="background:rgba(169,128,47,.18);"><td><b>The Grand Tour</b></td><td><b>1930-е ар-деко</b></td><td><b>~$150k</b></td><td><b>цель 20–40 → 150</b></td><td><b>✦ ДА</b></td></tr>
+  </table>
+  <p class="small" style="margin-top:.8rem;">УТП: эпоха ар-деко × конструктор-опыт × контейнер-гараж × инструменты как ритуал.</p>
+</section>
+
+<!-- 7. BUSINESS MODEL -->
+<section class="slide" id="s7">
+  <div class="kicker">Экономика</div>
+  <h2>Юнит-экономика и модель</h2>
+  <div class="grid g2">
+    <div>
+      <table>
+        <tr><th>Показатель</th><th>На единицу</th></tr>
+        <tr><td>Цена (DDP, средневзвеш.)</td><td>$150 000</td></tr>
+        <tr><td>Себестоимость (COGS)</td><td>$55 000</td></tr>
+        <tr><td>Логистика + таможня</td><td>$15 000</td></tr>
+        <tr style="background:rgba(169,128,47,.18);"><td><b>Вклад на единицу</b></td><td><b>$80 000 (53%)</b></td></tr>
+      </table>
+      <p style="margin-top:1rem;"><b>Модель build-to-order:</b> депозит 50% финансирует производство. Без затоваривания — урок банкротства Westfield.</p>
+    </div>
+    <div class="grid" style="align-content:center;">
+      <div class="stat"><div class="num">~26 ед.</div><div class="lbl">Точка безубыточности</div></div>
+      <div class="stat"><div class="num">~53%</div><div class="lbl">Маржа вклада</div></div>
+      <div class="stat"><div class="num">~7 ед.</div><div class="lbl">Окупает стартовые $500k</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 8. FINANCIALS -->
+<section class="slide" id="s8">
+  <div class="kicker">Сценарии</div>
+  <h2>Финансовый прогноз</h2>
+  <table>
+    <tr><th>Сценарий</th><th>Объём</th><th>Выручка</th><th>Чистая прибыль</th><th>Маржа</th></tr>
+    <tr><td>Консервативный</td><td>50</td><td>$7,5 млн</td><td>~$1,9 млн</td><td>~25%</td></tr>
+    <tr><td>Средний</td><td>150</td><td>$22,5 млн</td><td>~$7,3 млн</td><td>~32%</td></tr>
+    <tr><td>Оптимистичный</td><td>300</td><td>$45 млн</td><td>~$17,8 млн</td><td>~40%</td></tr>
+  </table>
+  <!-- SVG profit bars -->
+  <svg class="fig" viewBox="0 0 600 180" style="margin-top:1.4rem;" aria-label="Чистая прибыль по сценариям">
+    <g stroke="#1c1812" stroke-width="2"><line x1="60" y1="10" x2="60" y2="150"/><line x1="60" y1="150" x2="560" y2="150"/></g>
+    <g font-size="13" fill="#5b4a32">
+      <rect x="120" y="135" width="70" height="15" fill="#bfae86" stroke="#1c1812" stroke-width="2"/><text x="155" y="128" text-anchor="middle">$1,9M</text><text x="155" y="168" text-anchor="middle">50 ед.</text>
+      <rect x="270" y="92" width="70" height="58" fill="#a9802f" stroke="#1c1812" stroke-width="2"/><text x="305" y="85" text-anchor="middle">$7,3M</text><text x="305" y="168" text-anchor="middle">150 ед.</text>
+      <rect x="420" y="20" width="70" height="130" fill="#7a2820" stroke="#1c1812" stroke-width="2"/><text x="455" y="14" text-anchor="middle" fill="#7a2820">$17,8M</text><text x="455" y="168" text-anchor="middle">300 ед.</text>
+    </g>
+  </svg>
+  <p class="small">Реалистичная цель года 1 — 20–40 единиц по предоплате; 150/300 — горизонт года 3–5.</p>
+</section>
+
+<!-- 9. RISKS -->
+<section class="slide" id="s9">
+  <div class="kicker">Честно о рисках</div>
+  <h2>Что может пойти не так</h2>
+  <div class="cols">
+    <p><span class="bear">Экспорт из РФ.</span> Санкции, SWIFT, восприятие «Made in Russia» в люксе. <i>Митигация:</i> зарубежная брендовая/сборочная юрисдикция (ОАЭ, Сербия).</p>
+    <p style="margin-top:.8rem;"><span class="bear">Смертность сегмента.</span> Westfield, TVR, Bristol, Local Motors — банкротства норма. <i>Митигация:</i> узкий фокус + build-to-order, никакого затоваривания.</p>
+    <p style="margin-top:.8rem;"><span class="bear">Охлаждение рынка классики.</span> Средний сегмент −13 пунктов от пика 2022. <i>Митигация:</i> ставка на опыт и эксклюзив, а не на инвест-доходность.</p>
+    <p style="margin-top:.8rem;"><span class="bear">Спрос неизвестного бренда.</span> CAC в люксе высок. <i>Митигация:</i> лимит-эдишн как у KTM (дефицит = премия), валидация предоплатами.</p>
+    <p style="margin-top:.8rem;"><span class="bear">Трейдмарки и допуск.</span> Иски Shelby/Ford — прецедент. <i>Митигация:</i> оригинальный дизайн «по мотивам» + юр-экспертиза до прототипа.</p>
+    <p style="margin-top:.8rem;"><span class="bull">Почему всё же да:</span> здоровая маржа на единицу, защищаемое УТП, два растущих рынка и низкая конкуренция в эпохе 1930-х.</p>
+  </div>
+</section>
+
+<!-- 10. ASK -->
+<section class="slide" id="s10">
+  <div class="masthead"><span>Предложение</span><span>The Grand Tour</span><span>MMXXVI</span></div>
+  <div class="kicker">Раунд</div>
+  <h2>Запрос инвестиций</h2>
+  <div class="grid g2">
+    <div class="grid" style="align-content:center;">
+      <div class="stat"><div class="num">$500–700k</div><div class="lbl">Pre-seed (R&D, прототип, маркетинг)</div></div>
+      <div class="stat"><div class="num">12 мес.</div><div class="lbl">До первых поставок по предоплате</div></div>
+      <div class="stat"><div class="num">5–7 лет</div><div class="lbl">Exit: продажа бренда фонду (как Morgan → Investindustrial)</div></div>
+    </div>
+    <div>
+      <h3>Дорожная карта</h3>
+      <ul>
+        <li><b>Год 1:</b> 1 флагман-родстер, пилот в ОАЭ / Японии / Европе, 20–40 ед.</li>
+        <li><b>Год 2–3:</b> +модель, выход в Китай и США, 80–180 ед.</li>
+        <li><b>Год 4–5:</b> линейка 4–5 моделей + bespoke-ателье, 400–600 ед.</li>
+      </ul>
+      <h3 style="margin-top:1.2rem;">Ключевые метрики</h3>
+      <ul>
+        <li>Предоплаты (валидация спроса)</li>
+        <li>Вклад на единицу ≥ $80k · маржа ≥ 50%</li>
+        <li>CAC / LTV · органический медиа-охват</li>
+      </ul>
+    </div>
+  </div>
+  <div class="ornament">✦ ✦ ✦</div>
+  <p class="center lead">«Золотой век — собранный вашими руками.»</p>
+  <p class="small center" style="margin-top:1rem;">Конфиденциально · подготовлено как иллюстративный инвест-материал · цифры расчётные</p>
+</section>
+
+</div>
+</body>
+</html>
