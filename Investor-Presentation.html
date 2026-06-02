@@ -74,6 +74,36 @@
   .ornament{font-size:1.4rem;letter-spacing:1rem;color:var(--gold);text-align:center;margin:1rem 0;}
   .bull{color:#3c5a2a;font-weight:700;}
   .bear{color:var(--ox);font-weight:700;}
+
+  /* ---- ПЕЧАТЬ / PDF: каждый слайд = отдельная страница ---- */
+  @media print{
+    @page{ size:A4 landscape; margin:10mm; }
+    html,body{ height:auto; background:var(--paper); }
+    /* сохранить фон и цвета при печати */
+    body,.slide,th,.stat .num,.tag{
+      -webkit-print-color-adjust:exact;
+      print-color-adjust:exact;
+    }
+    .deck{ height:auto; overflow:visible; scroll-snap-type:none; display:block; }
+    .slide{
+      min-height:auto;
+      height:auto;
+      page-break-after:always;
+      break-after:page;
+      page-break-inside:avoid;
+      border-bottom:none;
+      padding:8mm 10mm;
+      justify-content:flex-start;
+    }
+    .slide:last-child{ page-break-after:auto; break-after:auto; }
+    .slide::after{ display:none; }   /* убрать виньетку-тень при печати */
+    .nav{ display:none; }            /* скрыть навигацию */
+    h1{ font-size:46pt; }
+    h2{ font-size:26pt; }
+    .lead{ font-size:14pt; }
+    p,li,td,th{ font-size:11pt; }
+    .fig{ max-height:78mm; width:auto; }
+  }
 </style>
 </head>
 <body>
