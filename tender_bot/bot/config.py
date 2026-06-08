@@ -42,6 +42,9 @@ def _get_float(name: str, default: Optional[float]) -> Optional[float]:
 class Config:
     # --- Telegram ---
     bot_token: str = ""
+    # Optional proxy for api.telegram.org (where Telegram is blocked).
+    # Examples: "http://host:port", "socks5://user:pass@host:port"
+    telegram_proxy: str = ""
 
     # --- Data provider ---
     # Which provider to use: "mock" (built-in sample data, no key required) or
@@ -85,6 +88,7 @@ class Config:
 
         return cls(
             bot_token=os.getenv("BOT_TOKEN", ""),
+            telegram_proxy=os.getenv("TELEGRAM_PROXY", "").strip(),
             provider=os.getenv("PROVIDER", "mock").strip().lower(),
             aggregator_base_url=os.getenv("AGGREGATOR_BASE_URL", ""),
             aggregator_api_key=os.getenv("AGGREGATOR_API_KEY", ""),

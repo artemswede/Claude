@@ -7,6 +7,7 @@ import logging
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 
 from .config import Config
@@ -48,8 +49,16 @@ async def run(config: Config) -> None:
 
     base_query = build_base_query(config)
 
+    # Optional proxy for reaching api.telegram.org (needed where Telegram is
+    # blocked, e.g. some Russian datacenters). Supports http://, https:// and
+    # socks5:// URLs (socks requires the aiohttp-socks package).
+    session = AiohttpSession(proxy=config.telegram_proxy) if config.telegram_proxy else None
+    if config.telegram_proxy:
+        log.info("Соединение с Telegram через прокси: %s", config.telegram_proxy.split("@")[-1])
+
     bot = Bot(
         token=config.bot_token,
+        session=session,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     dp = Dispatcher()
