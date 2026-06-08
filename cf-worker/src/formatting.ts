@@ -40,6 +40,8 @@ export function formatTender(t: Tender): string {
   if (t.winner) {
     const inn = t.winnerInn ? ` (ИНН ${escapeHtml(t.winnerInn)})` : "";
     lines.push(`🏆 Победитель: <b>${escapeHtml(t.winner)}</b>${inn}`);
+  } else if (t.law === "223-ФЗ") {
+    lines.push("🏆 Поставщик: <i>не раскрыт (223-ФЗ)</i>");
   } else {
     lines.push("🏆 Победитель: <i>не определён</i>");
   }

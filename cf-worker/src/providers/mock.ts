@@ -1,6 +1,6 @@
 import { Tender } from "../models";
 import { TenderQuery, filterTenders } from "../filters";
-import { TenderProvider } from "./base";
+import { TenderProvider, SearchOptions } from "./base";
 
 function daysAgo(days: number): string {
   const d = new Date();
@@ -107,7 +107,7 @@ export class MockProvider implements TenderProvider {
   readonly name = "mock";
   private data = sampleTenders();
 
-  async search(query: TenderQuery): Promise<Tender[]> {
+  async search(query: TenderQuery, _options?: SearchOptions): Promise<Tender[]> {
     return filterTenders(this.data, query);
   }
 }

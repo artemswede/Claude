@@ -5,7 +5,7 @@
 
 import { Money, Tender, statusFromRaw } from "../models";
 import { TenderQuery, filterTenders } from "../filters";
-import { TenderProvider } from "./base";
+import { TenderProvider, SearchOptions } from "./base";
 
 export interface AggregatorConfig {
   baseUrl: string;
@@ -121,7 +121,7 @@ export class AggregatorProvider implements TenderProvider {
     };
   }
 
-  async search(query: TenderQuery): Promise<Tender[]> {
+  async search(query: TenderQuery, _options?: SearchOptions): Promise<Tender[]> {
     const url = this.buildUrl(query);
     const authValue = this.cfg.authScheme
       ? `${this.cfg.authScheme} ${this.cfg.apiKey}`

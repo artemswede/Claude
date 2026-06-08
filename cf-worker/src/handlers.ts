@@ -68,7 +68,9 @@ export async function handleUpdate(update: TgUpdate, env: Env): Promise<void> {
       const provider = buildProvider(env);
       const query = withFreeText(baseQuery, args);
       await sendMessage(token, chatId, "🔎 Ищу проверенные тендеры на ТБД…");
-      const tenders = await provider.search(query);
+      // Для Seldon /search использует режим "update" (повторная выдача уже
+      // найденных контрактов; тратит суточный лимит, а не основной).
+      const tenders = await provider.search(query, { mode: "update" });
       const messages = formatResults(
         tenders,
         `Найдено проверенных тендеров: ${tenders.length}`,

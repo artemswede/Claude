@@ -25,9 +25,9 @@ SIM_HOUR_START = "9"
 SIM_HOUR_END = "19"
 SIM_PROBABILITY = "0.66"
 # Seldon.API — при переходе на реальные данные поставьте PROVIDER = "seldon"
-# и заполните filterId (id сохранённого фильтра ТБД из раздела «Контракты»):
+# и заполните filterId (id сохранённого фильтра ТБД-контрактов):
 # SELDON_BASE_URL = "https://apitorgi.myseldon.com"
-# SELDON_FILTER_ID = "1386962"
+# SELDON_FILTER_ID = "4808439"
 #
 # Секреты (НЕ храните в этом файле!) задаются командами:
 #   npx wrangler secret put BOT_TOKEN
