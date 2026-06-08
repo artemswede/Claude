@@ -31,6 +31,12 @@ export interface Env {
   AGGREGATOR_SEARCH_PATH?: string;
   AGGREGATOR_AUTH_HEADER?: string;
   AGGREGATOR_AUTH_SCHEME?: string;
+
+  // Режим имитации (временный предпросмотр формата)
+  SIM_TZ_OFFSET?: string; // часовой пояс рабочего времени, по умолчанию +3 (МСК)
+  SIM_HOUR_START?: string; // начало рабочего времени, по умолчанию 9
+  SIM_HOUR_END?: string; // конец рабочего времени, по умолчанию 19
+  SIM_PROBABILITY?: string; // вероятность отправки на каждом 30-мин тике
 }
 
 function csv(value: string | undefined, fallback: string[]): string[] {

@@ -19,6 +19,11 @@ KEYWORDS = "труб,тбд,большого диаметра"
 ONLY_WITH_WINNER = "true"
 POLL_LOOKBACK_DAYS = "7"
 MAX_RESULTS_PER_QUERY = "25"
+# Имитация (временный предпросмотр формата): рабочее время по будням, МСК.
+SIM_TZ_OFFSET = "3"
+SIM_HOUR_START = "9"
+SIM_HOUR_END = "19"
+SIM_PROBABILITY = "0.66"
 # При переходе на реальный агрегатор раскомментируйте и заполните:
 # AGGREGATOR_BASE_URL = "https://api.seldon.../v1"
 # AGGREGATOR_SEARCH_PATH = "/search"

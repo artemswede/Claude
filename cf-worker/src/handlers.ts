@@ -7,6 +7,7 @@ import { withFreeText, filterTenders } from "./filters";
 import { formatResults } from "./formatting";
 import { Storage } from "./storage";
 import { sendMessage, sendMessages } from "./telegram";
+import { simulatedMessage } from "./simulation";
 
 const HELP_TEXT =
   "<b>Бот мониторинга тендеров на трубы большого диаметра (ТБД)</b>\n\n" +
@@ -18,7 +19,11 @@ const HELP_TEXT =
   "/subscribe — подписаться на автоуведомления о новых тендерах.\n" +
   "/unsubscribe — отписаться.\n" +
   "/status — текущие настройки фильтра и статус подписки.\n" +
-  "/help — эта справка.";
+  "/help — эта справка.\n\n" +
+  "<b>Имитация (временно, для предпросмотра формата):</b>\n" +
+  "/sim — прислать пример уведомления прямо сейчас.\n" +
+  "/sim_on — включить периодическую имитацию (по будням в рабочее время).\n" +
+  "/sim_off — выключить имитацию.";
 
 interface TgChat {
   id: number;
@@ -115,6 +120,33 @@ export async function handleUpdate(update: TgUpdate, env: Env): Promise<void> {
         `Окно поиска: ${baseQuery.lookbackDays} дн.\n\n` +
         `Подписка на уведомления: ${subscribed ? "активна ✅" : "не активна"}`;
       await sendMessage(token, chatId, text);
+      return;
+    }
+
+    case "/sim": {
+      await sendMessage(token, chatId, simulatedMessage());
+      return;
+    }
+
+    case "/sim_on": {
+      const created = await storage.enableSim(chatId);
+      await sendMessage(
+        token,
+        chatId,
+        created
+          ? "🧪 Имитация включена. Буду присылать примеры выигранных тендеров по будням в рабочее время (≈раз в 30–60 мин). /sim_off — выключить, /sim — пример сейчас."
+          : "🧪 Имитация уже включена. /sim_off — выключить.",
+      );
+      return;
+    }
+
+    case "/sim_off": {
+      const removed = await storage.disableSim(chatId);
+      await sendMessage(
+        token,
+        chatId,
+        removed ? "🧪 Имитация выключена." : "🧪 Имитация не была включена.",
+      );
       return;
     }
 

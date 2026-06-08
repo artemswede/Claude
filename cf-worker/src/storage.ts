@@ -46,6 +46,39 @@ export class Storage {
     return ids;
   }
 
+  // --- режим имитации (временный предпросмотр) ---
+  async enableSim(chatId: number): Promise<boolean> {
+    const key = `sim:${chatId}`;
+    if (await this.kv.get(key)) return false;
+    await this.kv.put(key, "1");
+    return true;
+  }
+
+  async disableSim(chatId: number): Promise<boolean> {
+    const key = `sim:${chatId}`;
+    if (!(await this.kv.get(key))) return false;
+    await this.kv.delete(key);
+    return true;
+  }
+
+  async isSimEnabled(chatId: number): Promise<boolean> {
+    return (await this.kv.get(`sim:${chatId}`)) != null;
+  }
+
+  async listSimChats(): Promise<number[]> {
+    const ids: number[] = [];
+    let cursor: string | undefined;
+    do {
+      const res = await this.kv.list({ prefix: "sim:", cursor });
+      for (const k of res.keys) {
+        const id = parseInt(k.name.slice("sim:".length), 10);
+        if (!isNaN(id)) ids.push(id);
+      }
+      cursor = res.list_complete ? undefined : res.cursor;
+    } while (cursor);
+    return ids;
+  }
+
   // --- дедупликация ---
   private async getSeen(chatId: number): Promise<Set<string>> {
     const raw = await this.kv.get(`seen:${chatId}`);

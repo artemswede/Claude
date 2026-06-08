@@ -8,6 +8,7 @@
 import { Env } from "./config";
 import { handleUpdate, TgUpdate } from "./handlers";
 import { runPoll } from "./poll";
+import { runSimulation } from "./simulation";
 
 export default {
   async fetch(
@@ -53,6 +54,11 @@ export default {
     env: Env,
     ctx: ExecutionContext,
   ): Promise<void> {
-    ctx.waitUntil(runPoll(env).catch((e) => console.error(e)));
+    ctx.waitUntil(
+      (async () => {
+        await runPoll(env).catch((e) => console.error("runPoll", e));
+        await runSimulation(env).catch((e) => console.error("runSimulation", e));
+      })(),
+    );
   },
 };
