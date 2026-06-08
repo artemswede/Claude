@@ -1,0 +1,31 @@
+name = "tbd-tender-bot"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# Хранилище подписок и дедупликации.
+# id подставится после команды `npx wrangler kv namespace create TENDER_KV`.
+[[kv_namespaces]]
+binding = "TENDER_KV"
+id = "REPLACE_WITH_KV_ID"
+
+# Фоновый опрос новых тендеров — каждые 30 минут.
+[triggers]
+crons = ["*/30 * * * *"]
+
+[vars]
+PROVIDER = "mock"
+OKPD2_PREFIXES = "24.20"
+KEYWORDS = "труб,тбд,большого диаметра"
+ONLY_WITH_WINNER = "true"
+POLL_LOOKBACK_DAYS = "7"
+MAX_RESULTS_PER_QUERY = "25"
+# При переходе на реальный агрегатор раскомментируйте и заполните:
+# AGGREGATOR_BASE_URL = "https://api.seldon.../v1"
+# AGGREGATOR_SEARCH_PATH = "/search"
+# AGGREGATOR_AUTH_HEADER = "Authorization"
+# AGGREGATOR_AUTH_SCHEME = "Bearer"
+#
+# Секреты (НЕ храните в этом файле!) задаются командами:
+#   npx wrangler secret put BOT_TOKEN
+#   npx wrangler secret put WEBHOOK_SECRET
+#   npx wrangler secret put AGGREGATOR_API_KEY
