@@ -1,0 +1,16 @@
+[Unit]
+Description=Telegram bot: verified large-diameter-pipe (TBD) tenders
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tenderbot
+WorkingDirectory=/opt/tender-bot/tender_bot
+ExecStart=/opt/tender-bot/tender_bot/.venv/bin/python run.py
+Restart=always
+RestartSec=5
+# .env подхватывается самим run.py из WorkingDirectory
+
+[Install]
+WantedBy=multi-user.target
