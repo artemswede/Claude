@@ -7,6 +7,7 @@ import { TenderQuery } from "./filters";
 import { TenderProvider } from "./providers/base";
 import { MockProvider } from "./providers/mock";
 import { AggregatorProvider } from "./providers/aggregator";
+import { SeldonProvider } from "./providers/seldon";
 
 export interface Env {
   // Binding KV (задаётся в wrangler.toml)
@@ -31,6 +32,12 @@ export interface Env {
   AGGREGATOR_SEARCH_PATH?: string;
   AGGREGATOR_AUTH_HEADER?: string;
   AGGREGATOR_AUTH_SCHEME?: string;
+
+  // Seldon.API
+  SELDON_BASE_URL?: string;
+  SELDON_LOGIN?: string; // секрет
+  SELDON_PASSWORD?: string; // секрет
+  SELDON_FILTER_ID?: string; // id сохранённого фильтра ТБД (раздел «Контракты»)
 
   // Режим имитации (временный предпросмотр формата)
   SIM_TZ_OFFSET?: string; // часовой пояс рабочего времени, по умолчанию +3 (МСК)
@@ -78,7 +85,17 @@ export function buildBaseQuery(env: Env): TenderQuery {
 }
 
 export function buildProvider(env: Env): TenderProvider {
-  if ((env.PROVIDER ?? "mock").toLowerCase() === "aggregator") {
+  const provider = (env.PROVIDER ?? "mock").toLowerCase();
+  if (provider === "seldon") {
+    return new SeldonProvider({
+      baseUrl: env.SELDON_BASE_URL ?? "https://apitorgi.myseldon.com",
+      login: env.SELDON_LOGIN ?? "",
+      password: env.SELDON_PASSWORD ?? "",
+      filterId: int(env.SELDON_FILTER_ID, 0),
+      kv: env.TENDER_KV,
+    });
+  }
+  if (provider === "aggregator") {
     return new AggregatorProvider({
       baseUrl: env.AGGREGATOR_BASE_URL ?? "",
       apiKey: env.AGGREGATOR_API_KEY ?? "",

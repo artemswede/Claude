@@ -4,7 +4,6 @@
  */
 
 import { Env, buildBaseQuery, buildProvider } from "./config";
-import { filterTenders } from "./filters";
 import { formatResults } from "./formatting";
 import { Storage } from "./storage";
 import { sendMessages } from "./telegram";
@@ -16,7 +15,7 @@ export async function runPoll(env: Env): Promise<void> {
 
   const baseQuery = buildBaseQuery(env);
   const provider = buildProvider(env);
-  const tenders = filterTenders(await provider.search(baseQuery), baseQuery);
+  const tenders = await provider.search(baseQuery);
   if (tenders.length === 0) return;
 
   const byId = new Map(tenders.map((t) => [t.id, t]));

@@ -3,7 +3,7 @@
  */
 
 import { Env, buildBaseQuery, buildProvider } from "./config";
-import { withFreeText, filterTenders } from "./filters";
+import { withFreeText } from "./filters";
 import { formatResults } from "./formatting";
 import { Storage } from "./storage";
 import { sendMessage, sendMessages } from "./telegram";
@@ -68,8 +68,7 @@ export async function handleUpdate(update: TgUpdate, env: Env): Promise<void> {
       const provider = buildProvider(env);
       const query = withFreeText(baseQuery, args);
       await sendMessage(token, chatId, "🔎 Ищу проверенные тендеры на ТБД…");
-      let tenders = await provider.search(query);
-      tenders = filterTenders(tenders, query);
+      const tenders = await provider.search(query);
       const messages = formatResults(
         tenders,
         `Найдено проверенных тендеров: ${tenders.length}`,

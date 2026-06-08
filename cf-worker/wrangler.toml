@@ -24,13 +24,13 @@ SIM_TZ_OFFSET = "3"
 SIM_HOUR_START = "9"
 SIM_HOUR_END = "19"
 SIM_PROBABILITY = "0.66"
-# При переходе на реальный агрегатор раскомментируйте и заполните:
-# AGGREGATOR_BASE_URL = "https://api.seldon.../v1"
-# AGGREGATOR_SEARCH_PATH = "/search"
-# AGGREGATOR_AUTH_HEADER = "Authorization"
-# AGGREGATOR_AUTH_SCHEME = "Bearer"
+# Seldon.API — при переходе на реальные данные поставьте PROVIDER = "seldon"
+# и заполните filterId (id сохранённого фильтра ТБД из раздела «Контракты»):
+# SELDON_BASE_URL = "https://apitorgi.myseldon.com"
+# SELDON_FILTER_ID = "1386962"
 #
 # Секреты (НЕ храните в этом файле!) задаются командами:
 #   npx wrangler secret put BOT_TOKEN
 #   npx wrangler secret put WEBHOOK_SECRET
-#   npx wrangler secret put AGGREGATOR_API_KEY
+#   npx wrangler secret put SELDON_LOGIN
+#   npx wrangler secret put SELDON_PASSWORD
