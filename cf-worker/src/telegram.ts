@@ -4,6 +4,10 @@
 
 const API = "https://api.telegram.org";
 
+export interface InlineKeyboard {
+  inline_keyboard: { text: string; callback_data: string }[][];
+}
+
 export async function callTelegram(
   token: string,
   method: string,
@@ -25,12 +29,14 @@ export async function sendMessage(
   token: string,
   chatId: number,
   text: string,
+  replyMarkup?: InlineKeyboard,
 ): Promise<any> {
   return callTelegram(token, "sendMessage", {
     chat_id: chatId,
     text,
     parse_mode: "HTML",
     disable_web_page_preview: true,
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
   });
 }
 
@@ -43,4 +49,16 @@ export async function sendMessages(
   for (const text of messages) {
     await sendMessage(token, chatId, text);
   }
+}
+
+/** Подтвердить нажатие инлайн-кнопки (убирает индикатор загрузки). */
+export async function answerCallbackQuery(
+  token: string,
+  callbackQueryId: string,
+  text?: string,
+): Promise<any> {
+  return callTelegram(token, "answerCallbackQuery", {
+    callback_query_id: callbackQueryId,
+    ...(text ? { text } : {}),
+  });
 }

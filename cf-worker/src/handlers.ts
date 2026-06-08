@@ -1,29 +1,30 @@
 /**
- * Обработка входящих сообщений Telegram (webhook): маршрутизация команд.
+ * Обработка входящих апдейтов Telegram (webhook): команды и нажатия кнопок.
  */
 
 import { Env, buildBaseQuery, buildProvider } from "./config";
-import { withFreeText } from "./filters";
+import { TenderQuery, withFreeText } from "./filters";
 import { formatResults } from "./formatting";
 import { Storage } from "./storage";
-import { sendMessage, sendMessages } from "./telegram";
-import { simulatedMessage } from "./simulation";
+import { sendMessage, sendMessages, answerCallbackQuery, InlineKeyboard } from "./telegram";
+
+// Инлайн-кнопка под сообщениями.
+const MONTH_KB: InlineKeyboard = {
+  inline_keyboard: [[{ text: "📅 За последний месяц", callback_data: "month" }]],
+};
 
 const HELP_TEXT =
   "<b>Бот мониторинга тендеров на трубы большого диаметра (ТБД)</b>\n\n" +
-  "Я нахожу <b>проверенные</b> (завершённые, с определённым победителем) " +
-  "закупки ТБД со всех площадок и показываю <b>цену, объём и победителя</b>.\n\n" +
+  "Я нахожу завершённые закупки ТБД и показываю <b>цену, объём, заказчика и победителя</b> " +
+  "(по 223-ФЗ поставщик часто не раскрывается).\n\n" +
   "<b>Команды:</b>\n" +
-  "/search [фраза] — найти свежие проверенные тендеры. Доп. фраза сужает поиск, " +
+  "/search [фраза] — найти ТБД-контракты. Доп. фраза сужает поиск, " +
   "напр. <code>/search 1420</code> или <code>/search Газпром</code>.\n" +
-  "/subscribe — подписаться на автоуведомления о новых тендерах.\n" +
+  "/subscribe — подписаться на автоуведомления о новых контрактах.\n" +
   "/unsubscribe — отписаться.\n" +
-  "/status — текущие настройки фильтра и статус подписки.\n" +
+  "/status — текущие настройки и статус подписки.\n" +
   "/help — эта справка.\n\n" +
-  "<b>Имитация (временно, для предпросмотра формата):</b>\n" +
-  "/sim — прислать пример уведомления прямо сейчас.\n" +
-  "/sim_on — включить периодическую имитацию (по будням в рабочее время).\n" +
-  "/sim_off — выключить имитацию.";
+  "Кнопка ниже покажет контракты за последний месяц.";
 
 interface TgChat {
   id: number;
@@ -32,9 +33,15 @@ interface TgMessage {
   chat: TgChat;
   text?: string;
 }
+interface TgCallbackQuery {
+  id: string;
+  data?: string;
+  message?: TgMessage;
+}
 export interface TgUpdate {
   message?: TgMessage;
   edited_message?: TgMessage;
+  callback_query?: TgCallbackQuery;
 }
 
 function parseCommand(text: string): { cmd: string; args: string } {
@@ -47,7 +54,49 @@ function parseCommand(text: string): { cmd: string; args: string } {
   return { cmd: head, args };
 }
 
+/** Отправить список результатов; кнопку прикрепляем к первому сообщению. */
+async function sendResults(
+  token: string,
+  chatId: number,
+  messages: string[],
+): Promise<void> {
+  for (let i = 0; i < messages.length; i++) {
+    await sendMessage(token, chatId, messages[i], i === 0 ? MONTH_KB : undefined);
+  }
+}
+
+/** Поиск контрактов и отправка результата (используется /search и кнопкой). */
+async function runSearchAndReply(
+  env: Env,
+  chatId: number,
+  query: TenderQuery,
+  header: string,
+): Promise<void> {
+  const token = env.BOT_TOKEN;
+  await sendMessage(token, chatId, "🔎 Ищу ТБД-контракты…");
+  // Для Seldon используем режим "update" (повторная выдача найденных контрактов;
+  // тратит суточный лимит, а не основной).
+  const tenders = await buildProvider(env).search(query, { mode: "update" });
+  await sendResults(token, chatId, formatResults(tenders, `${header}: ${tenders.length}`));
+}
+
+async function handleCallback(cq: TgCallbackQuery, env: Env): Promise<void> {
+  const chatId = cq.message?.chat?.id;
+  await answerCallbackQuery(env.BOT_TOKEN, cq.id); // убрать «часики» на кнопке
+  if (chatId == null) return;
+
+  if (cq.data === "month") {
+    const query: TenderQuery = { ...buildBaseQuery(env), lookbackDays: 30 };
+    await runSearchAndReply(env, chatId, query, "За последний месяц");
+  }
+}
+
 export async function handleUpdate(update: TgUpdate, env: Env): Promise<void> {
+  if (update.callback_query) {
+    await handleCallback(update.callback_query, env);
+    return;
+  }
+
   const msg = update.message ?? update.edited_message;
   if (!msg || !msg.text) return;
 
@@ -60,22 +109,12 @@ export async function handleUpdate(update: TgUpdate, env: Env): Promise<void> {
   switch (cmd) {
     case "/start":
     case "/help":
-      await sendMessage(token, chatId, HELP_TEXT);
+      await sendMessage(token, chatId, HELP_TEXT, MONTH_KB);
       return;
 
     case "/search": {
-      const baseQuery = buildBaseQuery(env);
-      const provider = buildProvider(env);
-      const query = withFreeText(baseQuery, args);
-      await sendMessage(token, chatId, "🔎 Ищу проверенные тендеры на ТБД…");
-      // Для Seldon /search использует режим "update" (повторная выдача уже
-      // найденных контрактов; тратит суточный лимит, а не основной).
-      const tenders = await provider.search(query, { mode: "update" });
-      const messages = formatResults(
-        tenders,
-        `Найдено проверенных тендеров: ${tenders.length}`,
-      );
-      await sendMessages(token, chatId, messages);
+      const query = withFreeText(buildBaseQuery(env), args);
+      await runSearchAndReply(env, chatId, query, "Найдено ТБД-контрактов");
       return;
     }
 
@@ -85,7 +124,7 @@ export async function handleUpdate(update: TgUpdate, env: Env): Promise<void> {
         token,
         chatId,
         created
-          ? "✅ Вы подписаны. Буду присылать новые проверенные тендеры на ТБД по мере появления."
+          ? "✅ Вы подписаны. Буду присылать новые ТБД-контракты по мере появления."
           : "ℹ️ Вы уже подписаны.",
       );
       return;
@@ -105,49 +144,14 @@ export async function handleUpdate(update: TgUpdate, env: Env): Promise<void> {
       const baseQuery = buildBaseQuery(env);
       const provider = buildProvider(env);
       const subscribed = await storage.isSubscribed(chatId);
-      const priceParts: string[] = [];
-      if (baseQuery.minPrice != null) priceParts.push(`от ${baseQuery.minPrice}`);
-      if (baseQuery.maxPrice != null) priceParts.push(`до ${baseQuery.maxPrice}`);
-      const priceStr = priceParts.length
-        ? priceParts.join(" ") + " ₽"
-        : "без ограничений";
       const text =
         "<b>Текущие настройки</b>\n" +
         `Источник данных: <code>${provider.name}</code>\n` +
         `ОКПД2: <code>${baseQuery.okpd2Prefixes.join(", ")}</code>\n` +
         `Ключевые слова: <code>${baseQuery.keywords.join(", ")}</code>\n` +
-        `Только с победителем: ${baseQuery.onlyWithWinner ? "да" : "нет"}\n` +
-        `Цена: ${priceStr}\n` +
         `Окно поиска: ${baseQuery.lookbackDays} дн.\n\n` +
         `Подписка на уведомления: ${subscribed ? "активна ✅" : "не активна"}`;
-      await sendMessage(token, chatId, text);
-      return;
-    }
-
-    case "/sim": {
-      await sendMessage(token, chatId, simulatedMessage());
-      return;
-    }
-
-    case "/sim_on": {
-      const created = await storage.enableSim(chatId);
-      await sendMessage(
-        token,
-        chatId,
-        created
-          ? "🧪 Имитация включена. Буду присылать примеры выигранных тендеров по будням в рабочее время (≈раз в 30–60 мин). /sim_off — выключить, /sim — пример сейчас."
-          : "🧪 Имитация уже включена. /sim_off — выключить.",
-      );
-      return;
-    }
-
-    case "/sim_off": {
-      const removed = await storage.disableSim(chatId);
-      await sendMessage(
-        token,
-        chatId,
-        removed ? "🧪 Имитация выключена." : "🧪 Имитация не была включена.",
-      );
+      await sendMessage(token, chatId, text, MONTH_KB);
       return;
     }
 
@@ -156,6 +160,7 @@ export async function handleUpdate(update: TgUpdate, env: Env): Promise<void> {
         token,
         chatId,
         "Не понимаю команду. Наберите /help для списка команд.",
+        MONTH_KB,
       );
   }
 }
