@@ -211,10 +211,12 @@ export class SeldonProvider implements TenderProvider {
       console.error("Seldon: не заданы SELDON_LOGIN / SELDON_PASSWORD / SELDON_FILTER_ID");
       return [];
     }
+    const mode = options?.mode ?? "new";
     try {
       const token = await this.getToken();
-      const taskId = await this.createOrder(token, query, options?.mode ?? "new");
+      const taskId = await this.createOrder(token, query, mode);
       const quantity = await this.waitReady(token, taskId);
+      console.log(`Seldon: mode=${mode} lookback=${Math.min(query.lookbackDays, 30)}d quantity=${quantity}`);
       if (quantity === 0) return [];
       const contracts = await this.fetchPages(token, taskId, quantity);
 

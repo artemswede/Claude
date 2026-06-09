@@ -74,9 +74,10 @@ async function runSearchAndReply(
 ): Promise<void> {
   const token = env.BOT_TOKEN;
   await sendMessage(token, chatId, "🔎 Ищу ТБД-контракты…");
-  // Для Seldon используем режим "update" (повторная выдача найденных контрактов;
-  // тратит суточный лимит, а не основной).
-  const tenders = await buildProvider(env).search(query, { mode: "update" });
+  // Режим "new": Seldon отдаёт контракты, ранее не передававшиеся этому аккаунту.
+  // Самый надёжный способ получить реальные данные (режим "update" у этого
+  // аккаунта/фильтра ничего не возвращал).
+  const tenders = await buildProvider(env).search(query, { mode: "new" });
   await sendResults(token, chatId, formatResults(tenders, `${header}: ${tenders.length}`));
 }
 
