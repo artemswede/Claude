@@ -1,0 +1,11 @@
+{
+  // Конфигурация Cloudflare Worker. Документация: https://developers.cloudflare.com/workers/wrangler/configuration/
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "project-1950",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "observability": {
+    "enabled": true
+  }
+  // Привязки (KV, D1, R2, Queues, Durable Objects и т.д.) будут добавлены на этапе архитектуры (Шаг 2).
+}
