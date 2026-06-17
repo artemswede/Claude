@@ -22,7 +22,7 @@ WHITE     = RGBColor(0xFF, 0xFF, 0xFF)
 LINE      = RGBColor(0xD9, 0xE1, 0xF2)
 
 FONT = "Calibri"
-TOTAL = 10  # 5 основных слайдов + 5 слайдов приложения
+TOTAL = 11  # 5 основных + 6 слайдов приложения
 GREEN = RGBColor(0x1E, 0x8E, 0x5A)
 GRAYBOX = RGBColor(0xEE, 0xEF, 0xF2)
 
@@ -571,6 +571,95 @@ box_titled(s, 8.25, 4.1, 4.48, 2.7,
             "Оценка эффекта (вилка по аналогии) — не гарантия",
             "Кого позвать + кнопка «передать экспертам» → авто-бриф (PDF)"],
            fill=GREEN, accent=WHITE, title_size=12.5, body_size=9.8, body_color=WHITE)
+
+# ============================================================== SLIDE 11 — матрица 2×2 (16 кейсов)
+s = add_slide()
+header(s, "Приложение · матрица", "Карта 16 кейсов: квантовый потенциал × бизнес-ценность", 11)
+
+DIRCOL = {
+    "Логистика": ACCENT,
+    "Производство": GREEN,
+    "Химия": RGBColor(0x7A, 0x4F, 0xC0),
+    "Финансы": RGBColor(0xE0, 0x8A, 0x1E),
+}
+points = [
+    ("L1", 5, 5, "Логистика"), ("L2", 2, 4, "Логистика"), ("L3", 4, 1, "Логистика"), ("L4", 1, 1, "Логистика"),
+    ("P1", 5, 5, "Производство"), ("P2", 2, 4, "Производство"), ("P3", 4, 1, "Производство"), ("P4", 1, 1, "Производство"),
+    ("C1", 4, 5, "Химия"), ("C2", 2, 5, "Химия"), ("C3", 4, 1, "Химия"), ("C4", 1, 1, "Химия"),
+    ("F1", 5, 4, "Финансы"), ("F2", 2, 4, "Финансы"), ("F3", 4, 1, "Финансы"), ("F4", 1, 1, "Финансы"),
+]
+PL, PT, PW, PH = 1.4, 2.0, 8.0, 4.5          # рамка области графика
+MIDX, MIDY = PL + PW / 2, PT + PH / 2
+# квадранты-фоны
+quads = [
+    (PL, PT, "Watchlist", LIGHTBLUE, RGBColor(0x6E, 0x8A, 0xC0)),
+    (MIDX, PT, "PoC сейчас", RGBColor(0xE3, 0xF3, 0xEA), RGBColor(0x4F, 0x9E, 0x73)),
+    (PL, MIDY, "Отбросить", GRAYBOX, RGBColor(0xA0, 0xA6, 0xB0)),
+    (MIDX, MIDY, "Классический солвер", RGBColor(0xF3, 0xF7, 0xFC), RGBColor(0x7E, 0x90, 0xAE)),
+]
+for qx, qy, label, fill, txtc in quads:
+    r = rbox(s, qx, qy, PW / 2, PH / 2, fill=fill, line=WHITE, line_w=1.5)
+    tf = r.text_frame; tf.vertical_anchor = MSO_ANCHOR.TOP
+    tf.margin_left = Inches(0.1); tf.margin_top = Inches(0.06)
+    p = tf.paragraphs[0]
+    p.alignment = PP_ALIGN.RIGHT if "PoC" in label or "Класс" in label else PP_ALIGN.LEFT
+    set_run(p.add_run(), label, 12, bold=True, color=txtc)
+
+def px(v): return PL + 0.4 + (v / 5.0) * (PW - 0.8)
+def py(v): return PT + 0.3 + (PH - 0.6) - (v / 5.0) * (PH - 0.6)
+
+from collections import defaultdict
+groups = defaultdict(list)
+for pid, x, y, d in points:
+    groups[(x, y)].append((pid, d))
+OFF = {
+    1: [(0, 0)],
+    2: [(-0.21, 0), (0.21, 0)],
+    3: [(-0.22, -0.13), (0.22, -0.13), (0.0, 0.22)],
+    4: [(-0.21, -0.21), (0.21, -0.21), (-0.21, 0.21), (0.21, 0.21)],
+}
+D = 0.32
+for (x, y), members in groups.items():
+    offs = OFF[len(members)]
+    for i, (pid, d) in enumerate(members):
+        dx, dy = offs[i]
+        cx, cy = px(x) + dx, py(y) + dy
+        o = s.shapes.add_shape(MSO_SHAPE.OVAL, Inches(cx - D / 2), Inches(cy - D / 2),
+                               Inches(D), Inches(D))
+        o.fill.solid(); o.fill.fore_color.rgb = DIRCOL[d]
+        o.line.color.rgb = WHITE; o.line.width = Pt(1.2); o.shadow.inherit = False
+        tf = o.text_frame; tf.word_wrap = False
+        tf.margin_left = 0; tf.margin_right = 0; tf.margin_top = 0; tf.margin_bottom = 0
+        tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        pp = tf.paragraphs[0]; pp.alignment = PP_ALIGN.CENTER
+        set_run(pp.add_run(), pid, 7.5, bold=True, color=WHITE)
+
+# оси
+ya = textbox(s, Inches(PL - 0.05), Inches(PT - 0.32), Inches(4), Inches(0.3))[1]
+set_run(ya.paragraphs[0].add_run(), "↑ Квантовый потенциал", 10, bold=True, color=GRAY)
+xa = textbox(s, Inches(PL), Inches(PT + PH + 0.08), Inches(PW), Inches(0.3))[1]
+xa.paragraphs[0].alignment = PP_ALIGN.CENTER
+set_run(xa.paragraphs[0].add_run(), "Бизнес-ценность / реализуемость →", 10, bold=True, color=GRAY)
+
+# легенда
+lx = 9.75
+lg = textbox(s, Inches(lx), Inches(2.0), Inches(2.95), Inches(0.35))[1]
+set_run(lg.paragraphs[0].add_run(), "Направления", 12.5, bold=True, color=DARK_BLUE)
+for i, (name, col) in enumerate(DIRCOL.items()):
+    yy = 2.5 + i * 0.42
+    dot = s.shapes.add_shape(MSO_SHAPE.OVAL, Inches(lx), Inches(yy), Inches(0.22), Inches(0.22))
+    dot.fill.solid(); dot.fill.fore_color.rgb = col; dot.line.fill.background()
+    dot.shadow.inherit = False
+    tb2 = textbox(s, Inches(lx + 0.32), Inches(yy - 0.02), Inches(2.6), Inches(0.3))[1]
+    set_run(tb2.paragraphs[0].add_run(), name, 11, color=TEXT)
+# пояснение
+note = box_titled(s, lx, 4.35, 2.95, 2.45,
+                  "Как читать",
+                  ["Каждая точка — 1 кейс (ID из CSV)",
+                   "Положение = баллы движка (X×Y)",
+                   "Точки в одной ячейке разнесены для читаемости",
+                   "Квадрант = вердикт приоритизации"],
+                  fill=WHITE, accent=DARK_BLUE, title_size=12, body_size=9.8)
 
 out = "/home/user/Claude/quantum-service-competitor-analysis/Анализ-конкурентов-Q-Scope.pptx"
 prs.save(out)
