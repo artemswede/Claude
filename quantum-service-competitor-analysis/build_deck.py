@@ -22,6 +22,9 @@ WHITE     = RGBColor(0xFF, 0xFF, 0xFF)
 LINE      = RGBColor(0xD9, 0xE1, 0xF2)
 
 FONT = "Calibri"
+TOTAL = 10  # 5 основных слайдов + 5 слайдов приложения
+GREEN = RGBColor(0x1E, 0x8E, 0x5A)
+GRAYBOX = RGBColor(0xEE, 0xEF, 0xF2)
 
 prs = Presentation()
 prs.slide_width = Inches(13.333)
@@ -84,7 +87,7 @@ def header(slide, kicker, title, idx):
     # номер слайда
     nb, nf = textbox(slide, Inches(12.4), Inches(6.95), Inches(0.6), Inches(0.4))
     pp = nf.paragraphs[0]; pp.alignment = PP_ALIGN.RIGHT
-    set_run(pp.add_run(), f"{idx} / 5", 10, color=GRAY)
+    set_run(pp.add_run(), f"{idx} / {TOTAL}", 10, color=GRAY)
 
 
 def style_table(table, header_size=10.5, body_size=9.5, first_col_bold=False):
@@ -354,6 +357,220 @@ tf.margin_left = Inches(0.18); tf.margin_top = Inches(0.06)
 set_run(tf.paragraphs[0].add_run(),
         "Принцип MVP: максимально быстрый и честный предварительный сигнал + чистый бриф для экспертов.",
         10.5, bold=True, color=DARK_BLUE)
+
+# ============================================================== ХЕЛПЕРЫ ПРИЛОЖЕНИЯ
+def rbox(slide, l, t, w, h, fill=WHITE, line=LINE, line_w=1.0):
+    sh = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(l), Inches(t),
+                                Inches(w), Inches(h))
+    sh.fill.solid(); sh.fill.fore_color.rgb = fill
+    if line is None:
+        sh.line.fill.background()
+    else:
+        sh.line.color.rgb = line; sh.line.width = Pt(line_w)
+    sh.shadow.inherit = False
+    sh.text_frame.word_wrap = True
+    return sh
+
+
+def box_titled(slide, l, t, w, h, title, lines, fill=WHITE, accent=ACCENT,
+               title_size=12.5, body_size=9.8, body_color=TEXT):
+    sh = rbox(slide, l, t, w, h, fill=fill)
+    tf = sh.text_frame
+    tf.margin_left = Inches(0.16); tf.margin_right = Inches(0.14)
+    tf.margin_top = Inches(0.12); tf.margin_bottom = Inches(0.08)
+    p = tf.paragraphs[0]
+    set_run(p.add_run(), title, title_size, bold=True, color=accent)
+    for ln in lines:
+        pp = tf.add_paragraph(); pp.space_before = Pt(4)
+        set_run(pp.add_run(), ln, body_size, color=body_color)
+    return sh
+
+
+# ============================================================== SLIDE 6 — кейсы
+s = add_slide()
+header(s, "Приложение · кейсы", "Что конкуренты уже решают на практике", 6)
+rows6 = [
+    ["Игрок", "Архетип задач", "Примеры кейсов (клиент → задача)", "Зрелость"],
+    ["D-Wave", "Комбинаторная оптимизация",
+     "Save-On-Foods (расписания, −80% времени) · Port of LA · NTT DOCOMO (−15% сигналов) · Ford Otosan · VW (трафик, paint shop) · DENSO",
+     "Есть продакшен"],
+    ["IBM Quantum", "Симуляция + финансы",
+     "Boeing (коррозия) · Mercedes (батареи) · Mitsubishi/JSR (OLED) · JPMorgan · HSBC · Cleveland Clinic",
+     "В осн. research"],
+    ["Multiverse / QC Ware", "Финансы, энергетика, химия",
+     "BBVA (портфель) · Iberdrola (батареи в сети) · Telefónica (сжатие LLM) · Goldman Sachs · Covestro · Aisin",
+     "PoC / пилоты"],
+    ["MS AI Readiness / AWS WA", "Не квантовые — self-service ассессмент",
+     "Не отраслевые кейсы, а эталон формата: анкета по pillars → скоринг → приоритизированный отчёт",
+     "Массовый продукт"],
+]
+gt = s.shapes.add_table(5, 4, Inches(0.6), Inches(1.9), Inches(12.13), Inches(4.6)).table
+gt.columns[0].width = Inches(2.2); gt.columns[1].width = Inches(2.6)
+gt.columns[2].width = Inches(5.5); gt.columns[3].width = Inches(1.83)
+fill_table(gt, rows6)
+style_table(gt, header_size=11, body_size=9.5, first_col_bold=True)
+tb, tf = textbox(s, Inches(0.6), Inches(6.7), Inches(11.8), Inches(0.5))
+set_run(tf.paragraphs[0].add_run(),
+        "Цифры — заявления вендоров/партнёров (PoC/research-стадия), не аудированный production-ROI. Реально «в проде» — преимущественно оптимизация (D-Wave).",
+        9.5, italic=True, color=GRAY)
+
+# ============================================================== SLIDE 7 — процесс
+s = add_slide()
+header(s, "Приложение · процесс", "Как конкуренты выстраивают процесс с клиентом", 7)
+# 4-шаговая воронка
+steps = ["1. Discovery\n(поиск задачи)", "2. Assessment\n(оценка применимости)",
+         "3. PoC / Pilot\n(прототип на данных)", "4. Production\n(внедрение, сопровождение)"]
+sx, sw, sgap = 0.6, 2.78, 0.33
+for i, st in enumerate(steps):
+    l = sx + i * (sw + sgap)
+    b = rbox(s, l, 1.95, sw, 0.95, fill=DARK_BLUE, line=None)
+    tf = b.text_frame; tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+    for j, line in enumerate(st.split("\n")):
+        p = tf.paragraphs[0] if j == 0 else tf.add_paragraph()
+        p.alignment = PP_ALIGN.CENTER
+        set_run(p.add_run(), line, 12 if j == 0 else 9.5, bold=(j == 0), color=WHITE)
+    if i < 3:
+        ar = s.shapes.add_shape(MSO_SHAPE.CHEVRON, Inches(l + sw + 0.02), Inches(2.18),
+                                Inches(0.28), Inches(0.5))
+        ar.fill.solid(); ar.fill.fore_color.rgb = ACCENT; ar.line.fill.background()
+        ar.shadow.inherit = False
+tb, tf = textbox(s, Inches(0.6), Inches(3.0), Inches(12.1), Inches(0.4))
+set_run(tf.paragraphs[0].add_run(),
+        "Общая схема у всех квантовых игроков — консалтинго-ведомая, sales-gated, требует тех-грамотности клиента.",
+        10, italic=True, color=GRAY)
+# различия игроков
+diffs = [
+    ("D-Wave Launch", "Проф. услуги: эксперты «переводят» задачу в QUBO; доставка через облако Leap."),
+    ("IBM Quantum", "Членство (Network) + доменные working groups + обучение Quantum Business Foundations."),
+    ("Multiverse / QC Ware", "Продукт (Singularity / Forge) + консалтинг; discovery → PoC → deployment."),
+    ("MS / AWS (эталон)", "Self-service анкета по pillars, без консультанта; хэндофф к партнёрам."),
+]
+for i, (t_, d_) in enumerate(diffs):
+    col, row = i % 2, i // 2
+    box_titled(s, 0.6 + col * 6.1, 3.55 + row * 1.05, 5.85, 0.95, t_, [d_],
+               accent=DARK_BLUE, title_size=12, body_size=10)
+# наш сдвиг
+box_titled(s, 0.6, 5.8, 12.13, 1.0,
+           "Наш сдвиг (Q-Scope):",
+           ["Self-service анкета на входе вместо sales-gated discovery → быстро и дёшево квалифицируем задачу, дальше — структурированный бриф к экспертам. Vendor-нейтрально."],
+           fill=LIGHTBLUE, accent=ACCENT, title_size=13, body_size=11)
+
+# ============================================================== SLIDE 8 — движок приоритизации
+s = add_slide()
+header(s, "Приложение · движок", "Движок приоритизации инициатив", 8)
+# левая колонка: шаги 1-2
+box_titled(s, 0.6, 1.95, 6.1, 1.85,
+           "Шаг 1. Gate-фильтры (любое «нет» → не для кванта)",
+           ["1. Классика провисает (экспоненциально / NP-трудно)",
+            "2. Формализуемо как QUBO / Hamiltonian (цель + ограничения)",
+            "3. Нет I/O-bottleneck (вход мал относительно пространства решений)"],
+           accent=DARK_BLUE, title_size=12.5, body_size=10.5)
+# скоринг
+sc = rbox(s, 0.6, 3.95, 6.1, 2.85, fill=WHITE)
+tf = sc.text_frame; tf.margin_left = Inches(0.16); tf.margin_top = Inches(0.12)
+set_run(tf.paragraphs[0].add_run(), "Шаг 2. Взвешенный скоринг (0–5)", 12.5, bold=True, color=DARK_BLUE)
+for crit, w in [("Бизнес-ценность / ROI", "25%"), ("Классическая твёрдость + speedup", "25%"),
+                ("Архетип-fit (симуляция/оптимизация ≫ QML)", "15%"),
+                ("Реализуемость (NISQ сейчас vs FT)", "15%"),
+                ("Готовность данных/инфры/команды", "10%"),
+                ("Допустимость приближённого решения", "10%")]:
+    pp = tf.add_paragraph(); pp.space_before = Pt(5)
+    r = pp.add_run(); set_run(r, w + "  ", 10.5, bold=True, color=ACCENT)
+    set_run(pp.add_run(), crit, 10.5, color=TEXT)
+# правая колонка: матрица 2x2
+mx, my, q = 7.45, 2.45, 2.35
+set_run(textbox(s, Inches(mx), Inches(1.98), Inches(q*2), Inches(0.35))[1].paragraphs[0].add_run(),
+        "Шаг 3. Матрица 2×2 → приоритет", 12.5, bold=True, color=DARK_BLUE)
+quad = [
+    (0, 0, "Watchlist / glide path", LIGHTBLUE, DARK_BLUE),
+    (1, 0, "PoC сейчас", ACCENT, WHITE),
+    (0, 1, "Отбросить", GRAYBOX, GRAY),
+    (1, 1, "Классический / гибридный солвер", LIGHTBLUE, DARK_BLUE),
+]
+for cx, cy, label, fill, txtc in quad:
+    b = rbox(s, mx + cx * (q + 0.06), my + cy * (q + 0.06), q, q, fill=fill, line=WHITE, line_w=2)
+    tfq = b.text_frame; tfq.vertical_anchor = MSO_ANCHOR.MIDDLE
+    p = tfq.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+    set_run(p.add_run(), label, 11, bold=True, color=txtc)
+# оси
+set_run(textbox(s, Inches(mx - 0.05), Inches(my - 0.32), Inches(q*2), Inches(0.3))[1].paragraphs[0].add_run(),
+        "↑ Квантовый потенциал", 9.5, bold=True, color=GRAY)
+axb = textbox(s, Inches(mx), Inches(my + 2*q + 0.18), Inches(q*2+0.06), Inches(0.3))[1]
+axb.paragraphs[0].alignment = PP_ALIGN.CENTER
+set_run(axb.paragraphs[0].add_run(), "Бизнес-ценность / реализуемость →", 9.5, bold=True, color=GRAY)
+
+# ============================================================== SLIDE 9 — MVP бриф
+s = add_slide()
+header(s, "Приложение · MVP", "Бриф задачи и подготовка клиента", 9)
+# левый: структура брифа
+sc = rbox(s, 0.6, 1.95, 6.3, 4.85, fill=WHITE)
+tf = sc.text_frame; tf.margin_left = Inches(0.18); tf.margin_top = Inches(0.14)
+set_run(tf.paragraphs[0].add_run(), "Структура брифа (12 секций)", 13, bold=True, color=DARK_BLUE)
+for ln in ["Владелец задачи и роли (кто решает, кто платит)",
+           "Бизнес-задача в одном предложении: «как есть» → «как надо»",
+           "Текущее решение и боль (время / стоимость / качество)",
+           "Тип задачи и цель (что значит «лучше»)",
+           "Переменные решения (что можно менять)",
+           "Ограничения (жёсткие / мягкие)",
+           "Масштаб (сколько объектов; рост со временем)",
+           "Данные (объём, формат, доступность, чувствительность)",
+           "Метрика успеха и базовая линия",
+           "Частота и режим (разово / real-time)",
+           "Экономика (стоимость, цена ошибки, эффект)",
+           "Готовность и ограничения (ИТ, бюджет, комплаенс)"]:
+    pp = tf.add_paragraph(); pp.space_before = Pt(3)
+    set_run(pp.add_run(), "•  " + ln, 10, color=TEXT)
+# правый: кого позвать
+box_titled(s, 7.1, 1.95, 5.63, 4.85,
+           "Кого пригласить и что подготовить",
+           ["Бизнес-заказчик — боль, метрика, эффект",
+            "Профильные операции — как устроен процесс, ограничения, объёмы",
+            "Владелец данных — какие данные, объём, качество, доступ",
+            "ИТ / инфраструктура — где данные, интеграции, безопасность",
+            "Финансы — стоимость текущего решения, цена ошибки, ROI",
+            "Комплаенс (опц.) — ограничения на данные",
+            "",
+            "Сервис выдаёт этот чек-лист, чтобы клиент пришёл подготовленным и собрал нужные службы."],
+           fill=LIGHTBLUE, accent=ACCENT, title_size=13, body_size=10.3)
+
+# ============================================================== SLIDE 10 — MVP анкета (Акинатор)
+s = add_slide()
+header(s, "Приложение · MVP", "Адаптивная анкета без брифа (чат-бот «Акинатор»)", 10)
+# вертикальная воронка слева
+flow = [
+    ("Уровень 0", "Отрасль и роль"),
+    ("Уровень 1", "Тип задачи → архетип: оптимизация / симуляция / сэмплинг / ML"),
+    ("Уровень 2", "Признаки комбинаторного взрыва и боль классики (gate G1)"),
+    ("Уровень 3", "Формализуемость: цель + переменные + ограничения (gate G2)"),
+    ("Уровень 4", "Данные и I/O-bottleneck (gate G3)"),
+    ("Уровень 5", "Масштаб, частота, экономика → бизнес-ценность"),
+    ("Уровень 6", "Готовность: данные / ИТ / команда / комплаенс"),
+]
+fy = 1.95
+for i, (lv, d_) in enumerate(flow):
+    b = rbox(s, 0.6, fy, 7.4, 0.6, fill=(LIGHTBLUE if i % 2 == 0 else WHITE))
+    tf = b.text_frame; tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+    tf.margin_left = Inches(0.14); tf.margin_top = Inches(0.02); tf.margin_bottom = Inches(0.02)
+    p = tf.paragraphs[0]
+    set_run(p.add_run(), lv + ":  ", 10.5, bold=True, color=ACCENT)
+    set_run(p.add_run(), d_, 10, color=TEXT)
+    fy += 0.68
+# принцип сверху-справа
+box_titled(s, 8.25, 1.95, 4.48, 2.0,
+           "Принцип (как Акинатор)",
+           ["От общего к частному, ветвление по ответам",
+            "Закрытые ответы → детерминированный скоринг",
+            "«Не знаю» не блокирует; живой индикатор «похоже на…»",
+            "8–15 вопросов до результата"],
+           accent=DARK_BLUE, title_size=12, body_size=9.8)
+# выход снизу-справа
+box_titled(s, 8.25, 4.1, 4.48, 2.7,
+           "Выход: сценарий + эффект",
+           ["Вердикт: Перспективно → PoC · Watchlist · Классики достаточно",
+            "Сценарий: «ваша задача — {подтип}, формализуется как QUBO, подход — гибридный солвер, похоже на {референс-кейс}»",
+            "Оценка эффекта (вилка по аналогии) — не гарантия",
+            "Кого позвать + кнопка «передать экспертам» → авто-бриф (PDF)"],
+           fill=GREEN, accent=WHITE, title_size=12.5, body_size=9.8, body_color=WHITE)
 
 out = "/home/user/Claude/quantum-service-competitor-analysis/Анализ-конкурентов-Q-Scope.pptx"
 prs.save(out)
