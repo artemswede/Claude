@@ -6,11 +6,17 @@
   "compatibility_date": "2026-06-01",
   // SPA из ./public; запросы без статики (например /api/*) уходят в Worker.
   "assets": { "directory": "./public" },
-  // KV: анонимные счётчики + лиды. ID создать: `npx wrangler kv namespace create METRICS` и LEADS,
-  // затем подставить сюда. Для `wrangler dev` работает локально без реальных ID.
-  "kv_namespaces": [
-    { "binding": "METRICS", "id": "REPLACE_WITH_METRICS_KV_ID" },
-    { "binding": "LEADS", "id": "REPLACE_WITH_LEADS_KV_ID" }
-  ],
   "observability": { "enabled": true }
+
+  // --- KV (опционально) ---------------------------------------------------------
+  // Метрики и лиды работают только при подключённых KV. Без них приложение полностью
+  // функционирует, но счётчики/лиды не сохраняются (код это безопасно игнорирует).
+  // Чтобы включить:
+  //   npx wrangler kv namespace create METRICS
+  //   npx wrangler kv namespace create LEADS
+  // и добавить сюда (заменив id):
+  // "kv_namespaces": [
+  //   { "binding": "METRICS", "id": "<METRICS_ID>" },
+  //   { "binding": "LEADS",   "id": "<LEADS_ID>" }
+  // ]
 }

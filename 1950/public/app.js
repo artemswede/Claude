@@ -10,6 +10,29 @@ const api = (url, body) =>
 
 const VCOLOR = { poc_now: "green", watchlist: "amber", classical: "blue", discard: "red" };
 
+// ---------- иконки (inline SVG) ----------
+const SW = `fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"`;
+const ICON = {
+  atom: `<svg viewBox="0 0 24 24" ${SW}><circle cx="12" cy="12" r="2"/><ellipse cx="12" cy="12" rx="10" ry="4.3"/><ellipse cx="12" cy="12" rx="10" ry="4.3" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4.3" transform="rotate(120 12 12)"/></svg>`,
+  bolt: `<svg viewBox="0 0 24 24" ${SW}><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>`,
+  dot: `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4"/></svg>`,
+  check: `<svg viewBox="0 0 24 24" ${SW}><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>`,
+  clock: `<svg viewBox="0 0 24 24" ${SW}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`,
+  cog: `<svg viewBox="0 0 24 24" ${SW}><circle cx="12" cy="12" r="3.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>`,
+  x: `<svg viewBox="0 0 24 24" ${SW}><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>`,
+  doc: `<svg viewBox="0 0 24 24" ${SW}><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M9 12h7M9 16h6"/></svg>`,
+};
+const icon = (n) => `<span class="icon">${ICON[n] || ""}</span>`;
+const caseCard = (name, task, effect, mat) =>
+  `<div class="case">${icon("dot")}<div><b>${name}</b> · ${task}<div class="cmuted">${effect}</div></div><span class="tag">${mat}</span></div>`;
+
+const VERDICT_INFO = {
+  poc_now: { ic: "check", sub: "Задача похожа на то, что уже запускают пилотами.", next: "Передайте бриф экспертам — поможем начать пилот." },
+  watchlist: { ic: "clock", sub: "Потенциал есть, но пока рано — лучше гибридный подход и вернуться позже.", next: "Сохраните бриф; подскажем, что докрутить для переоценки." },
+  classical: { ic: "cog", sub: "Квант не нужен — задача эффективно решается обычными методами. И с этим мы тоже поможем.", next: "Передайте бриф — предложим классическое/гибридное решение." },
+  discard: { ic: "x", sub: "Для этой задачи квантовые технологии не дают смысла.", next: "Если задача вырастет или изменится — возвращайтесь." },
+};
+
 // ---------- определения вопросов ----------
 const IND = ["Логистика/транспорт", "Производство", "Энергетика", "Материалы/химия", "Финансы", "ИТ/другое"];
 const ROLE = ["Владелец/руководитель", "Операции", "R&D", "ИТ/аналитик"];
@@ -93,11 +116,17 @@ function computeQueue(a) {
 // ---------- экраны ----------
 function landing() {
   app.innerHTML = `
+    <div class="hero-ic">${icon("atom")}</div>
     <div class="kicker">Квантовые технологии · оценка задачи</div>
     <h1>Опишите бизнес-задачу — и поймите, перспективна ли она для квантовых вычислений</h1>
     <p class="muted">За пару минут, на языке бизнеса, без физики. Получите честный вердикт и бриф для экспертов.</p>
-    <div class="plate">Не обещаем эффект. Можем честно сказать «вам достаточно обычных решений». Это вход в нашу воронку проектов — с задачей не бросаем.</div>
-    <button class="btn big" id="go">Проверить задачу</button>`;
+    <div class="plate">Не обещаем эффект. Можем честно сказать «вам достаточно обычных решений». С задачей не бросаем — это вход в нашу воронку проектов.</div>
+    <div class="cases">
+      ${caseCard("Save-On-Foods", "Расписания смен", "−80% времени планирования", "production")}
+      ${caseCard("NTT DOCOMO", "Мобильная сеть", "−15% нагрузки", "production")}
+      ${caseCard("Ford Otosan", "План производства", "−80% времени", "production")}
+    </div>
+    <button class="btn big" id="go">${icon("bolt")} Проверить задачу</button>`;
   document.getElementById("go").onclick = onboarding;
 }
 function onboarding() {
@@ -160,15 +189,18 @@ function result() {
     ? "Обычные методы здесь упираются — поэтому есть смысл смотреть в сторону кванта."
     : "Обычные методы с такой задачей справляются.";
   const arche = r.archetype === "optimization" ? "поиск лучшего варианта" : "расчёт свойств материалов";
+  const info = VERDICT_INFO[r.verdict];
   app.innerHTML = `
     <div class="kicker">Результат</div>
-    <div class="badge ${VCOLOR[r.verdict]}"><span class="dot" style="background:#fff"></span>${r.verdictLabel}</div>
-    <p style="margin-top:16px"><b>Ваша задача — это ${arche}.</b> ${baseline}</p>
+    <div class="badge ${VCOLOR[r.verdict]}">${icon(info.ic)} ${r.verdictLabel}</div>
+    <p class="vsub">${info.sub}</p>
+    <p><b>Ваша задача — это ${arche}.</b> ${baseline}</p>
     <div class="plate"><b>Похоже на кейс:</b> ${r.scenario.reference} (${r.scenario.maturity}).<br/>
       Ориентир эффекта: ${r.scenario.effect}; горизонт: ${r.scenario.horizon}.<br/>
       <span class="muted">Это оценка по аналогии, не гарантия эффекта.</span></div>
     ${r.confidence < 0.6 ? `<p class="muted">Часть ответов — «не знаю», поэтому вердикт предварительный.</p>` : ""}
-    <button class="btn big" id="brief">Получить бриф</button>`;
+    <p class="next">${info.next}</p>
+    <button class="btn big" id="brief">${icon("doc")} Получить бриф</button>`;
   document.getElementById("brief").onclick = brief;
 }
 
