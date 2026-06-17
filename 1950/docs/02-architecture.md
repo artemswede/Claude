@@ -1,0 +1,168 @@
+# Шаг 2. Архитектура — Project 1950 (бриф-бот квалификации квантовых задач)
+
+> 🟠 На ваше ревью. Спроектировано на основе замороженных требований (`01`, `01b`, `01c`).
+> Следующий шаг — контроль качества/аудит (Шаг 3) — запускается **только по вашему запросу**.
+
+## 1. Контекст и ограничения (вход в дизайн)
+Self-service веб-бот «Акинатор»: анкета → детерминированный движок → вердикт-квадрант + сценарий + авто-бриф.
+Cloudflare Workers + TypeScript, бесплатный тариф, шарящаяся ссылка, без внешних интеграций, сценарии
+зашиты заранее, KV для счётчиков/лидов, срок MVP — 1–2 дня, команда — 1 человек.
+
+## 2. Принципы
+1. **Модульность (анти-монолит):** движок — набор чистых функций без I/O; UI, API и хранилище отделены.
+2. **Детерминированность:** один и тот же ввод → один и тот же вердикт (тестируемо в Шаге 5).
+3. **Edge-native:** вся логика в одном Worker на глобальном крае; без отдельного backend.
+4. **Минимум данных:** анонимные счётчики; контакт — только опц. лид-капчер с согласием.
+5. **Без тяжёлых зависимостей:** ванильный фронтенд, без фреймворка и сборщика для UI.
+
+## 3. Технологический стек
+| Слой | Технология | Зачем |
+|---|---|---|
+| Рантайм | Cloudflare Workers | бесплатно, глобально, шарящаяся ссылка `*.workers.dev` |
+| Язык | TypeScript (strict) | типобезопасный движок, тестируемость |
+| Тулинг | Wrangler | dev/deploy, бандлинг Worker (esbuild) |
+| Статика/UI | Workers Static Assets (`public/`) | отдача SPA без своего сервера |
+| Хранилище | Cloudflare KV (`METRICS`, `LEADS`) | анонимные счётчики + опц. лиды |
+| Фронтенд | Vanilla JS + HTML + CSS | минимализм, белый фон, синие акценты, inline-SVG иконки |
+| Бриф | Markdown (генерация в Worker) + печать в PDF браузером | без серверных PDF-библиотек |
+| Тесты (Шаг 5) | Vitest + `@cloudflare/vitest-pool-workers` | юнит движка + интеграция Worker |
+
+## 4. Компонентная схема
+```
+            ┌──────────────────────── Браузер (SPA, public/) ────────────────────────┐
+            │  Онбординг → Анкета (рендер по questions.json, ветвление по архетипу)    │
+            │     → Экран результата → Бриф (скачать .md / печать PDF) → Лид + CSAT    │
+            └───────────▲──────────────────────────────────────────────┬──────────────┘
+                        │ GET /questions.json (static)                  │ fetch JSON
+                        │                                               ▼
+   ┌────────────────────┴───────────────── Cloudflare Worker (src/) ───────────────────┐
+   │  router → api/                                                                     │
+   │    POST /api/evaluate  → engine/(gates, archetype, scoring, verdict, scenarios,    │
+   │                          brief)  →  {verdict, scores, scenario, briefMarkdown}     │
+   │    POST /api/event     → storage/kv (счётчики: start/step/complete/verdict/csat)   │
+   │    POST /api/lead      → storage/kv (LEADS)                                        │
+   │    GET  /api/metrics   → storage/kv (агрегат)                                      │
+   │  data/ (зашитые сценарии из CSV)        ← чистые модули, без сети                  │
+   └───────────────────────────────────────┬───────────────────────────────────────────┘
+                                            ▼
+                                   KV: METRICS · LEADS
+```
+**Принцип взаимодействия логики и клиента:** клиент рендерит вопросы и собирает ответы; **вся оценка —
+на сервере** (`/api/evaluate`), чтобы логика была централизована, тестируема и неизменяема со стороны
+клиента. Клиент показывает только результат, который вернул движок.
+
+## 5. Структура каталогов (модули и зоны ответственности)
+```
+1950/
+├─ public/                 # SPA (Workers Static Assets)
+│  ├─ index.html           # каркас экранов
+│  ├─ app.js               # рендер вопросов, сбор ответов, вызовы API
+│  ├─ styles.css           # белый фон, синие акценты, токены темы
+│  └─ questions.json       # конфиг анкеты (из 01c) — источник правды для UI
+├─ src/
+│  ├─ index.ts             # entry Worker + роутинг (assets vs /api)
+│  ├─ router.ts            # минимальный матчер маршрутов
+│  ├─ api/
+│  │  ├─ evaluate.ts       # POST /api/evaluate
+│  │  ├─ event.ts          # POST /api/event (метрики-счётчики)
+│  │  ├─ lead.ts           # POST /api/lead
+│  │  └─ metrics.ts        # GET /api/metrics
+│  ├─ engine/              # ЧИСТАЯ логика (без I/O) — ядро, переиспользуемо
+│  │  ├─ types.ts          # Answers, Scores, Verdict, ScenarioMatch, Brief
+│  │  ├─ gates.ts          # G1/G2/G3
+│  │  ├─ archetype.ts      # классификация архетипа
+│  │  ├─ scoring.ts        # критерии 0–5 → оси X/Y (веса из 01c)
+│  │  ├─ verdict.ts        # квадрант по порогам
+│  │  ├─ scenarios.ts      # подбор референс-кейса + вилки эффекта
+│  │  └─ brief.ts          # сборка брифа (Markdown)
+│  ├─ data/
+│  │  └─ scenarios.ts      # библиотека сценариев/эффектов (зашита из data/scenarios.csv)
+│  └─ storage/
+│     └─ kv.ts             # обёртка над KV (инкременты, запись лида, агрегат)
+├─ data/                   # исходники (CSV, reference) — не рантайм
+└─ tests/                  # Шаг 5 (позже)
+```
+
+## 6. Ключевые типы (контракты)
+```ts
+type Industry = 'logistics'|'manufacturing'|'finance'|'chemistry'|'energy'|'telecom'|'it_other';
+type Archetype = 'optimization'|'simulation'|'sampling'|'ml';
+type Verdict = 'poc_now'|'watchlist'|'classical'|'discard';
+
+interface Answers { /* Q1..Q13, см. 01c: choice-коды + числа */ }
+interface Gates { g1: boolean; g2: boolean; g3: boolean; }
+interface Scores { x: number; y: number; criteria: Record<string, number>; }
+interface ScenarioMatch { subtype: string; reference: string; effect: string; horizon: string; }
+interface EvaluateResult {
+  archetype: Archetype; gates: Gates; scores: Scores;
+  verdict: Verdict; scenario: ScenarioMatch; briefMarkdown: string;
+}
+```
+
+## 7. Поток «evaluate» (последовательность)
+1. Клиент собрал `Answers` → `POST /api/evaluate`.
+2. `archetype.ts` → архетип. 3. `gates.ts` → G1/G2/G3. 4. `scoring.ts` → критерии → X/Y.
+5. `verdict.ts` → квадрант (пороги из 01c). 6. `scenarios.ts` → референс + эффект.
+7. `brief.ts` → Markdown-бриф. 8. Ответ `EvaluateResult`. 9. Клиент рендерит результат, даёт «скачать .md»
+   и «печать в PDF». 10. Фоном `POST /api/event` (complete, verdict, csat) и опц. `POST /api/lead`.
+
+## 8. Хранилище KV (схема ключей)
+- **METRICS** (инкременты get→put; для MVP-объёмов допустимо неатомарно):
+  `count:start`, `count:complete`, `count:step:<n>`, `count:verdict:<v>`, `count:archetype:<a>`,
+  `count:industry:<i>`, `count:csat:<1..5>`, `sum:time_ms`, `count:time_n`.
+- **LEADS:** `lead:<uuid>` → `{ ts, name, email, verdict, archetype, industry }` (только с согласием).
+> Точные метрики качества (Qualified Leads, False Positive, Time Saved) считаются вручную — в бриф
+> заложено поле «вердикт эксперта».
+
+## 9. UI / экраны и тема
+Экраны: **Онбординг (анти-хайп)** → **Вопрос** (1 на экран, прогресс-бар, «не знаю») → **Результат**
+(вердикт-светофор по квадранту + сценарий + эффект + дисклеймер) → **Бриф** → **Лид + CSAT**.
+Токены: фон `#FFFFFF`, заголовки `#14306B`, акцент `#2563EB`, светлый чип `#EAF1FE`, текст `#292E38`;
+иконки — inline SVG (минимал-лайн). Адаптив, без внешних шрифтов (системный sans).
+
+## 10. Предлагаемая конфигурация (войдёт в реализацию на Шаге 7)
+```jsonc
+{
+  "name": "project-1950",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "assets": { "directory": "./public" },
+  "kv_namespaces": [
+    { "binding": "METRICS", "id": "<создать>" },
+    { "binding": "LEADS",   "id": "<создать>" }
+  ],
+  "observability": { "enabled": true }
+}
+```
+
+## 11. Маршруты API
+| Метод | Путь | Назначение |
+|---|---|---|
+| GET | `/` , `/questions.json` | SPA и конфиг анкеты (static assets) |
+| POST | `/api/evaluate` | ответы → вердикт + сценарий + бриф |
+| POST | `/api/event` | счётчики воронки/вердиктов/CSAT |
+| POST | `/api/lead` | сохранить контакт (опц., с согласием) |
+| GET | `/api/metrics` | агрегат счётчиков (демо; later — токен) |
+
+## 12. Нефункциональные требования
+- Латентность: edge, цель < 100 мс на `/api/evaluate` (чистые вычисления).
+- Лимиты free-tier: Workers 100k req/день, KV 1k записей/день — для демо достаточно.
+- Безопасность/приватность: PII только опц. e-mail с согласием; `/api/metrics` later под токен;
+  базовый rate-limit — пост-MVP. CORS — same-origin.
+
+## 13. Риски и компромиссы
+- **KV неатомарен** → счётчики приблизительны при гонках (для демо ок; точнее — Durable Objects /
+  Analytics Engine, пост-MVP).
+- **PDF через печать браузера** (не серверный рендер) — проще, но вид зависит от браузера → даём чистый
+  print-CSS; гарантированный формат — `.md`.
+- **Зашитые сценарии** → обновление требует пересборки (приемлемо для MVP).
+
+## 14. Вне рамок (out of scope) v1
+Реальный запуск кванта, внешние интеграции/доставка брифа аналитикам, аутентификация, мультиязычность,
+серверный PDF, аналитические дашборды.
+
+## 15. Открытые вопросы к владельцу (на ревью архитектуры)
+1. **Фронтенд:** ванильный JS (рекомендую для скорости/минимализма) — ок? или хотите лёгкий фреймворк?
+2. **PDF:** печать браузером + `.md` (рекомендую) — ок? или нужен «настоящий» PDF-файл?
+3. **Метрики:** KV-счётчики (просто, приблизительно) на MVP — ок? (точность — позже на Analytics Engine).
+4. **Ссылка:** бесплатный поддомен `*.workers.dev` как демо-ссылка — подходит?
