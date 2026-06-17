@@ -1,33 +1,44 @@
-# Project 1950
+# Project 1950 — Q-Scope (бриф-бот квалификации квантовых задач)
 
-Cloudflare Workers · TypeScript.
+Cloudflare Workers · TypeScript. Self-service анкета → детерминированный движок → вердикт (4 цвета) →
+бриф для экспертов. Без реального запуска кванта, без внешних интеграций.
 
-> ⚠️ **Спецификация-ведомый процесс.** Разработка не начинается, пока не пройдены шаги 1–6 из
-> [`docs/WORKFLOW.md`](docs/WORKFLOW.md). Текущий этап — см. [`docs/STATUS.md`](docs/STATUS.md).
-> Сейчас идёт **Шаг 1 (бизнес-требования)**; продукт ещё не определён.
+> Спецификация-ведомый процесс: база заморожена в [`spec-frozen/`](spec-frozen/FREEZE.md).
+> Статус — [`docs/STATUS.md`](docs/STATUS.md). MVP реализован (Шаг 7).
 
-## Каркас
+## Структура
 ```
 1950/
-├─ src/index.ts        # пустой Worker (fetch-обработчик)
-├─ wrangler.jsonc      # конфигурация Cloudflare Worker
-├─ tsconfig.json       # TypeScript (strict, workers-types)
-├─ package.json
-└─ docs/
-   ├─ WORKFLOW.md                 # порядок работы (7 шагов) + правила
-   ├─ STATUS.md                   # текущий статус
-   └─ 01-business-requirements.md # выход Шага 1 (заполняется)
+├─ public/              # SPA: лендинг → анкета → результат → бриф → лид+CSAT
+│  ├─ index.html · styles.css · app.js
+├─ src/
+│  ├─ index.ts          # Worker + API (/api/evaluate, /api/event, /api/lead, /api/metrics)
+│  ├─ types.ts
+│  ├─ engine/index.ts   # движок: gates + scoring + verdict + brief (по spec-frozen/01f)
+│  ├─ data/scenarios.ts # библиотека «подтип → референс» (зашита)
+│  └─ storage/kv.ts     # KV: анонимные счётчики + лиды (согласие, 90 дней)
+├─ data/                # scenarios.csv + verify_engine.py (вердикт 16/16)
+├─ docs/                # 01..03 процесс
+└─ spec-frozen/         # замороженная база v1.0 (read-only)
 ```
 
-## Локальный запуск (после `npm install`)
+## Запуск
 ```bash
-npm install        # установить wrangler/typescript/workers-types
-npm run dev        # локальный запуск Worker (wrangler dev)
-npm run typecheck  # проверка типов
-npm run deploy     # публикация в Cloudflare (нужен аккаунт + wrangler login)
+npm install
+npm run typecheck                 # tsc --noEmit (strict) — должно быть 0 ошибок
+npm run dev                       # локальный wrangler dev (KV работает локально)
+```
+Для публикации (нужен аккаунт Cloudflare и `npx wrangler login`):
+```bash
+npx wrangler kv namespace create METRICS   # вписать id в wrangler.jsonc
+npx wrangler kv namespace create LEADS     # вписать id в wrangler.jsonc
+npm run deploy                             # → ссылка вида https://project-1950.<...>.workers.dev
 ```
 
-## Правила процесса
-- Переход к следующему шагу — **только по явному запросу владельца продукта**.
-- Замороженные документы (Шаг 4) и тесты (Шаг 5) не редактируются без прямого разрешения.
-- Архитектура — модульная, из независимых переиспользуемых блоков (анти-монолит).
+## Логика вердикта (кратко)
+4 цвета: 🟢 «Можно начинать пилот» · 🟡 «Перспективно — вернёмся позже» · 🔵 «Есть классическое решение»
+· 🔴 «Квант здесь не нужен». Полная таблица истинности — `spec-frozen/01f-engine-spec.md §6`
+(проверена на `data/scenarios.csv`: 16/16).
+
+## Что НЕ входит в MVP
+Реальный квант, внешние интеграции, обработка бизнес-данных, AI-слой (→ v1.1), ветки «риски»/«прогноз».

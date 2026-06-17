@@ -1,11 +1,16 @@
 {
-  // Конфигурация Cloudflare Worker. Документация: https://developers.cloudflare.com/workers/wrangler/configuration/
+  // Cloudflare Worker. Docs: https://developers.cloudflare.com/workers/wrangler/configuration/
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "project-1950",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-01",
-  "observability": {
-    "enabled": true
-  }
-  // Привязки (KV, D1, R2, Queues, Durable Objects и т.д.) будут добавлены на этапе архитектуры (Шаг 2).
+  // SPA из ./public; запросы без статики (например /api/*) уходят в Worker.
+  "assets": { "directory": "./public" },
+  // KV: анонимные счётчики + лиды. ID создать: `npx wrangler kv namespace create METRICS` и LEADS,
+  // затем подставить сюда. Для `wrangler dev` работает локально без реальных ID.
+  "kv_namespaces": [
+    { "binding": "METRICS", "id": "REPLACE_WITH_METRICS_KV_ID" },
+    { "binding": "LEADS", "id": "REPLACE_WITH_LEADS_KV_ID" }
+  ],
+  "observability": { "enabled": true }
 }
