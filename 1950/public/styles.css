@@ -71,4 +71,17 @@ label.chk{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(
 .btn:disabled{opacity:.5;cursor:not-allowed}
 ul{margin:.4em 0;padding-left:1.2em}
 li{margin:.25em 0}
-@media print{.btn,.bar,.foot,.cases,.hero-ic,.link,.mods{display:none}}
+h2.sec{margin-top:28px;font-size:20px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{background:var(--chip);color:var(--navy);border-radius:999px;padding:7px 13px;font-size:14px}
+.steps{display:grid;gap:10px}
+.step{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.step .sn{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700}
+.step .cmuted{color:var(--muted);font-size:13px}
+.get{margin:.4em 0;padding-left:0;list-style:none}
+.get li{padding:9px 0 9px 28px;position:relative;border-bottom:1px solid var(--line)}
+.get li:before{content:"✓";position:absolute;left:4px;color:var(--green);font-weight:700}
+.ctab{width:100%;border-collapse:collapse;font-size:14px;margin:6px 0}
+.ctab td{border:1px solid var(--line);padding:10px 12px}
+.ctab td:first-child{font-weight:600;color:var(--navy);width:42%}
+@media print{.btn,.bar,.foot,.cases,.hero-ic,.link,.mods,.chips,.steps,.ctab{display:none}}

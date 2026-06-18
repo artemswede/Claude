@@ -147,73 +147,70 @@ const PARTIAL = {
     dev: ["Прикрепление обезличенных датасетов", "Интеграция с CRM Проектного офиса", "Прогон на эмуляторах с моделями шумов NISQ"] },
 };
 
+function step(n, t, d) {
+  return `<div class="step"><span class="sn">${n}</span><div><b>${t}</b><div class="cmuted">${d}</div></div></div>`;
+}
+const TASK_CHIPS = ["Маршрутизация транспорта", "Производственное планирование", "Составление расписаний", "Логистика и склады", "Управление портфелем", "Распределение ресурсов", "Цепочки поставок", "Свойства материалов"];
+const CASE_ROWS = [["Логистика", "Маршрутизация доставки"], ["Производство", "Планирование смен и загрузки"], ["Финансы", "Оптимизация портфеля"], ["Энергетика", "Балансировка нагрузки"], ["Материалы", "Подбор состава и свойств"], ["Ритейл", "Расписания персонала"]];
+
 function home() {
   app.innerHTML = `
     <div class="hero-ic">${icon("atom")}</div>
-    <div class="kicker">Национальная квантовая лаборатория · пре-скоринг</div>
-    <h1>Сервис квалификации бизнес-задач для применения квантовых вычислений</h1>
-    <p class="muted">Структурируем бизнес-проблему, переводим на язык математики (QUBO / модель Изинга) и честно оцениваем целесообразность квантовых или quantum-inspired вычислений.</p>
-    <div class="plate">MVP. «Бизнес-навигатор» уже работает; остальные модули — в разработке (помечены).</div>
-    <div class="mods">${MODULES.map(modCard).join("")}</div>
-    <div class="row">
-      <button class="btn" id="glossary">${icon("book")} Глоссарий и мифы</button>
+    <div class="kicker">Для бизнеса и индустриальных команд</div>
+    <h1>Проверим, подходит ли ваша задача для квантовых вычислений</h1>
+    <p class="muted">За 10–15 минут оценим потенциал задачи, покажем возможные преимущества и подскажем следующий шаг. На языке бизнеса, без физики.</p>
+    <button class="btn big" id="start">${icon("bolt")} Начать оценку</button>
+
+    <h2 class="sec">Для каких задач</h2>
+    <div class="chips">${TASK_CHIPS.map((c) => `<span class="chip">${c}</span>`).join("")}</div>
+
+    <h2 class="sec">Как это работает</h2>
+    <div class="steps">
+      ${step(1, "Опишите задачу", "простыми словами, по шагам")}
+      ${step(2, "Получите оценку", "за пару минут, прозрачно")}
+      ${step(3, "Узнайте потенциал", "есть ли смысл в квантовом подходе")}
+      ${step(4, "Рекомендации и эксперты", "что делать дальше")}
+    </div>
+
+    <h2 class="sec">Что вы получите</h2>
+    <ul class="get">
+      <li>Оценку применимости: классика / quantum-inspired / квантовый компьютер</li>
+      <li>Потенциальные зоны ускорения расчётов</li>
+      <li>Похожий индустриальный кейс с ориентиром эффекта</li>
+      <li>Структурированное описание задачи — можно скачать</li>
+      <li>При необходимости — связь с экспертами</li>
+    </ul>
+
+    <h2 class="sec">Примеры задач</h2>
+    <table class="ctab"><tbody>${CASE_ROWS.map((r) => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join("")}</tbody></table>
+
+    <div class="row sec">
+      <button class="btn ghost" id="kb">База знаний</button>
       <button class="btn ghost" id="about">О проекте</button>
-    </div>`;
-  app.querySelectorAll(".mod").forEach((b) => (b.onclick = () => openModule(b.dataset.id)));
-  document.getElementById("glossary").onclick = glossary;
+    </div>
+    <p class="muted" style="font-size:13px">Сервис предварительной оценки прикладных задач. Оценка ориентировочная, не гарантия эффекта.</p>`;
+  document.getElementById("start").onclick = landing;
+  document.getElementById("kb").onclick = knowledge;
   document.getElementById("about").onclick = about;
 }
-function modCard(m) {
-  return `<button class="mod ${m.status === "soon" ? "soon" : ""}" data-id="${m.id}">
-    <span class="mic">${icon(m.ic)}</span>
-    <span class="mt">${m.title} ${STATUS_BADGE[m.status]}</span>
-    <span class="md">${m.desc}</span></button>`;
-}
-function openModule(id) {
-  if (id === "nav") return landing();
-  if (id === "edu") return glossary();
-  if (id === "lib") return stubLib();
-  return partialInfo(id);
-}
-function partialInfo(id) {
-  const m = PARTIAL[id];
+function knowledge() {
   app.innerHTML = `
     <button class="link" id="back">← На главную</button>
-    <div class="kicker">Модуль · частично готов</div>
-    <h2>${m.title}</h2>
-    <div class="plate">${m.live}</div>
-    <p class="muted">В разработке:</p>
-    <ul>${m.dev.map((d) => `<li>${d}</li>`).join("")}</ul>
-    <button class="btn big" id="go">Открыть «Бизнес-навигатор»</button>`;
-  document.getElementById("back").onclick = home;
-  document.getElementById("go").onclick = landing;
-}
-function stubLib() {
-  app.innerHTML = `
-    <button class="link" id="back">← На главную</button>
-    <div class="kicker">Модуль · в разработке</div>
-    <h2>Библиотека квантового преимущества</h2>
-    <div class="plate">100+ верифицированных индустриальных кейсов с предзаполнением анкеты. Появится в следующей версии.</div>
-    <p class="muted">Примеры будущего наполнения:</p>
+    <div class="kicker">База знаний</div>
+    <h2>Кейсы, термины и мифы</h2>
+    <h2 class="sec" style="font-size:18px">Примеры кейсов</h2>
     <div class="cases">
-      ${caseCard("Дизайн материалов", "Молекулы/катализаторы", "ADAPT-VQE, генеративная химия", "research")}
-      ${caseCard("Логистика", "Маршрутизация сетей", "десятки тысяч узлов", "production/PoC")}
-      ${caseCard("Финансы", "Оптимизация портфеля", "антифрод, деривативы", "PoC")}
-      ${caseCard("Биоинформатика", "Сборка генома", "комбинаторная задача", "research")}
+      ${caseCard("Логистика", "Маршрутизация сетей", "десятки тысяч узлов", "есть в проде")}
+      ${caseCard("Производство", "Планирование смен", "−80% времени (по аналогии)", "есть в проде")}
+      ${caseCard("Финансы", "Оптимизация портфеля", "антифрод, деривативы", "пилоты")}
+      ${caseCard("Материалы", "Молекулы и катализаторы", "новые материалы и батареи", "исследования")}
     </div>
-    <button class="btn big" disabled>Предзаполнить анкету (скоро)</button>`;
-  document.getElementById("back").onclick = home;
-}
-function glossary() {
-  app.innerHTML = `
-    <button class="link" id="back">← На главную</button>
-    <div class="kicker">Образовательные подсказки · базовая версия</div>
-    <h2>Глоссарий и развенчание мифов</h2>
-    <div class="glo"><b>Миф:</b> «квантовый компьютер перебирает все варианты параллельно».<br/><b>Как есть:</b> он использует интерференцию волновых функций — усиливает правильные ответы и гасит неверные.</div>
-    <div class="glo"><b>NISQ-эпоха:</b> устройства шумят и подвержены декогеренции, поэтому работают как сопроцессор в гибридной связке с CPU/GPU.</div>
-    <div class="glo"><b>Где выгода:</b> «взрыв размерности» и поиск глобального минимума среди множества локальных (оптимизация, моделирование молекул).</div>
-    <div class="glo"><b>Где НЕ выгода:</b> огромный ввод/вывод Big Data — узкое место квантового I/O.</div>
-    <p class="muted">Контекстные тултипы внутри анкеты — в разработке.</p>`;
+    <p class="muted">Полная библиотека (100+ кейсов) с предзаполнением задачи — <b>скоро</b>.</p>
+    <h2 class="sec" style="font-size:18px">Коротко о квантовых вычислениях</h2>
+    <div class="glo"><b>Миф:</b> «квантовый компьютер перебирает все варианты сразу».<br/><b>Как есть:</b> он усиливает правильные ответы и гасит неверные за счёт интерференции — это не перебор.</div>
+    <div class="glo"><b>Сегодня:</b> квантовые устройства шумят, поэтому работают в связке с обычными компьютерами — как ускоритель.</div>
+    <div class="glo"><b>Где польза:</b> когда вариантов так много, что обычные методы становятся слишком медленными или дорогими.</div>
+    <div class="glo"><b>Где пользы нет:</b> простой анализ очень больших объёмов данных — это лучше делает классика.</div>`;
   document.getElementById("back").onclick = home;
 }
 function about() {
