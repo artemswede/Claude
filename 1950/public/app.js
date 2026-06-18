@@ -21,6 +21,10 @@ const ICON = {
   cog: `<svg viewBox="0 0 24 24" ${SW}><circle cx="12" cy="12" r="3.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>`,
   x: `<svg viewBox="0 0 24 24" ${SW}><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>`,
   doc: `<svg viewBox="0 0 24 24" ${SW}><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M9 12h7M9 16h6"/></svg>`,
+  grid: `<svg viewBox="0 0 24 24" ${SW}><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>`,
+  gauge: `<svg viewBox="0 0 24 24" ${SW}><path d="M4 16a8 8 0 0 1 16 0"/><path d="M12 16l4-3"/></svg>`,
+  book: `<svg viewBox="0 0 24 24" ${SW}><path d="M5 5a2 2 0 0 1 2-2h12v16H7a2 2 0 0 0-2 2z"/><path d="M5 5v14"/></svg>`,
+  arrow: `<svg viewBox="0 0 24 24" ${SW}><path d="M4 12h14M13 6l6 6-6 6"/></svg>`,
 };
 const icon = (n) => `<span class="icon">${ICON[n] || ""}</span>`;
 const caseCard = (name, task, effect, mat) =>
@@ -114,8 +118,123 @@ function computeQueue(a) {
 }
 
 // ---------- экраны ----------
+// ---------- сайт-обвязка (главная + модули из ТЗ) ----------
+const MODULES = [
+  { id: "nav", ic: "search", title: "Бизнес-навигатор", status: "live",
+    desc: "Пошаговая анкета с ветвлением по отрасли — находит «взрыв размерности» там, где классика буксует." },
+  { id: "lib", ic: "grid", title: "Библиотека квантового преимущества", status: "soon",
+    desc: "100+ индустриальных кейсов с предзаполнением анкеты по «похожей задаче»." },
+  { id: "score", ic: "gauge", title: "Квалификатор потенциала", status: "partial",
+    desc: "Авто-скоринг и матрица (высокий / средний / низкий). УГТ 1–9 — в разработке." },
+  { id: "passport", ic: "doc", title: "Генератор паспорта задачи", status: "partial",
+    desc: "Бриф для экспертов. QUBO/Изинг, оценка кубитов и типа оборудования — в разработке." },
+  { id: "edu", ic: "book", title: "Образовательные подсказки", status: "partial",
+    desc: "Глоссарий и развенчание мифов. Контекстные тултипы в анкете — в разработке." },
+  { id: "route", ic: "arrow", title: "Маршрутизация к экспертам", status: "partial",
+    desc: "Передача лида с брифом. Прикрепление датасетов и интеграция с CRM — в разработке." },
+];
+const STATUS_BADGE = {
+  live: `<span class="badge-live">работает</span>`,
+  partial: `<span class="badge-part">частично</span>`,
+  soon: `<span class="badge-soon">в разработке</span>`,
+};
+const PARTIAL = {
+  score: { title: "Квалификатор потенциала", live: "Авто-скоринг и вердикт (4 категории) работают в составе «Бизнес-навигатора».",
+    dev: ["Уровень готовности технологии (УГТ/TRL) 1–9", "Матрица: универсальный QPU / квантовый отжигатель / гибрид S-Quantum", "Явный класс «Big Data → нерелевантность» (квантовый I/O)"] },
+  passport: { title: "Генератор паспорта задачи", live: "Бриф формируется (скачать .md / печать в PDF).",
+    dev: ["Формализация в QUBO / модель Изинга", "Оценка числа физических и логических кубитов", "Рекомендация оборудования: сверхпроводники / ионы / нейтральные атомы / фотоника", "Экспорт в брендированный PDF"] },
+  route: { title: "Маршрутизация к экспертам", live: "Передача лида с согласием работает.",
+    dev: ["Прикрепление обезличенных датасетов", "Интеграция с CRM Проектного офиса", "Прогон на эмуляторах с моделями шумов NISQ"] },
+};
+
+function home() {
+  app.innerHTML = `
+    <div class="hero-ic">${icon("atom")}</div>
+    <div class="kicker">Национальная квантовая лаборатория · пре-скоринг</div>
+    <h1>Сервис квалификации бизнес-задач для применения квантовых вычислений</h1>
+    <p class="muted">Структурируем бизнес-проблему, переводим на язык математики (QUBO / модель Изинга) и честно оцениваем целесообразность квантовых или quantum-inspired вычислений.</p>
+    <div class="plate">MVP. «Бизнес-навигатор» уже работает; остальные модули — в разработке (помечены).</div>
+    <div class="mods">${MODULES.map(modCard).join("")}</div>
+    <div class="row">
+      <button class="btn" id="glossary">${icon("book")} Глоссарий и мифы</button>
+      <button class="btn ghost" id="about">О проекте</button>
+    </div>`;
+  app.querySelectorAll(".mod").forEach((b) => (b.onclick = () => openModule(b.dataset.id)));
+  document.getElementById("glossary").onclick = glossary;
+  document.getElementById("about").onclick = about;
+}
+function modCard(m) {
+  return `<button class="mod ${m.status === "soon" ? "soon" : ""}" data-id="${m.id}">
+    <span class="mic">${icon(m.ic)}</span>
+    <span class="mt">${m.title} ${STATUS_BADGE[m.status]}</span>
+    <span class="md">${m.desc}</span></button>`;
+}
+function openModule(id) {
+  if (id === "nav") return landing();
+  if (id === "edu") return glossary();
+  if (id === "lib") return stubLib();
+  return partialInfo(id);
+}
+function partialInfo(id) {
+  const m = PARTIAL[id];
+  app.innerHTML = `
+    <button class="link" id="back">← На главную</button>
+    <div class="kicker">Модуль · частично готов</div>
+    <h2>${m.title}</h2>
+    <div class="plate">${m.live}</div>
+    <p class="muted">В разработке:</p>
+    <ul>${m.dev.map((d) => `<li>${d}</li>`).join("")}</ul>
+    <button class="btn big" id="go">Открыть «Бизнес-навигатор»</button>`;
+  document.getElementById("back").onclick = home;
+  document.getElementById("go").onclick = landing;
+}
+function stubLib() {
+  app.innerHTML = `
+    <button class="link" id="back">← На главную</button>
+    <div class="kicker">Модуль · в разработке</div>
+    <h2>Библиотека квантового преимущества</h2>
+    <div class="plate">100+ верифицированных индустриальных кейсов с предзаполнением анкеты. Появится в следующей версии.</div>
+    <p class="muted">Примеры будущего наполнения:</p>
+    <div class="cases">
+      ${caseCard("Дизайн материалов", "Молекулы/катализаторы", "ADAPT-VQE, генеративная химия", "research")}
+      ${caseCard("Логистика", "Маршрутизация сетей", "десятки тысяч узлов", "production/PoC")}
+      ${caseCard("Финансы", "Оптимизация портфеля", "антифрод, деривативы", "PoC")}
+      ${caseCard("Биоинформатика", "Сборка генома", "комбинаторная задача", "research")}
+    </div>
+    <button class="btn big" disabled>Предзаполнить анкету (скоро)</button>`;
+  document.getElementById("back").onclick = home;
+}
+function glossary() {
+  app.innerHTML = `
+    <button class="link" id="back">← На главную</button>
+    <div class="kicker">Образовательные подсказки · базовая версия</div>
+    <h2>Глоссарий и развенчание мифов</h2>
+    <div class="glo"><b>Миф:</b> «квантовый компьютер перебирает все варианты параллельно».<br/><b>Как есть:</b> он использует интерференцию волновых функций — усиливает правильные ответы и гасит неверные.</div>
+    <div class="glo"><b>NISQ-эпоха:</b> устройства шумят и подвержены декогеренции, поэтому работают как сопроцессор в гибридной связке с CPU/GPU.</div>
+    <div class="glo"><b>Где выгода:</b> «взрыв размерности» и поиск глобального минимума среди множества локальных (оптимизация, моделирование молекул).</div>
+    <div class="glo"><b>Где НЕ выгода:</b> огромный ввод/вывод Big Data — узкое место квантового I/O.</div>
+    <p class="muted">Контекстные тултипы внутри анкеты — в разработке.</p>`;
+  document.getElementById("back").onclick = home;
+}
+function about() {
+  app.innerHTML = `
+    <button class="link" id="back">← На главную</button>
+    <div class="kicker">О проекте</div>
+    <h2>Назначение и цели</h2>
+    <p>Сервис первично структурирует бизнес-проблемы корпоративных клиентов, переводит их в математические модели (QUBO, модель Изинга) и оценивает целесообразность квантовых / quantum-inspired подходов на базе мощностей консорциума НКЛ.</p>
+    <p class="muted">Цели:</p>
+    <ul>
+      <li>Снизить барьер входа бизнеса в квантовые технологии.</li>
+      <li>Экономить ресурс экспертов Проектного офиса за счёт пре-скоринга и отсева хайпа.</li>
+      <li>Формировать воронку пилотных проектов по Дорожной карте «Квантовые вычисления».</li>
+    </ul>
+    <div class="plate">Демо-MVP. Часть модулей — заглушки, помечены «в разработке».</div>`;
+  document.getElementById("back").onclick = home;
+}
+
 function landing() {
   app.innerHTML = `
+    <button class="link" id="tohome">← На главную</button>
     <div class="hero-ic">${icon("atom")}</div>
     <div class="kicker">Квантовые технологии · оценка задачи</div>
     <h1>Опишите бизнес-задачу — и поймите, перспективна ли она для квантовых вычислений</h1>
@@ -128,6 +247,7 @@ function landing() {
     </div>
     <button class="btn big" id="go">${icon("bolt")} Проверить задачу</button>`;
   document.getElementById("go").onclick = onboarding;
+  document.getElementById("tohome").onclick = home;
 }
 function onboarding() {
   api("/api/event", { type: "start" });
@@ -253,8 +373,10 @@ function lead() {
 
 function done() {
   app.innerHTML = `<h1>Готово ✅</h1><p>Спасибо! Бриф можно скачать повторно или передать экспертам.</p>
-    <button class="btn" id="again">Проверить другую задачу</button>`;
+    <div class="row"><button class="btn" id="again">Проверить другую задачу</button>
+    <button class="btn ghost" id="tohome2">На главную</button></div>`;
   document.getElementById("again").onclick = landing;
+  document.getElementById("tohome2").onclick = home;
 }
 
-landing();
+home();

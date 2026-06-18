@@ -53,4 +53,22 @@ label.chk{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(
 .case .tag{margin-left:auto;font-size:11px;color:var(--green);background:#eaf7f0;border-radius:8px;padding:2px 9px;white-space:nowrap}
 .vsub{color:var(--muted);margin:12px 0}
 .next{font-weight:600;color:var(--navy);margin:14px 0}
-@media print{.btn,.bar,.foot,.cases,.hero-ic{display:none}}
+.mods{display:grid;gap:12px;grid-template-columns:1fr 1fr;margin:18px 0}
+@media(max-width:560px){.mods{grid-template-columns:1fr}}
+.mod{text-align:left;border:1.5px solid var(--line);border-radius:14px;padding:14px;background:#fff;cursor:pointer;display:flex;flex-direction:column;gap:6px;font:inherit}
+.mod:hover{border-color:var(--accent);background:#f7faff}
+.mod.soon{opacity:.7}
+.mod .mic{color:var(--accent)}
+.mod .mic svg{width:24px;height:24px}
+.mod .mt{font-weight:700;color:var(--navy);display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:16px}
+.mod .md{color:var(--muted);font-size:13px}
+.badge-live{font-size:11px;color:#fff;background:var(--green);border-radius:8px;padding:1px 8px}
+.badge-part{font-size:11px;color:#fff;background:var(--amber);border-radius:8px;padding:1px 8px}
+.badge-soon{font-size:11px;color:var(--muted);background:#eceef2;border-radius:8px;padding:1px 8px}
+.link{background:none;border:0;color:var(--accent);cursor:pointer;font-size:14px;padding:6px 0;display:block}
+.glo{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0;font-size:14px}
+.glo b{color:var(--navy)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+ul{margin:.4em 0;padding-left:1.2em}
+li{margin:.25em 0}
+@media print{.btn,.bar,.foot,.cases,.hero-ic,.link,.mods{display:none}}
