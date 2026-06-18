@@ -84,4 +84,15 @@ h2.sec{margin-top:28px;font-size:20px}
 .ctab{width:100%;border-collapse:collapse;font-size:14px;margin:6px 0}
 .ctab td{border:1px solid var(--line);padding:10px 12px}
 .ctab td:first-child{font-weight:600;color:var(--navy);width:42%}
-@media print{.btn,.bar,.foot,.cases,.hero-ic,.link,.mods,.chips,.steps,.ctab{display:none}}
+.trust{font-size:13px;color:var(--navy);background:#eef6ff;border-radius:10px;padding:9px 12px;display:flex;gap:8px;align-items:center;margin:12px 0}
+.trust .icon{color:var(--accent)}
+.cgrid{display:grid;gap:10px}
+.cblk{display:flex;gap:12px;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.ce{font-size:26px;line-height:1.1}
+.cbody{font-size:14px;flex:1}
+.cbody b{color:var(--navy)}
+.csec{color:var(--muted);font-size:12px;margin-left:8px}
+.cres{color:var(--green);font-weight:600;font-size:13px;margin-top:3px}
+.crow{display:flex;align-items:center;gap:12px;margin-top:7px}
+.cmore{padding:0;font-size:13px}
+@media print{.btn,.bar,.foot,.cases,.hero-ic,.link,.mods,.chips,.steps,.ctab,.cgrid,.trust{display:none}}

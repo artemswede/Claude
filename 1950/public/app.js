@@ -69,11 +69,17 @@ const Q = {
     { v: "recipe", label: "Рецептура/состав" }, { v: "production_plan", label: "План производства" } ] },
   a2: { key: "a2", title: "Сколько объектов нужно учесть одновременно?", hint: "примерное число", type: "number", dunno: true },
   a3: { key: "a3", title: "Есть ли жёсткие ограничения «нельзя нарушать»?", type: "select", dunno: true,
-    options: [ { v: "hard", label: "Да, есть жёсткие" }, { v: "soft", label: "Только пожелания" }, { v: "none", label: "Почти нет" } ] },
+    options: [
+      { v: "hard", label: "Да, есть жёсткие", note: "что-то нельзя нарушать ни при каких условиях" },
+      { v: "soft", label: "Только пожелания", note: "желательно, но можно отступить" },
+      { v: "none", label: "Почти нет" } ] },
   a4: { key: "a4", title: "Как решаете сейчас и хватает ли?", type: "select", dunno: true,
     options: [ { v: "enough", label: "Способ есть, всё устраивает" }, { v: "partial", label: "Решаем, но частично не хватает" }, { v: "not", label: "Не хватает / не получается" } ] },
   a5: { key: "a5", title: "Когда задача растёт — время резко увеличивается?", type: "select", dunno: true,
-    options: [ { v: "sharp", label: "Да, резко" }, { v: "slow", label: "Понемногу" }, { v: "no", label: "Нет" } ] },
+    options: [
+      { v: "sharp", label: "Да, резко", note: "при росте объёма расчёт затягивается в разы" },
+      { v: "slow", label: "Понемногу", note: "время растёт примерно пропорционально" },
+      { v: "no", label: "Нет" } ] },
   a6: { key: "a6", title: "Что считаете лучшим результатом?", type: "select", dunno: true,
     options: [ { v: "min", label: "Минимум затрат/времени" }, { v: "max", label: "Максимум выхода/прибыли" } ] },
   // ветка B
@@ -89,14 +95,23 @@ const Q = {
     options: [ { v: "clear", label: "Да, понятна" }, { v: "unclear", label: "Пока размыта" } ] },
   // хвост
   t1: { key: "t1", title: "Сколько данных нужно «загрузить» на вход задачи?", type: "select", dunno: true,
-    options: [ { v: "small", label: "Немного параметров" }, { v: "medium", label: "Таблицы среднего размера" }, { v: "huge", label: "Очень большие массивы" } ] },
+    options: [
+      { v: "small", label: "Немного параметров", note: "несколько чисел или настроек" },
+      { v: "medium", label: "Таблицы среднего размера" },
+      { v: "huge", label: "Очень большие массивы", note: "миллионы записей / терабайты на вход" } ] },
   t2: { key: "t2", title: "Как часто решаете задачу?", type: "select", dunno: true,
     options: [ { v: "once", label: "Разово" }, { v: "periodic", label: "Периодически" }, { v: "daily", label: "Ежедневно" }, { v: "constant", label: "Постоянно" } ] },
   t3: { key: "t3", title: "Сколько задача стоит сейчас в год, ₽?", hint: "оценка, можно «не знаю»", type: "number", dunno: true },
-  t4: { key: "t4", title: "Готовность: данные / ИТ / команда / бюджет", type: "select", dunno: true,
-    options: [ { v: "high", label: "Высокая" }, { v: "medium", label: "Средняя" }, { v: "low", label: "Низкая" } ] },
+  t4: { key: "t4", title: "Насколько вы готовы к пилоту: данные, ИТ, бюджет?", type: "select", dunno: true,
+    options: [
+      { v: "high", label: "Высокая", note: "данные в цифре, есть ИТ-специалисты или подрядчик, выделен бюджет" },
+      { v: "medium", label: "Средняя", note: "что-то есть, что-то нет (например, данные есть, а бюджета пока нет)" },
+      { v: "low", label: "Низкая", note: "данные на бумаге или «в головах», нет ИТ-команды и бюджета" } ] },
   t5: { key: "t5", title: "Нужен идеально точный ответ — или достаточно быстрого, близкого к лучшему?", type: "select", dunno: true,
-    options: [ { v: "yes", label: "Достаточно близкого" }, { v: "depends", label: "Зависит" }, { v: "no", label: "Нужен только идеальный" } ] },
+    options: [
+      { v: "yes", label: "Достаточно близкого", note: "решение «почти лучшее», но быстро — нам подходит" },
+      { v: "depends", label: "Зависит" },
+      { v: "no", label: "Нужен только идеальный", note: "приближённое решение не подходит" } ] },
 };
 
 const A_KEYS = ["a1", "a2", "a3", "a4", "a5", "a6"];
@@ -153,12 +168,43 @@ function step(n, t, d) {
 const TASK_CHIPS = ["Маршрутизация транспорта", "Производственное планирование", "Составление расписаний", "Логистика и склады", "Управление портфелем", "Распределение ресурсов", "Цепочки поставок", "Свойства материалов"];
 const CASE_ROWS = [["Логистика", "Маршрутизация доставки"], ["Производство", "Планирование смен и загрузки"], ["Финансы", "Оптимизация портфеля"], ["Энергетика", "Балансировка нагрузки"], ["Материалы", "Подбор состава и свойств"], ["Ритейл", "Расписания персонала"]];
 
+const CASES = [
+  { e: "🏪", name: "Save-On-Foods", sector: "Ритейл", task: "Автоматизация расписаний персонала", result: "сокращение времени планирования до 80%", tag: "в эксплуатации",
+    more: "Сеть супермаркетов автоматизировала составление графиков смен. Раньше — десятки часов ручной работы в неделю, после — минуты, с экономией тысяч человеко-часов в год." },
+  { e: "📡", name: "NTT DOCOMO", sector: "Телеком", task: "Оптимизация мобильной сети", result: "снижение нагрузки на 15%", tag: "в эксплуатации",
+    more: "Оператор оптимизировал распределение сигнальной нагрузки между базовыми станциями и повысил ёмкость сети в пиковые часы." },
+  { e: "🏭", name: "Ford Otosan", sector: "Производство", task: "Оптимизация производственного плана", result: "сокращение времени расчётов до 80%", tag: "в эксплуатации",
+    more: "Автозавод ускорил планирование последовательности сборки (более 1500 вариантов) — с десятков минут до нескольких." },
+];
+function caseBlock(c, i) {
+  return `<div class="cblk"><div class="ce">${c.e}</div><div class="cbody">
+    <b>${c.name}</b><span class="csec">${c.sector}</span>
+    <div>${c.task}</div>
+    <div class="cres">Результат: ${c.result}</div>
+    <div class="crow"><span class="tag">${c.tag}</span><button class="link cmore" data-i="${i}">Подробнее →</button></div>
+  </div></div>`;
+}
+function caseDetail(i) {
+  const c = CASES[i];
+  app.innerHTML = `
+    <button class="link" id="back">← Назад</button>
+    <div class="kicker">${c.sector} · ${c.tag}</div>
+    <h2>${c.e} ${c.name}</h2>
+    <p><b>Задача:</b> ${c.task}</p>
+    <p><b>Результат:</b> ${c.result}</p>
+    <p>${c.more}</p>
+    <p class="muted" style="font-size:12px">Публичный кейс (по материалам компаний и платформы D-Wave). Приведён для иллюстрации типов задач, не является проектом сервиса.</p>
+    <button class="btn" id="start2">Оценить свою задачу</button>`;
+  document.getElementById("back").onclick = home;
+  document.getElementById("start2").onclick = onboarding;
+}
 function home() {
   app.innerHTML = `
     <div class="hero-ic">${icon("atom")}</div>
     <div class="kicker">Для бизнеса и индустриальных команд</div>
-    <h1>Проверим, подходит ли ваша задача для квантовых вычислений</h1>
+    <h1>Проверьте, может ли квантовый подход помочь вашей задаче</h1>
     <p class="muted">За 10–15 минут оценим потенциал задачи, покажем возможные преимущества и подскажем следующий шаг. На языке бизнеса, без физики.</p>
+    <p class="trust">${icon("check")} Оценка основана на базе индустриальных кейсов и методике Национальной квантовой лаборатории.</p>
     <button class="btn big" id="start">${icon("bolt")} Начать оценку</button>
 
     <h2 class="sec">Для каких задач</h2>
@@ -172,26 +218,29 @@ function home() {
       ${step(4, "Рекомендации и эксперты", "что делать дальше")}
     </div>
 
-    <h2 class="sec">Что вы получите</h2>
+    <h2 class="sec">По итогам оценки вы получите</h2>
     <ul class="get">
-      <li>Оценку применимости: классика / quantum-inspired / квантовый компьютер</li>
-      <li>Потенциальные зоны ускорения расчётов</li>
+      <li>Уровень потенциала задачи и объяснение оценки</li>
+      <li>Рекомендацию: классика / quantum-inspired / квантовый компьютер</li>
       <li>Похожий индустриальный кейс с ориентиром эффекта</li>
       <li>Структурированное описание задачи — можно скачать</li>
-      <li>При необходимости — связь с экспертами</li>
+      <li>Возможность обсудить задачу с экспертами</li>
     </ul>
 
-    <h2 class="sec">Примеры задач</h2>
-    <table class="ctab"><tbody>${CASE_ROWS.map((r) => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join("")}</tbody></table>
+    <h2 class="sec">Кейсы похожих задач</h2>
+    <div class="cgrid">${CASES.map(caseBlock).join("")}</div>
+    <p class="muted" style="font-size:12px">Публичные индустриальные кейсы (D-Wave и партнёры) — для иллюстрации типов задач.</p>
+
+    <div class="plate">Наша цель — не доказать необходимость кванта, а честно оценить применимость. Иногда лучший результат диагностики — рекомендация остаться на классических методах.</div>
 
     <div class="row sec">
       <button class="btn ghost" id="kb">База знаний</button>
       <button class="btn ghost" id="about">О проекте</button>
-    </div>
-    <p class="muted" style="font-size:13px">Сервис предварительной оценки прикладных задач. Оценка ориентировочная, не гарантия эффекта.</p>`;
-  document.getElementById("start").onclick = landing;
+    </div>`;
+  document.getElementById("start").onclick = onboarding;
   document.getElementById("kb").onclick = knowledge;
   document.getElementById("about").onclick = about;
+  app.querySelectorAll(".cmore").forEach((b) => (b.onclick = () => caseDetail(+b.dataset.i)));
 }
 function knowledge() {
   app.innerHTML = `
@@ -249,15 +298,18 @@ function landing() {
 function onboarding() {
   api("/api/event", { type: "start" });
   app.innerHTML = `
-    <div class="kicker">Перед стартом</div>
-    <h2>Что важно знать</h2>
-    <ul class="muted">
-      <li>Реальные успехи кванта сегодня — в основном пилоты и исследования, не гарантия эффекта.</li>
-      <li>Мы можем сказать и «вам достаточно обычных методов».</li>
-      <li>Займёт ~10 коротких вопросов. «Не знаю» — это нормально.</li>
+    <button class="link" id="tohome">← На главную</button>
+    <div class="kicker">Что вас ждёт</div>
+    <h2>Короткая диагностика задачи</h2>
+    <ul class="get">
+      <li>~10 коротких вопросов, 3–5 минут</li>
+      <li>На языке бизнеса — технические детали не нужны</li>
+      <li>Можно отвечать «не знаю», это нормально</li>
+      <li>В конце — предварительная оценка и описание задачи для экспертов</li>
     </ul>
-    <button class="btn big" id="go">Начать</button>`;
+    <button class="btn big" id="go">${icon("bolt")} Начать</button>`;
   document.getElementById("go").onclick = () => { S.answers = {}; S.qi = 0; S.start = Date.now(); ask(); };
+  document.getElementById("tohome").onclick = home;
 }
 
 function ask() {
@@ -266,14 +318,15 @@ function ask() {
   const q = Q[queue[S.qi]];
   const pct = Math.round((S.qi / queue.length) * 100);
   let body = "";
+  const prev = S.answers[q.key] !== undefined && S.answers[q.key] !== "dunno" ? S.answers[q.key] : "";
   if (q.type === "select" || q.type === "cards") {
     body = `<div class="opts">${q.options
       .map((o) => `<button class="opt" data-v="${o.v}" ${o.disabled ? "disabled" : ""}>${o.label}${o.note ? `<span class="note">${o.note}</span>` : ""}${o.disabled ? `<span class="tag">в разработке</span>` : ""}</button>`)
       .join("")}</div>`;
   } else if (q.type === "number") {
-    body = `<input type="number" id="inp" placeholder="${q.hint || "число"}" /><button class="btn" id="next">Далее</button>`;
+    body = `<input type="number" id="inp" placeholder="${q.hint || "число"}" value="${prev}" /><button class="btn" id="next">Далее</button>`;
   } else if (q.type === "text") {
-    body = `<input type="text" id="inp" placeholder="одним предложением" /><button class="btn" id="next">Далее</button>`;
+    body = `<input type="text" id="inp" placeholder="одним предложением" value="${prev}" /><button class="btn" id="next">Далее</button>`;
   }
   app.innerHTML = `
     <div class="bar"><i style="width:${pct}%"></i></div>
@@ -281,6 +334,7 @@ function ask() {
     <h2>${q.title}</h2>${q.hint ? `<p class="muted">${q.hint}</p>` : ""}
     ${body}
     <div class="row" style="margin-top:14px">
+      <button class="btn dunno" id="prev">← Назад</button>
       ${q.dunno ? `<button class="btn dunno" id="dunno">Не знаю</button>` : ""}
       ${q.optional ? `<button class="btn dunno" id="skip">Пропустить</button>` : ""}
     </div>`;
@@ -290,6 +344,7 @@ function ask() {
   if (nx) nx.onclick = () => { const el = document.getElementById("inp"); set(el.value === "" ? "dunno" : el.value); };
   const dn = document.getElementById("dunno"); if (dn) dn.onclick = () => set("dunno");
   const sk = document.getElementById("skip"); if (sk) sk.onclick = () => set("");
+  document.getElementById("prev").onclick = () => { if (S.qi > 0) { S.qi--; ask(); } else onboarding(); };
 }
 
 async function submit() {
@@ -372,7 +427,7 @@ function done() {
   app.innerHTML = `<h1>Готово ✅</h1><p>Спасибо! Бриф можно скачать повторно или передать экспертам.</p>
     <div class="row"><button class="btn" id="again">Проверить другую задачу</button>
     <button class="btn ghost" id="tohome2">На главную</button></div>`;
-  document.getElementById("again").onclick = landing;
+  document.getElementById("again").onclick = onboarding;
   document.getElementById("tohome2").onclick = home;
 }
 
