@@ -95,4 +95,9 @@ h2.sec{margin-top:28px;font-size:20px}
 .cres{color:var(--green);font-weight:600;font-size:13px;margin-top:3px}
 .crow{display:flex;align-items:center;gap:12px;margin-top:7px}
 .cmore{padding:0;font-size:13px}
+.tag-soon{color:var(--muted)!important;background:#eceef2!important}
+.recs{margin:14px 0;background:#f7faff;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.recs>b{color:var(--navy)}
+.recs ul{margin:.4em 0 0}
+.recs li{margin:.35em 0;font-size:14px}
 @media print{.btn,.bar,.foot,.cases,.hero-ic,.link,.mods,.chips,.steps,.ctab,.cgrid,.trust{display:none}}

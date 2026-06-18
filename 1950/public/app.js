@@ -31,10 +31,48 @@ const caseCard = (name, task, effect, mat) =>
   `<div class="case">${icon("dot")}<div><b>${name}</b> · ${task}<div class="cmuted">${effect}</div></div><span class="tag">${mat}</span></div>`;
 
 const VERDICT_INFO = {
-  poc_now: { ic: "check", sub: "Задача похожа на то, что уже запускают пилотами.", next: "Передайте бриф экспертам — поможем начать пилот." },
-  watchlist: { ic: "clock", sub: "Потенциал есть, но пока рано — лучше гибридный подход и вернуться позже.", next: "Сохраните бриф; подскажем, что докрутить для переоценки." },
-  classical: { ic: "cog", sub: "Квант не нужен — задача эффективно решается обычными методами. И с этим мы тоже поможем.", next: "Передайте бриф — предложим классическое/гибридное решение." },
-  discard: { ic: "x", sub: "Для этой задачи квантовые технологии не дают смысла.", next: "Если задача вырастет или изменится — возвращайтесь." },
+  poc_now: {
+    ic: "check",
+    sub: "Задача похожа на то, что уже решают на практике. Можно начинать пилот.",
+    recTitle: "Как можно сделать",
+    recs: [
+      "Гибридный подход (квантовый + классический): квантовый сопроцессор берёт самую «тяжёлую» часть, остальное считает классика.",
+      "Квантово-вдохновлённые алгоритмы (тензорные сети): дают эффект уже сегодня на обычном оборудовании.",
+    ],
+    next: "Передайте описание задачи экспертам — подберём конкретный подход и спланируем пилот.",
+  },
+  watchlist: {
+    ic: "clock",
+    sub: "Потенциал есть, но сейчас рано — лучше вернуться позже.",
+    recTitle: "Что требуется и когда вернуться",
+    recs: [
+      "Обычно нужно: укрупнить масштаб задачи, привести в порядок данные или дождаться более зрелого оборудования.",
+      "Вернуться стоит, когда вырастут объём и сложность задачи или появятся недостающие данные.",
+      "Уже сейчас можно попробовать гибридный или quantum-inspired вариант как промежуточный шаг.",
+    ],
+    next: "Сохраните описание задачи — пришлём ориентиры, когда подход созреет, и при желании обсудим промежуточный вариант.",
+  },
+  classical: {
+    ic: "cog",
+    sub: "Квантовый подход здесь не нужен — задача эффективно решается классическими методами. Поможем и с этим.",
+    recTitle: "Что предлагаем",
+    recs: [
+      "Промышленные решатели оптимизации и эвристики (класс OR-Tools / CP-SAT, коммерческие солверы) — для расписаний, маршрутов, распределения.",
+      "Классический анализ данных и ML — где задача про прогноз и закономерности.",
+      "Quantum-inspired методы — как необязательное усиление, без квантового оборудования.",
+    ],
+    next: "Передадим задачу профильным аналитикам — предложат конкретный инструмент и план внедрения.",
+  },
+  discard: {
+    ic: "x",
+    sub: "Сейчас в задаче нет признаков, где квантовые вычисления дают преимущество. Это нормально — большинство задач отлично решаются классически.",
+    recTitle: "Что можно сделать",
+    recs: [
+      "Скорее всего, оптимальный путь — классические ИТ-инструменты под вашу задачу.",
+      "Если нужно, подскажем подходящее классическое решение или подключим аналитика.",
+    ],
+    next: "По вашему желанию передадим задачу аналитикам для рекомендации по классическому пути.",
+  },
 };
 
 // ---------- определения вопросов ----------
@@ -101,7 +139,13 @@ const Q = {
       { v: "huge", label: "Очень большие массивы", note: "миллионы записей / терабайты на вход" } ] },
   t2: { key: "t2", title: "Как часто решаете задачу?", type: "select", dunno: true,
     options: [ { v: "once", label: "Разово" }, { v: "periodic", label: "Периодически" }, { v: "daily", label: "Ежедневно" }, { v: "constant", label: "Постоянно" } ] },
-  t3: { key: "t3", title: "Сколько задача стоит сейчас в год, ₽?", hint: "оценка, можно «не знаю»", type: "number", dunno: true },
+  t3: { key: "t3", title: "Сколько задача стоит сейчас в год, ₽?", hint: "оценка затрат/потерь по задаче", type: "select", dunno: true,
+    options: [
+      { v: "500000", label: "Менее 1 млн ₽" },
+      { v: "3000000", label: "От 1 до 5 млн ₽" },
+      { v: "12000000", label: "5–20 млн ₽" },
+      { v: "200000000", label: "От 20 млн ₽ и выше" },
+      { v: "__custom__", label: "Свой вариант", note: "указать точную сумму", custom: true } ] },
   t4: { key: "t4", title: "Насколько вы готовы к пилоту: данные, ИТ, бюджет?", type: "select", dunno: true,
     options: [
       { v: "high", label: "Высокая", note: "данные в цифре, есть ИТ-специалисты или подрядчик, выделен бюджет" },
@@ -198,6 +242,23 @@ function caseDetail(i) {
   document.getElementById("back").onclick = home;
   document.getElementById("start2").onclick = onboarding;
 }
+function qtCard(e, t, d, tag, soon) {
+  return `<div class="cblk"><div class="ce">${e}</div><div class="cbody"><b>${t}</b> <span class="tag ${soon ? "tag-soon" : ""}">${tag}</span><div class="cmuted">${d}</div></div></div>`;
+}
+function quantum() {
+  app.innerHTML = `
+    <button class="link" id="back">← На главную</button>
+    <div class="kicker">О квантовых технологиях</div>
+    <h2>Три класса квантовых технологий</h2>
+    <p>Современные квантовые технологии — это умение управлять отдельными квантовыми объектами: одиночными атомами, электронами или фотонами. Их свойства — суперпозицию и запутанность — применяют для трёх разных классов задач.</p>
+    <div class="glo"><b>1. Квантовые вычисления — обработка информации.</b> Квантовые эффекты ускоряют расчёты и позволяют браться за задачи, недоступные классическим суперкомпьютерам (эффект «взрыва размерности»): сложную комбинаторную оптимизацию, моделирование новых материалов, лекарств и химических соединений, криптоанализ. <i>Именно эти задачи оценивает сервис.</i></div>
+    <p class="muted">Скоро сервис пополнится направлениями:</p>
+    <div class="glo"><b>2. Квантовые коммуникации — защищённая передача данных. <span class="tag tag-soon">скоро</span></b><br/>Надёжность на уровне законов физики: неизвестное квантовое состояние нельзя скопировать, не разрушив его. Ключ шифрования кодируют в одиночные фотоны и передают по оптоволокну или через спутник; любая попытка перехвата меняет состояние частиц — и вмешательство сразу обнаруживается.</div>
+    <div class="glo"><b>3. Квантовые сенсоры — высокоточные измерения. <span class="tag tag-soon">скоро</span></b><br/>Хрупкость квантовых систем превращается в преимущество: малейшее воздействие меняет их состояние, поэтому отдельные частицы становятся сверхчувствительными датчиками. Они измеряют ничтожные изменения среды — например, колебания температуры или электромагнитных полей.</div>
+    <button class="btn" id="start2">Оценить свою задачу</button>`;
+  document.getElementById("back").onclick = home;
+  document.getElementById("start2").onclick = onboarding;
+}
 function home() {
   app.innerHTML = `
     <div class="hero-ic">${icon("atom")}</div>
@@ -231,6 +292,15 @@ function home() {
     <div class="cgrid">${CASES.map(caseBlock).join("")}</div>
     <p class="muted" style="font-size:12px">Публичные индустриальные кейсы (D-Wave и партнёры) — для иллюстрации типов задач.</p>
 
+    <h2 class="sec">Три класса квантовых технологий</h2>
+    <p class="muted">Квантовые свойства — суперпозиция и запутанность — применяют для трёх разных классов задач.</p>
+    <div class="cgrid">
+      ${qtCard("🖥️", "Квантовые вычисления", "Ускорение расчётов и задачи, недоступные классике: оптимизация, моделирование, химия.", "оцениваем сейчас", false)}
+      ${qtCard("🔐", "Квантовые коммуникации", "Защищённая передача данных на уровне законов физики.", "скоро", true)}
+      ${qtCard("📡", "Квантовые сенсоры", "Сверхточные измерения слабейших изменений среды.", "скоро", true)}
+    </div>
+    <button class="btn ghost" id="qmore" style="margin-top:6px">Подробнее о квантовых технологиях</button>
+
     <div class="plate">Наша цель — не доказать необходимость кванта, а честно оценить применимость. Иногда лучший результат диагностики — рекомендация остаться на классических методах.</div>
 
     <div class="row sec">
@@ -241,6 +311,7 @@ function home() {
   document.getElementById("kb").onclick = knowledge;
   document.getElementById("about").onclick = about;
   app.querySelectorAll(".cmore").forEach((b) => (b.onclick = () => caseDetail(+b.dataset.i)));
+  document.getElementById("qmore").onclick = quantum;
 }
 function knowledge() {
   app.innerHTML = `
@@ -312,6 +383,17 @@ function onboarding() {
   document.getElementById("tohome").onclick = home;
 }
 
+function customInput(q) {
+  app.innerHTML = `
+    <div class="kicker">${q.title}</div>
+    <h2>Укажите сумму, ₽ в год</h2>
+    <input type="number" id="inp" placeholder="например, 8000000" />
+    <button class="btn" id="next">Далее</button>
+    <div class="row" style="margin-top:14px"><button class="btn dunno" id="back">← Назад</button></div>`;
+  document.getElementById("next").onclick = () => { const el = document.getElementById("inp"); S.answers[q.key] = el.value === "" ? "dunno" : el.value; S.qi++; ask(); };
+  document.getElementById("back").onclick = () => ask();
+}
+
 function ask() {
   const queue = computeQueue(S.answers);
   if (S.qi >= queue.length) return submit();
@@ -321,7 +403,7 @@ function ask() {
   const prev = S.answers[q.key] !== undefined && S.answers[q.key] !== "dunno" ? S.answers[q.key] : "";
   if (q.type === "select" || q.type === "cards") {
     body = `<div class="opts">${q.options
-      .map((o) => `<button class="opt" data-v="${o.v}" ${o.disabled ? "disabled" : ""}>${o.label}${o.note ? `<span class="note">${o.note}</span>` : ""}${o.disabled ? `<span class="tag">в разработке</span>` : ""}</button>`)
+      .map((o) => `<button class="opt" data-v="${o.v}" ${o.custom ? 'data-custom="1"' : ""} ${o.disabled ? "disabled" : ""}>${o.label}${o.note ? `<span class="note">${o.note}</span>` : ""}${o.disabled ? `<span class="tag">в разработке</span>` : ""}</button>`)
       .join("")}</div>`;
   } else if (q.type === "number") {
     body = `<input type="number" id="inp" placeholder="${q.hint || "число"}" value="${prev}" /><button class="btn" id="next">Далее</button>`;
@@ -339,7 +421,7 @@ function ask() {
       ${q.optional ? `<button class="btn dunno" id="skip">Пропустить</button>` : ""}
     </div>`;
   const set = (v) => { S.answers[q.key] = v; S.qi++; ask(); };
-  app.querySelectorAll(".opt").forEach((b) => { if (!b.disabled) b.onclick = () => set(b.dataset.v); });
+  app.querySelectorAll(".opt").forEach((b) => { if (!b.disabled) b.onclick = () => (b.dataset.custom ? customInput(q) : set(b.dataset.v)); });
   const nx = document.getElementById("next");
   if (nx) nx.onclick = () => { const el = document.getElementById("inp"); set(el.value === "" ? "dunno" : el.value); };
   const dn = document.getElementById("dunno"); if (dn) dn.onclick = () => set("dunno");
@@ -371,6 +453,7 @@ function result() {
       Ориентир эффекта: ${r.scenario.effect}; горизонт: ${r.scenario.horizon}.<br/>
       <span class="muted">Это оценка по аналогии, не гарантия эффекта.</span></div>
     ${r.confidence < 0.6 ? `<p class="muted">Часть ответов — «не знаю», поэтому вердикт предварительный.</p>` : ""}
+    <div class="recs"><b>${info.recTitle}</b><ul>${info.recs.map((x) => `<li>${x}</li>`).join("")}</ul></div>
     <p class="next">${info.next}</p>
     <button class="btn big" id="brief">${icon("doc")} Получить бриф</button>`;
   document.getElementById("brief").onclick = brief;
