@@ -33,6 +33,16 @@ export const MenuRecognitionSchema = z.object({
 
 export type MenuRecognition = z.infer<typeof MenuRecognitionSchema>;
 
+/** Контракт текстового совета нутрициолога. */
+export const AdviceSchema = z.object({
+  status: z.enum(["success", "warning", "danger"]),
+  headerStatus: z.string().min(1).max(120),
+  adviceText: z.string().min(1).max(600),
+  recommendedProduct: z.string().min(1).max(200),
+});
+
+export type AdviceData = z.infer<typeof AdviceSchema>;
+
 /**
  * Достаёт первый JSON-объект из текста модели (модели любят
  * оборачивать ответ в ```json ... ``` или добавлять болтовню).

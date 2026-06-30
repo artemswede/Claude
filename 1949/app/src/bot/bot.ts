@@ -13,6 +13,7 @@ import {
 } from "./food";
 import { handleManualText, handleToday, startManualAdd } from "./diary";
 import { handleCheckinCallback, offerCheckin } from "./checkin";
+import { handleAdvice } from "./advice";
 import { getUserByTgId } from "../db/repo";
 
 /** Контекст бота с сессией (хранится в KV). */
@@ -65,6 +66,10 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
 
   bot.command("checkin", async (ctx) => {
     await offerCheckin(ctx, env);
+  });
+
+  bot.command("advice", async (ctx) => {
+    await handleAdvice(ctx, env);
   });
 
   bot.command("ping", async (ctx) => {
