@@ -35,10 +35,23 @@ export interface PendingFood {
   editing?: "portion" | "dish";
 }
 
+/** Шаги ручного ввода приёма пищи. */
+export type ManualStep = "name" | "kcal" | "protein" | "fat" | "carb";
+
+export interface ManualDraft {
+  step: ManualStep;
+  name?: string;
+  kcal?: number;
+  protein?: number;
+  fat?: number;
+  carb?: number;
+}
+
 /** Данные сессии, хранятся в KV по ключу chat/user. */
 export interface SessionData {
   onboarding?: OnboardingDraft;
   pendingFood?: PendingFood;
+  manual?: ManualDraft;
 }
 
 export function initialSession(): SessionData {

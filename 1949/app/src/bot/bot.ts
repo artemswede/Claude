@@ -11,6 +11,7 @@ import {
   handleFoodEditText,
   handlePhoto,
 } from "./food";
+import { handleManualText, handleToday, startManualAdd } from "./diary";
 import { getUserByTgId } from "../db/repo";
 
 /** Контекст бота с сессией (хранится в KV). */
@@ -53,6 +54,14 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
     await startOnboarding(ctx, env);
   });
 
+  bot.command("today", async (ctx) => {
+    await handleToday(ctx, env);
+  });
+
+  bot.command("add", async (ctx) => {
+    await startManualAdd(ctx, env);
+  });
+
   bot.command("ping", async (ctx) => {
     await ctx.reply("pong");
   });
@@ -69,12 +78,13 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
     await next();
   });
 
-  // Текстовые сообщения: онбординг → правка карточки еды → подсказка.
+  // Текстовые сообщения: онбординг → правка карточки → ручной ввод → подсказка.
   bot.on("message:text", async (ctx) => {
     if (await handleOnboardingText(ctx)) return;
     if (await handleFoodEditText(ctx)) return;
+    if (await handleManualText(ctx, env)) return;
     await ctx.reply(
-      "Пришли фото еды — посчитаю КБЖУ. Команды: /goals — цели, /add — ручной ввод (скоро).",
+      "Пришли фото еды — посчитаю КБЖУ.\nКоманды: /today — дневник, /add — ручной ввод, /goals — цели.",
     );
   });
 

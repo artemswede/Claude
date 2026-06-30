@@ -45,6 +45,35 @@ export interface DayTotals {
   count: number;
 }
 
+export interface FoodRow {
+  id: number;
+  ts: string;
+  dish_name: string;
+  kcal: number;
+  prot: number;
+  fat: number;
+  carb: number;
+  portion_g: number | null;
+  source: string;
+}
+
+/** Список приёмов за день, по времени (сначала свежие). */
+export async function getDayEntries(
+  db: D1Database,
+  userId: number,
+  localDate: string,
+): Promise<FoodRow[]> {
+  const res = await db
+    .prepare(
+      `SELECT id, ts, dish_name, kcal, prot, fat, carb, portion_g, source
+         FROM food_log WHERE user_id = ? AND local_date = ?
+         ORDER BY ts DESC`,
+    )
+    .bind(userId, localDate)
+    .all<FoodRow>();
+  return res.results ?? [];
+}
+
 export async function getDayTotals(
   db: D1Database,
   userId: number,
