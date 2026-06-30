@@ -21,9 +21,24 @@ export interface OnboardingDraft {
   goal?: Goal;
 }
 
+/** Распознанный приём, ожидающий подтверждения пользователем. */
+export interface PendingFood {
+  dish: string;
+  portionG: number;
+  kcal: number;
+  protein: number;
+  fat: number;
+  carb: number;
+  confidence: number;
+  source: "photo" | "menu" | "label" | "manual";
+  /** Какое поле сейчас редактируем (ждём текстовый ввод). */
+  editing?: "portion" | "dish";
+}
+
 /** Данные сессии, хранятся в KV по ключу chat/user. */
 export interface SessionData {
   onboarding?: OnboardingDraft;
+  pendingFood?: PendingFood;
 }
 
 export function initialSession(): SessionData {

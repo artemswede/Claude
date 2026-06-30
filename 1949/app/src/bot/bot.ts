@@ -6,6 +6,11 @@ import {
   handleOnboardingText,
   startOnboarding,
 } from "./onboarding";
+import {
+  handleFoodCallback,
+  handleFoodEditText,
+  handlePhoto,
+} from "./food";
 import { getUserByTgId } from "../db/repo";
 
 /** Контекст бота с сессией (хранится в KV). */
@@ -52,18 +57,24 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
     await ctx.reply("pong");
   });
 
-  // Inline-кнопки онбординга.
-  bot.on("callback_query:data", async (ctx, next) => {
-    const handled = await handleOnboardingCallback(ctx, env);
-    if (!handled) await next();
+  // Фото еды → распознавание.
+  bot.on("message:photo", async (ctx) => {
+    await handlePhoto(ctx, env);
   });
 
-  // Текстовые сообщения: сначала пробуем как шаг онбординга.
+  // Inline-кнопки: сначала онбординг, затем карточка еды.
+  bot.on("callback_query:data", async (ctx, next) => {
+    if (await handleOnboardingCallback(ctx, env)) return;
+    if (await handleFoodCallback(ctx, env)) return;
+    await next();
+  });
+
+  // Текстовые сообщения: онбординг → правка карточки еды → подсказка.
   bot.on("message:text", async (ctx) => {
-    const handled = await handleOnboardingText(ctx);
-    if (handled) return;
+    if (await handleOnboardingText(ctx)) return;
+    if (await handleFoodEditText(ctx)) return;
     await ctx.reply(
-      "Пока я умею настраивать цели (/goals) и считать КБЖУ — распознавание фото подключаем на следующем этапе.",
+      "Пришли фото еды — посчитаю КБЖУ. Команды: /goals — цели, /add — ручной ввод (скоро).",
     );
   });
 
