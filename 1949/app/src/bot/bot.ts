@@ -12,6 +12,7 @@ import {
   handlePhoto,
 } from "./food";
 import { handleManualText, handleToday, startManualAdd } from "./diary";
+import { handleCheckinCallback, offerCheckin } from "./checkin";
 import { getUserByTgId } from "../db/repo";
 
 /** Контекст бота с сессией (хранится в KV). */
@@ -62,6 +63,10 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
     await startManualAdd(ctx, env);
   });
 
+  bot.command("checkin", async (ctx) => {
+    await offerCheckin(ctx, env);
+  });
+
   bot.command("ping", async (ctx) => {
     await ctx.reply("pong");
   });
@@ -71,10 +76,11 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
     await handlePhoto(ctx, env);
   });
 
-  // Inline-кнопки: сначала онбординг, затем карточка еды.
+  // Inline-кнопки: онбординг → карточка еды → чек-ин состояния.
   bot.on("callback_query:data", async (ctx, next) => {
     if (await handleOnboardingCallback(ctx, env)) return;
     if (await handleFoodCallback(ctx, env)) return;
+    if (await handleCheckinCallback(ctx, env)) return;
     await next();
   });
 

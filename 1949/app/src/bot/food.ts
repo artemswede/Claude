@@ -6,6 +6,7 @@ import { WorkersAIProvider } from "../ai/workers-ai";
 import { downloadTelegramFile } from "../util/telegram-file";
 import { ensureUser, getUserByTgId, logEvent } from "../db/repo";
 import { addFoodEntry, getDayTotals } from "../db/food";
+import { offerCheckin } from "./checkin";
 import { localDate } from "../util/time";
 
 const LOW_CONFIDENCE = 0.5;
@@ -191,4 +192,7 @@ async function confirmFood(ctx: BotContext, env: Env, p: PendingFood): Promise<v
   if (goalK) lines.push("", `Осталось на сегодня: *${leftK}* ккал`);
 
   await ctx.reply(lines.join("\n"), { parse_mode: "Markdown" });
+
+  // Лёгкий чек-ин состояния сразу после приёма пищи.
+  await offerCheckin(ctx, env);
 }
