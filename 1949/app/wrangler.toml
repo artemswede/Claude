@@ -1,0 +1,36 @@
+name = "edondon-bot"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Workers AI — распознавание фото и генерация советов (биндинг env.AI)
+[ai]
+binding = "AI"
+
+# D1 — реляционные данные (пользователи, дневник, состояние, вес, аналитика)
+# id заполняется после `wrangler d1 create edondon`
+[[d1_databases]]
+binding = "DB"
+database_name = "edondon"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+# KV — состояние диалога (FSM-сессии), кэш
+# id заполняется после `wrangler kv namespace create SESSIONS`
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# R2 — хранение фото (опционально; в MVP по умолчанию не используется)
+# [[r2_buckets]]
+# binding = "PHOTOS"
+# bucket_name = "edondon-photos"
+
+[vars]
+# Несекретные переменные. Секреты (BOT_TOKEN, WEBHOOK_SECRET) — через `wrangler secret put`.
+ENVIRONMENT = "dev"
+
+# Окружение prod — отдельные ресурсы и переменные.
+[env.production]
+[env.production.vars]
+ENVIRONMENT = "production"

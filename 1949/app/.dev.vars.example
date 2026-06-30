@@ -1,0 +1,8 @@
+# Локальные секреты для `wrangler dev`. Скопируй в .dev.vars и заполни.
+# .dev.vars в .gitignore — НЕ коммитить.
+
+# Токен бота от @BotFather
+BOT_TOKEN="123456:ABC-DEF..."
+
+# Произвольная случайная строка для проверки webhook (любой длинный секрет)
+WEBHOOK_SECRET="set-a-long-random-string"
