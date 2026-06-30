@@ -14,6 +14,10 @@ export interface Env {
 
   // --- Переменные (wrangler.toml [vars]) ---
   ENVIRONMENT: string;
+  /** Название магазина-партнёра для кнопки заказа (опц.). */
+  PARTNER_NAME?: string;
+  /** Шаблон поисковой ссылки партнёра с плейсхолдером {q} (опц.). */
+  PARTNER_SEARCH_URL?: string;
 
   // --- Биндинги ресурсов ---
   /** Workers AI — vision и текстовая генерация. */

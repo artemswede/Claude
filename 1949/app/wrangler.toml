@@ -29,6 +29,9 @@ id = "REPLACE_WITH_KV_NAMESPACE_ID"
 [vars]
 # Несекретные переменные. Секреты (BOT_TOKEN, WEBHOOK_SECRET) — через `wrangler secret put`.
 ENVIRONMENT = "dev"
+# Партнёр для заказа корзины (диплинк). Поменяй на согласованного партнёра.
+PARTNER_NAME = "СберМаркет"
+PARTNER_SEARCH_URL = "https://kuper.ru/search?q={q}"
 
 # Окружение prod — отдельные ресурсы и переменные.
 [env.production]

@@ -13,7 +13,7 @@ import {
 } from "./food";
 import { handleManualText, handleToday, startManualAdd } from "./diary";
 import { handleCheckinCallback, offerCheckin } from "./checkin";
-import { handleAdvice } from "./advice";
+import { handleAdvice, handleBasketCallback } from "./advice";
 import { getUserByTgId } from "../db/repo";
 
 /** Контекст бота с сессией (хранится в KV). */
@@ -81,11 +81,12 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
     await handlePhoto(ctx, env);
   });
 
-  // Inline-кнопки: онбординг → карточка еды → чек-ин состояния.
+  // Inline-кнопки: онбординг → карточка еды → чек-ин → корзина.
   bot.on("callback_query:data", async (ctx, next) => {
     if (await handleOnboardingCallback(ctx, env)) return;
     if (await handleFoodCallback(ctx, env)) return;
     if (await handleCheckinCallback(ctx, env)) return;
+    if (await handleBasketCallback(ctx, env)) return;
     await next();
   });
 
@@ -95,7 +96,15 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
     if (await handleFoodEditText(ctx)) return;
     if (await handleManualText(ctx, env)) return;
     await ctx.reply(
-      "Пришли фото еды — посчитаю КБЖУ.\nКоманды: /today — дневник, /add — ручной ввод, /goals — цели.",
+      [
+        "Пришли фото еды — посчитаю КБЖУ.",
+        "Команды:",
+        "/today — дневник дня",
+        "/add — ручной ввод",
+        "/checkin — отметить самочувствие",
+        "/advice — совет и корзина",
+        "/goals — пересчитать цели",
+      ].join("\n"),
     );
   });
 
