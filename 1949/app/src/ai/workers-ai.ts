@@ -24,7 +24,7 @@ const BREAKDOWN_FORMAT =
 const FOOD_PROMPT = [
   "Определи блюдо на фото и разложи его на основные ингредиенты с оценкой веса каждого в граммах.",
   "Например: «гречка с индейкой» → [{«гречка варёная», 150}, {«индейка», 80}].",
-  "Ответь ТОЛЬКО JSON, без markdown и пояснений, строго в формате:",
+  "Ответь ТОЛЬКО JSON, без markdown, без описаний и рассуждений — сразу объект:",
   BREAKDOWN_FORMAT,
   "Если вес порции по фото неочевиден — снизь confidence. Названия ингредиентов — простые и обобщённые.",
 ].join("\n");
@@ -57,7 +57,7 @@ export class WorkersAIProvider implements AIProvider {
     const res = await this.ai.run(AI_MODEL as keyof AiModels, {
       image: [...imageBytes],
       prompt,
-      max_tokens: 700,
+      max_tokens: 512, // короче вывод → быстрее генерация
     } as never);
     const text = responseToText(res).trim();
     if (!text) throw new Error("Empty vision response");
@@ -74,8 +74,11 @@ export class WorkersAIProvider implements AIProvider {
     return text;
   }
 
-  async recognizeFood(imageBytes: Uint8Array): Promise<FoodBreakdown> {
-    const text = await this.runVision(imageBytes, FOOD_PROMPT);
+  async recognizeFood(imageBytes: Uint8Array, hint?: string): Promise<FoodBreakdown> {
+    const prompt = hint
+      ? `${FOOD_PROMPT}\nПодсказка от пользователя (учитывай её): ${hint}`
+      : FOOD_PROMPT;
+    const text = await this.runVision(imageBytes, prompt);
     return FoodBreakdownSchema.parse(extractJson(text));
   }
 

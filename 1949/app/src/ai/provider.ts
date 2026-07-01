@@ -7,8 +7,9 @@ import type { Per100Macros } from "../nutrition/table";
  * хэндлеров (см. решение в АРХИТЕКТУРА.md §3).
  */
 export interface AIProvider {
-  /** Распознать блюдо по фото → название + разбор на ингредиенты с граммами. */
-  recognizeFood(imageBytes: Uint8Array): Promise<FoodBreakdown>;
+  /** Распознать блюдо по фото → название + разбор на ингредиенты с граммами.
+   *  hint — необязательная подсказка от пользователя (подпись к фото). */
+  recognizeFood(imageBytes: Uint8Array, hint?: string): Promise<FoodBreakdown>;
   /** Разложить блюдо на ингредиенты по его названию (ручная правка). */
   breakdownFromText(dish: string, portionG: number): Promise<FoodBreakdown>;
   /** Распознать меню ресторана по фото → список блюд. */

@@ -33,7 +33,9 @@ export async function handlePhoto(ctx: BotContext, env: Env): Promise<void> {
   try {
     const bytes = await downloadTelegramFile(env.BOT_TOKEN, fileId);
     const ai = new WorkersAIProvider(env.AI);
-    const r = await ai.recognizeFood(bytes);
+    // Подпись к фото используем как подсказку (ускоряет и уточняет распознавание).
+    const hint = ctx.message?.caption?.trim() || undefined;
+    const r = await ai.recognizeFood(bytes, hint);
 
     // Считаем КБЖУ по разбору на ингредиенты (справочник → OFF → модель).
     const nutr = await computeFromIngredients(r.ingredients, ai);
