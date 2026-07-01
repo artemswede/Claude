@@ -46,9 +46,11 @@ export class WorkersAIProvider implements AIProvider {
   constructor(private readonly ai: Ai) {}
 
   private async runVision(imageBytes: Uint8Array, prompt: string): Promise<string> {
+    // Vision-модель принимает изображение вместе с полем `prompt`
+    // (формат `messages` + image даёт AiError 3030).
     const res = (await this.ai.run(VISION_MODEL as keyof AiModels, {
-      messages: [{ role: "user", content: prompt }],
       image: [...imageBytes],
+      prompt,
       max_tokens: 512,
     } as never)) as VisionResponse;
     const text = (res.response ?? res.description ?? "").trim();
