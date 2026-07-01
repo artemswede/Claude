@@ -54,7 +54,10 @@ export async function searchByName(name: string): Promise<Per100 | null> {
     "&search_simple=1&action=process&json=1&page_size=5" +
     "&fields=product_name,product_name_ru,nutriments";
   try {
-    const res = await fetch(url, { headers: { "User-Agent": UA } });
+    const res = await fetch(url, {
+      headers: { "User-Agent": UA },
+      signal: AbortSignal.timeout(5000), // не подвешиваем обработку из-за медленного OFF
+    });
     if (!res.ok) return null;
     const data = (await res.json()) as { products?: OffProduct[] };
     for (const p of data.products ?? []) {
@@ -71,7 +74,10 @@ export async function searchByName(name: string): Promise<Per100 | null> {
 export async function lookupBarcode(barcode: string): Promise<Per100 | null> {
   const url = `${PRODUCT_URL}/${encodeURIComponent(barcode)}.json?fields=product_name,product_name_ru,nutriments`;
   try {
-    const res = await fetch(url, { headers: { "User-Agent": UA } });
+    const res = await fetch(url, {
+      headers: { "User-Agent": UA },
+      signal: AbortSignal.timeout(5000), // не подвешиваем обработку из-за медленного OFF
+    });
     if (!res.ok) return null;
     const data = (await res.json()) as { status?: number; product?: OffProduct };
     if (data.status !== 1 || !data.product) return null;
