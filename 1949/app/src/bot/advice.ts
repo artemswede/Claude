@@ -50,7 +50,11 @@ export async function handleAdvice(ctx: BotContext, env: Env): Promise<void> {
     eaten: entries.map((e) => e.dish_name),
   };
 
+  // Индикатор «думаю» — генерация совета моделью занимает время.
+  const thinking = await ctx.reply("Подбираю рекомендацию… 🤔");
   const advice = await generateAdvice(env.AI, adviceCtx);
+  await ctx.api.deleteMessage(thinking.chat.id, thinking.message_id).catch(() => {});
+
   const basket = buildBasket(consumed, target, advice);
   const recId = await addRecommendation(
     env.DB,
