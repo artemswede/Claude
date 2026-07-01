@@ -54,6 +54,8 @@ export interface SessionData {
   onboarding?: OnboardingDraft;
   pendingFood?: PendingFood;
   manual?: ManualDraft;
+  /** Ждём ввод веса (после /weight без аргумента). */
+  awaitingWeight?: boolean;
 }
 
 export function initialSession(): SessionData {

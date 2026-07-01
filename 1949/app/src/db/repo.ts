@@ -21,6 +21,8 @@ export interface UserRow {
   goal_fat: number | null;
   goal_carb: number | null;
   onboarded_at: string | null;
+  reminders_enabled: number;
+  last_reminder_date: string | null;
 }
 
 export async function getUserByTgId(db: D1Database, tgId: number): Promise<UserRow | null> {
@@ -80,6 +82,35 @@ export async function completeOnboarding(
       nowIso(),
       tgId,
     )
+    .run();
+}
+
+export interface ReminderUser {
+  id: number;
+  tg_id: number;
+  tz: string;
+  last_reminder_date: string | null;
+}
+
+/** Пользователи, которым можно слать напоминания (прошли онбординг, не отключили). */
+export async function getUsersForReminder(db: D1Database): Promise<ReminderUser[]> {
+  const res = await db
+    .prepare(
+      `SELECT id, tg_id, tz, last_reminder_date FROM users
+         WHERE onboarded_at IS NOT NULL AND reminders_enabled = 1`,
+    )
+    .all<ReminderUser>();
+  return res.results ?? [];
+}
+
+export async function markReminded(db: D1Database, userId: number, date: string): Promise<void> {
+  await db.prepare("UPDATE users SET last_reminder_date = ? WHERE id = ?").bind(date, userId).run();
+}
+
+export async function setReminders(db: D1Database, tgId: number, enabled: boolean): Promise<void> {
+  await db
+    .prepare("UPDATE users SET reminders_enabled = ? WHERE tg_id = ?")
+    .bind(enabled ? 1 : 0, tgId)
     .run();
 }
 

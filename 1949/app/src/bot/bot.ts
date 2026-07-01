@@ -11,9 +11,16 @@ import {
   handleFoodEditText,
   handlePhoto,
 } from "./food";
-import { handleManualText, handleToday, startManualAdd } from "./diary";
+import {
+  handleManualText,
+  handleToday,
+  handleTodayCallback,
+  startManualAdd,
+} from "./diary";
 import { handleCheckinCallback, offerCheckin } from "./checkin";
 import { handleAdvice, handleAdviceMoreCallback, handleBasketCallback } from "./advice";
+import { handleWeight, handleWeightText } from "./weight";
+import { handleRemindersToggle } from "./reminders";
 import { getUserByTgId } from "../db/repo";
 
 /** Контекст бота с сессией (хранится в KV). */
@@ -45,7 +52,9 @@ const BOT_COMMANDS = [
   { command: "advice", description: "🥗 Совет и корзина" },
   { command: "checkin", description: "😌 Отметить самочувствие" },
   { command: "add", description: "✍️ Добавить приём вручную" },
+  { command: "weight", description: "⚖️ Записать вес" },
   { command: "goals", description: "🎯 Пересчитать цели" },
+  { command: "reminders", description: "🔔 Напоминания вкл/выкл" },
   { command: "menu", description: "📋 Показать команды" },
 ];
 
@@ -99,6 +108,14 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
     await offerCheckin(ctx, env);
   });
 
+  bot.command("weight", async (ctx) => {
+    await handleWeight(ctx, env);
+  });
+
+  bot.command("reminders", async (ctx) => {
+    await handleRemindersToggle(ctx, env);
+  });
+
   bot.command("advice", async (ctx) => {
     await handleAdvice(ctx, env);
   });
@@ -133,6 +150,7 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
     if (await handleCheckinCallback(ctx, env)) return;
     if (await handleBasketCallback(ctx, env)) return;
     if (await handleAdviceMoreCallback(ctx, env)) return;
+    if (await handleTodayCallback(ctx, env)) return;
     await next();
   });
 
@@ -141,6 +159,7 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
     if (await handleOnboardingText(ctx)) return;
     if (await handleFoodEditText(ctx, env)) return;
     if (await handleManualText(ctx, env)) return;
+    if (await handleWeightText(ctx, env)) return;
     await ctx.reply(
       [
         "Пришли фото еды — посчитаю КБЖУ.",

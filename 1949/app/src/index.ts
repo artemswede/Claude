@@ -1,5 +1,6 @@
 import type { Update } from "grammy/types";
 import { createBot } from "./bot/bot";
+import { runReminders } from "./bot/reminders";
 import type { Env } from "./env";
 
 /**
@@ -43,5 +44,10 @@ export default {
     }
 
     return new Response("Not found", { status: 404 });
+  },
+
+  /** Cron-триггер: рассылка напоминаний. */
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(runReminders(env).catch((e) => console.error("runReminders error:", e)));
   },
 };

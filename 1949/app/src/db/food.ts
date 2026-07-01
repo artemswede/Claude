@@ -37,6 +37,23 @@ export async function addFoodEntry(db: D1Database, e: FoodEntry): Promise<void> 
     .run();
 }
 
+/** Удаляет последний (самый свежий) приём за день. Возвращает название или null. */
+export async function deleteLastFoodEntry(
+  db: D1Database,
+  userId: number,
+  localDate: string,
+): Promise<string | null> {
+  const row = await db
+    .prepare(
+      "SELECT id, dish_name FROM food_log WHERE user_id = ? AND local_date = ? ORDER BY ts DESC LIMIT 1",
+    )
+    .bind(userId, localDate)
+    .first<{ id: number; dish_name: string }>();
+  if (!row) return null;
+  await db.prepare("DELETE FROM food_log WHERE id = ?").bind(row.id).run();
+  return row.dish_name;
+}
+
 export interface DayTotals {
   kcal: number;
   prot: number;

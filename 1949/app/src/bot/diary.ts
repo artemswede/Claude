@@ -1,10 +1,13 @@
+import { InlineKeyboard } from "grammy";
 import type { BotContext } from "./bot";
 import type { Env } from "../env";
 import { ensureUser, getUserByTgId, logEvent } from "../db/repo";
-import { addFoodEntry, getDayEntries, getDayTotals } from "../db/food";
+import { addFoodEntry, deleteLastFoodEntry, getDayEntries, getDayTotals } from "../db/food";
+import { renderMacroStatus } from "../domain/macrobar";
+import { handleAdvice } from "./advice";
 import { localDate } from "../util/time";
 
-/** /today — итоги дня, лента приёмов, остаток до цели. */
+/** /today — итоги дня, полосы КБЖУ, лента приёмов, удаление последнего. */
 export async function handleToday(ctx: BotContext, env: Env): Promise<void> {
   if (!ctx.from) return;
   const user = await getUserByTgId(env.DB, ctx.from.id);
@@ -18,28 +21,61 @@ export async function handleToday(ctx: BotContext, env: Env): Promise<void> {
     getDayEntries(env.DB, user.id, date),
   ]);
 
-  const goalK = user.goal_kcal ?? 0;
   const lines: string[] = [`📊 *Сегодня* (${date})`, ""];
 
   if (entries.length === 0) {
     lines.push("Пока пусто. Пришли фото еды или добавь вручную: /add");
-  } else {
-    lines.push(
-      `🔥 ${Math.round(totals.kcal)}${goalK ? ` / ${goalK}` : ""} ккал`,
-      `🥩 ${Math.round(totals.prot)} б · 🥑 ${Math.round(totals.fat)} ж · 🍚 ${Math.round(totals.carb)} у`,
-    );
-    if (goalK) {
-      const left = Math.max(0, goalK - Math.round(totals.kcal));
-      lines.push("", `Осталось: *${left}* ккал`);
-    }
-    lines.push("", "*Приёмы:*");
-    for (const e of entries) {
-      const portion = e.portion_g ? `, ${Math.round(e.portion_g)} г` : "";
-      lines.push(`• ${e.dish_name}${portion} — ${Math.round(e.kcal)} ккал`);
-    }
+    await ctx.reply(lines.join("\n"), { parse_mode: "Markdown" });
+    return;
   }
 
-  await ctx.reply(lines.join("\n"), { parse_mode: "Markdown" });
+  const consumed = { kcal: totals.kcal, prot: totals.prot, fat: totals.fat, carb: totals.carb };
+  const target = {
+    kcal: user.goal_kcal ?? 0,
+    prot: user.goal_prot ?? 0,
+    fat: user.goal_fat ?? 0,
+    carb: user.goal_carb ?? 0,
+  };
+  lines.push(renderMacroStatus(consumed, target, null), "", "*Приёмы:*");
+  for (const e of entries) {
+    const portion = e.portion_g ? `, ${Math.round(e.portion_g)} г` : "";
+    lines.push(`• ${e.dish_name}${portion} — ${Math.round(e.kcal)} ккал`);
+  }
+
+  const kb = new InlineKeyboard()
+    .text("🥗 Совет", "today:advice")
+    .text("🗑 Удалить последний", "today:del");
+  await ctx.reply(lines.join("\n"), { parse_mode: "Markdown", reply_markup: kb });
+}
+
+/** Кнопки под /today: удаление последнего приёма и переход к совету. */
+export async function handleTodayCallback(ctx: BotContext, env: Env): Promise<boolean> {
+  const data = ctx.callbackQuery?.data;
+  if (!data || !data.startsWith("today:")) return false;
+  const action = data.slice("today:".length);
+
+  if (action === "del") {
+    if (!ctx.from) return true;
+    const user = await getUserByTgId(env.DB, ctx.from.id);
+    if (user) {
+      const removed = await deleteLastFoodEntry(env.DB, user.id, localDate(user.tz));
+      await ctx.answerCallbackQuery(removed ? `Удалил: ${removed}` : "Нечего удалять");
+    } else {
+      await ctx.answerCallbackQuery();
+    }
+    await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => {});
+    await handleToday(ctx, env); // перерисовываем актуальный день
+    return true;
+  }
+
+  if (action === "advice") {
+    await ctx.answerCallbackQuery();
+    await handleAdvice(ctx, env);
+    return true;
+  }
+
+  await ctx.answerCallbackQuery();
+  return true;
 }
 
 /** /add — старт ручного ввода приёма. */
