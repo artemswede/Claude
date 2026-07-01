@@ -51,8 +51,10 @@ export async function handlePhoto(ctx: BotContext, env: Env): Promise<void> {
   } catch (e) {
     console.error("recognizeFood failed:", e);
     await ctx.api.deleteMessage(thinking.chat.id, thinking.message_id).catch(() => {});
+    // В dev-режиме показываем причину прямо в чате — упрощает отладку.
+    const reason = env.ENVIRONMENT === "dev" ? `\n\n🐞 ${String(e).slice(0, 300)}` : "";
     await ctx.reply(
-      "Не удалось распознать фото 😕 Попробуй сделать снимок чётче или введи блюдо вручную: /add",
+      `Не удалось распознать фото 😕 Попробуй сделать снимок чётче или введи блюдо вручную: /add${reason}`,
     );
   }
 }
