@@ -153,6 +153,7 @@ export async function handleFoodEditText(ctx: BotContext, env: Env): Promise<boo
     p.editing = undefined;
     // Пересчитываем КБЖУ под исправлённое блюдо.
     const wait = await ctx.reply("Пересчитываю КБЖУ… 🔄");
+    let estimateErr: unknown = null;
     try {
       const ai = new WorkersAIProvider(env.AI);
       const r = await ai.estimateFromText(text, p.portionG);
@@ -164,10 +165,13 @@ export async function handleFoodEditText(ctx: BotContext, env: Env): Promise<boo
       p.carb = Math.round(r.carb);
       p.confidence = r.confidence;
     } catch (e) {
+      estimateErr = e;
       console.error("estimateFromText failed:", e);
-      // Оставляем прежние значения, если оценка не удалась.
     }
     await ctx.api.deleteMessage(wait.chat.id, wait.message_id).catch(() => {});
+    if (estimateErr && env.ENVIRONMENT === "dev") {
+      await ctx.reply(`⚠️ Не удалось пересчитать КБЖУ (оставил прежние).\n🐞 ${String(estimateErr).slice(0, 300)}`);
+    }
     await sendFoodCard(ctx, p);
     return true;
   }
