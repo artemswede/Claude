@@ -8,6 +8,7 @@ import { addRecommendation, getRecommendation } from "../db/recs";
 import { generateAdvice } from "../ai/advise";
 import { buildBasket, type Basket } from "../domain/basket";
 import { buildPartnerLink } from "../domain/partner";
+import { estimateRecMacros, renderMacroStatus } from "../domain/macrobar";
 import type { AdviceContext } from "../domain/advice";
 import { dayPart, localDate, localHour } from "../util/time";
 
@@ -65,10 +66,16 @@ export async function handleAdvice(ctx: BotContext, env: Env): Promise<void> {
   );
   await logEvent(env.DB, user.id, "rec_shown", { status: advice.status });
 
+  const recMacros = estimateRecMacros(advice.recommendedProduct);
+  const statusBlock = renderMacroStatus(consumed, target, recMacros);
+
   const lines = [
     `${STATUS_EMOJI[advice.status] ?? ""} *${advice.headerStatus}*`,
     "",
     advice.adviceText,
+    "",
+    "*📊 Твой день по КБЖУ:*",
+    statusBlock,
     "",
     "*🛒 Корзина:*",
     ...basket.items.map((i) => `• ${i}`),
