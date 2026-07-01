@@ -39,16 +39,47 @@ export function createBot(env: Env): Bot<BotContext> {
   return bot;
 }
 
+/** Список команд для синей кнопки «Меню» в Telegram. */
+const BOT_COMMANDS = [
+  { command: "today", description: "📊 Дневник за день" },
+  { command: "advice", description: "🥗 Совет и корзина" },
+  { command: "checkin", description: "😌 Отметить самочувствие" },
+  { command: "add", description: "✍️ Добавить приём вручную" },
+  { command: "goals", description: "🎯 Пересчитать цели" },
+  { command: "menu", description: "📋 Показать команды" },
+];
+
 function registerHandlers(bot: Bot<BotContext>, env: Env): void {
   bot.command("start", async (ctx) => {
+    // Регистрируем список команд (синяя кнопка «Меню»). Идемпотентно.
+    await ctx.api.setMyCommands(BOT_COMMANDS).catch(() => {});
     const user = ctx.from ? await getUserByTgId(env.DB, ctx.from.id) : null;
     if (user?.onboarded_at) {
       await ctx.reply(
-        "С возвращением! 🥗 Пришли фото еды или загляни в меню. Чтобы пересчитать цели — /goals.",
+        "С возвращением! 🥗 Пришли фото еды или нажми кнопку «Меню». Команды: /today /advice /checkin /add /goals",
       );
       return;
     }
     await startOnboarding(ctx, env);
+  });
+
+  bot.command("menu", async (ctx) => {
+    await ctx.api.setMyCommands(BOT_COMMANDS).catch(() => {});
+    await ctx.reply(
+      [
+        "📋 *Команды ЕДОНДОН:*",
+        "",
+        "📸 Пришли фото еды — посчитаю КБЖУ",
+        "/today — дневник за день",
+        "/advice — совет и корзина",
+        "/checkin — отметить самочувствие",
+        "/add — добавить приём вручную",
+        "/goals — пересчитать цели",
+        "",
+        "_Список команд также доступен по кнопке «Меню» слева от поля ввода._",
+      ].join("\n"),
+      { parse_mode: "Markdown" },
+    );
   });
 
   // Пересчёт целей вручную.

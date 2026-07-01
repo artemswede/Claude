@@ -5,6 +5,7 @@ import { getUserByTgId, logEvent } from "../db/repo";
 import { getDayTotals } from "../db/food";
 import { addMoodCheckin } from "../db/state";
 import { moodById, moodsFor } from "../domain/states";
+import { handleAdvice } from "./advice";
 import { localDate } from "../util/time";
 
 /** Предлагает быстрый чек-ин состояния. Набор зависит от того, ел ли сегодня. */
@@ -49,8 +50,8 @@ export async function handleCheckinCallback(ctx: BotContext, env: Env): Promise<
 
   await ctx.answerCallbackQuery("Записал!");
   await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => {});
-  await ctx.reply(
-    `Отметил: ${mood.emoji} ${mood.label}. Учту это в рекомендациях. Нужен совет на следующий приём — /advice`,
-  );
+  await ctx.reply(`Отметил: ${mood.emoji} ${mood.label}. Вот совет с учётом самочувствия:`);
+  // Сразу показываем совет и корзину — без лишнего шага.
+  await handleAdvice(ctx, env);
   return true;
 }
