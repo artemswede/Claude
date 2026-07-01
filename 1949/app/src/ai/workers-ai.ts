@@ -37,9 +37,17 @@ const MENU_PROMPT = [
   "Не более 10 основных блюд, которые удаётся прочитать.",
 ].join("\n");
 
-interface VisionResponse {
-  response?: string;
-  description?: string;
+/** Достаёт текст из ответа Workers AI, каким бы ни был его формат. */
+function responseToText(res: unknown): string {
+  if (typeof res === "string") return res;
+  if (res && typeof res === "object") {
+    const r = res as Record<string, unknown>;
+    const val = r.response ?? r.description ?? r.result ?? r.text;
+    if (typeof val === "string") return val;
+    if (val != null) return JSON.stringify(val); // модель вернула объект — сериализуем
+    return JSON.stringify(r);
+  }
+  return String(res ?? "");
 }
 
 export class WorkersAIProvider implements AIProvider {
@@ -48,12 +56,12 @@ export class WorkersAIProvider implements AIProvider {
   private async runVision(imageBytes: Uint8Array, prompt: string): Promise<string> {
     // Vision-модель принимает изображение вместе с полем `prompt`
     // (формат `messages` + image даёт AiError 3030).
-    const res = (await this.ai.run(VISION_MODEL as keyof AiModels, {
+    const res = await this.ai.run(VISION_MODEL as keyof AiModels, {
       image: [...imageBytes],
       prompt,
       max_tokens: 512,
-    } as never)) as VisionResponse;
-    const text = (res.response ?? res.description ?? "").trim();
+    } as never);
+    const text = responseToText(res).trim();
     if (!text) throw new Error("Empty vision response");
     return text;
   }
