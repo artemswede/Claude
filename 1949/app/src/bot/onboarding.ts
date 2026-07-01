@@ -166,7 +166,7 @@ async function finishOnboarding(ctx: BotContext, env: Env): Promise<void> {
       `🥑 Жиры: *${targets.fat}* г`,
       `🍚 Углеводы: *${targets.carb}* г`,
       "",
-      "Дальше — пришли фото еды, и я посчитаю КБЖУ. (Распознавание подключим на следующем этапе.)",
+      "Дальше — пришли фото еды, и я посчитаю КБЖУ. 📸",
       "",
       DISCLAIMER,
     ].join("\n"),

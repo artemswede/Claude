@@ -43,9 +43,19 @@ export const AdviceSchema = z.object({
 
 export type AdviceData = z.infer<typeof AdviceSchema>;
 
+/** Убирает управляющие символы (U+0000–U+001F) — частая причина невалидного JSON. */
+function stripControlChars(s: string): string {
+  let out = "";
+  for (const ch of s) {
+    out += ch.codePointAt(0)! < 0x20 ? " " : ch;
+  }
+  return out;
+}
+
 /**
  * Достаёт первый JSON-объект из текста модели (модели любят
  * оборачивать ответ в ```json ... ``` или добавлять болтовню).
+ * Устойчив к битому экранированию и управляющим символам.
  */
 export function extractJson(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -55,5 +65,12 @@ export function extractJson(text: string): unknown {
   if (start === -1 || end === -1 || end < start) {
     throw new Error("No JSON object found in model output");
   }
-  return JSON.parse(candidate.slice(start, end + 1));
+  const raw = candidate.slice(start, end + 1);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    // Чиним частые дефекты: управляющие символы и одиночные обратные слэши.
+    const fixed = stripControlChars(raw).replace(/\\(?!["\\/bfnrtu])/g, "");
+    return JSON.parse(fixed);
+  }
 }
