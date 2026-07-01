@@ -7,6 +7,7 @@ import { downloadTelegramFile } from "../util/telegram-file";
 import { ensureUser, getUserByTgId, logEvent } from "../db/repo";
 import { addFoodEntry, getDayTotals } from "../db/food";
 import { offerCheckin } from "./checkin";
+import { resolveByName } from "../nutrition/resolve";
 import { localDate } from "../util/time";
 
 const LOW_CONFIDENCE = 0.5;
@@ -43,7 +44,19 @@ export async function handlePhoto(ctx: BotContext, env: Env): Promise<void> {
       carb: Math.round(r.carb),
       confidence: r.confidence,
       source: "photo",
+      nutritionSource: "model",
     };
+
+    // Уточняем КБЖУ по базе Open Food Facts (для упакованных продуктов — точнее модели).
+    const off = await resolveByName(r.dish, pending.portionG);
+    if (off) {
+      pending.kcal = off.kcal;
+      pending.protein = off.protein;
+      pending.fat = off.fat;
+      pending.carb = off.carb;
+      pending.nutritionSource = "off";
+      pending.confidence = Math.max(pending.confidence, 0.8);
+    }
     ctx.session.pendingFood = pending;
 
     await ctx.api.deleteMessage(thinking.chat.id, thinking.message_id).catch(() => {});
@@ -68,7 +81,9 @@ async function sendFoodCard(ctx: BotContext, p: PendingFood): Promise<void> {
     "",
     `🔥 ${p.kcal} ккал · 🥩 ${p.protein} б · 🥑 ${p.fat} ж · 🍚 ${p.carb} у`,
     "",
-    "_Значения оценочные._",
+    p.nutritionSource === "off"
+      ? "_📚 По базе продуктов Open Food Facts._"
+      : "_Значения оценочные (модель)._",
   ];
   if (lowConf) {
     lines.push("", "⚠️ Не уверен в порции — лучше уточни вес для точности.");
@@ -154,19 +169,31 @@ export async function handleFoodEditText(ctx: BotContext, env: Env): Promise<boo
     // Пересчитываем КБЖУ под исправлённое блюдо.
     const wait = await ctx.reply("Пересчитываю КБЖУ… 🔄");
     let estimateErr: unknown = null;
-    try {
-      const ai = new WorkersAIProvider(env.AI);
-      const r = await ai.estimateFromText(text, p.portionG);
-      p.dish = r.dish || text;
-      p.portionG = Math.round(r.portion_grams) || p.portionG;
-      p.kcal = Math.round(r.kcal);
-      p.protein = Math.round(r.protein);
-      p.fat = Math.round(r.fat);
-      p.carb = Math.round(r.carb);
-      p.confidence = r.confidence;
-    } catch (e) {
-      estimateErr = e;
-      console.error("estimateFromText failed:", e);
+    // Сначала база продуктов Open Food Facts.
+    const off = await resolveByName(text, p.portionG);
+    if (off) {
+      p.kcal = off.kcal;
+      p.protein = off.protein;
+      p.fat = off.fat;
+      p.carb = off.carb;
+      p.confidence = 0.8;
+      p.nutritionSource = "off";
+    } else {
+      // Иначе — оценка текстовой моделью.
+      try {
+        const ai = new WorkersAIProvider(env.AI);
+        const r = await ai.estimateFromText(text, p.portionG);
+        p.portionG = Math.round(r.portion_grams) || p.portionG;
+        p.kcal = Math.round(r.kcal);
+        p.protein = Math.round(r.protein);
+        p.fat = Math.round(r.fat);
+        p.carb = Math.round(r.carb);
+        p.confidence = r.confidence;
+        p.nutritionSource = "model";
+      } catch (e) {
+        estimateErr = e;
+        console.error("estimateFromText failed:", e);
+      }
     }
     await ctx.api.deleteMessage(wait.chat.id, wait.message_id).catch(() => {});
     if (estimateErr && env.ENVIRONMENT === "dev") {
