@@ -70,7 +70,7 @@ export async function handlePhoto(ctx: BotContext, env: Env): Promise<void> {
 }
 
 /** Карточка распознанного блюда с кнопками подтверждения/правки. */
-async function sendFoodCard(ctx: BotContext, p: PendingFood): Promise<void> {
+export async function sendFoodCard(ctx: BotContext, p: PendingFood): Promise<void> {
   const lowConf = p.confidence < LOW_CONFIDENCE;
   const lines = [
     `🍽️ *${p.dish}*`,

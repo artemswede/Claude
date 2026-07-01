@@ -1,10 +1,12 @@
 import type { AIProvider } from "./provider";
 import {
   FoodBreakdownSchema,
+  FoodRecognitionSchema,
   MenuRecognitionSchema,
   Per100BatchSchema,
   extractJson,
   type FoodBreakdown,
+  type FoodRecognition,
   type MenuRecognition,
 } from "./schema";
 import type { Per100Macros } from "../nutrition/table";
@@ -97,6 +99,21 @@ export class WorkersAIProvider implements AIProvider {
   async recognizeMenu(imageBytes: Uint8Array): Promise<MenuRecognition> {
     const text = await this.runVision(imageBytes, MENU_PROMPT);
     return MenuRecognitionSchema.parse(extractJson(text));
+  }
+
+  async recognizeLabel(imageBytes: Uint8Array): Promise<FoodRecognition> {
+    const prompt = [
+      "Прочитай этикетку продукта на фото (таблицу пищевой ценности).",
+      "Оцени КБЖУ порции продукта. Если указано на 100 г — считай порцию 100 г.",
+      "Ответь ТОЛЬКО JSON, без markdown:",
+      '{"dish": строка по-русски, "portion_grams": число, "kcal": число, "protein": число, "fat": число, "carb": число, "confidence": число от 0 до 1, "assumptions": строка}',
+    ].join("\n");
+    const text = await this.runVision(imageBytes, prompt);
+    return FoodRecognitionSchema.parse(extractJson(text));
+  }
+
+  async complete(prompt: string): Promise<string> {
+    return this.runText(prompt);
   }
 
   async estimatePer100(names: string[]): Promise<Record<string, Per100Macros>> {

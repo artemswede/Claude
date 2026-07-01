@@ -1,4 +1,4 @@
-import type { FoodBreakdown, MenuRecognition } from "./schema";
+import type { FoodBreakdown, FoodRecognition, MenuRecognition } from "./schema";
 import type { Per100Macros } from "../nutrition/table";
 
 /**
@@ -14,6 +14,10 @@ export interface AIProvider {
   breakdownFromText(dish: string, portionG: number): Promise<FoodBreakdown>;
   /** Распознать меню ресторана по фото → список блюд. */
   recognizeMenu(imageBytes: Uint8Array): Promise<MenuRecognition>;
+  /** Распознать этикетку/состав продукта → КБЖУ порции. */
+  recognizeLabel(imageBytes: Uint8Array): Promise<FoodRecognition>;
   /** Оценить КБЖУ на 100 г для списка продуктов (когда их нет в базе). */
   estimatePer100(names: string[]): Promise<Record<string, Per100Macros>>;
+  /** Свободная текстовая генерация (для чата с нутрициологом). */
+  complete(prompt: string): Promise<string>;
 }

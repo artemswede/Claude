@@ -21,6 +21,16 @@ import { handleCheckinCallback, offerCheckin } from "./checkin";
 import { handleAdvice, handleAdviceMoreCallback, handleBasketCallback } from "./advice";
 import { handleWeight, handleWeightText } from "./weight";
 import { handleRemindersToggle } from "./reminders";
+import {
+  handleBarcodeText,
+  handleLabelPhoto,
+  handleMenuPhoto,
+  handleMenuPick,
+  handleScanCallback,
+  handleScanCommand,
+} from "./scan";
+import { handleChat } from "./chat";
+import { handleStats } from "./stats";
 import { getUserByTgId } from "../db/repo";
 
 /** Контекст бота с сессией (хранится в KV). */
@@ -53,6 +63,8 @@ const BOT_COMMANDS = [
   { command: "checkin", description: "😌 Отметить самочувствие" },
   { command: "add", description: "✍️ Добавить приём вручную" },
   { command: "weight", description: "⚖️ Записать вес" },
+  { command: "scan", description: "📷 Скан меню/этикетки" },
+  { command: "stats", description: "📈 Моя статистика" },
   { command: "goals", description: "🎯 Пересчитать цели" },
   { command: "reminders", description: "🔔 Напоминания вкл/выкл" },
   { command: "menu", description: "📋 Показать команды" },
@@ -116,6 +128,14 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
     await handleRemindersToggle(ctx, env);
   });
 
+  bot.command("scan", async (ctx) => {
+    await handleScanCommand(ctx);
+  });
+
+  bot.command("stats", async (ctx) => {
+    await handleStats(ctx, env);
+  });
+
   bot.command("advice", async (ctx) => {
     await handleAdvice(ctx, env);
   });
@@ -138,9 +158,18 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
     }
   });
 
-  // Фото еды → распознавание.
+  // Фото → по выбранному режиму (блюдо/меню/этикетка).
   bot.on("message:photo", async (ctx) => {
-    await handlePhoto(ctx, env);
+    const mode = ctx.session.scanMode;
+    const photos = ctx.message.photo;
+    const fileId = photos[photos.length - 1]?.file_id;
+    if (mode === "menu" && fileId) {
+      await handleMenuPhoto(ctx, env, fileId);
+    } else if (mode === "label" && fileId) {
+      await handleLabelPhoto(ctx, env, fileId);
+    } else {
+      await handlePhoto(ctx, env);
+    }
   });
 
   // Inline-кнопки: онбординг → карточка еды → чек-ин → корзина.
@@ -151,6 +180,8 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
     if (await handleBasketCallback(ctx, env)) return;
     if (await handleAdviceMoreCallback(ctx, env)) return;
     if (await handleTodayCallback(ctx, env)) return;
+    if (await handleScanCallback(ctx)) return;
+    if (await handleMenuPick(ctx, env)) return;
     await next();
   });
 
@@ -160,17 +191,9 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
     if (await handleFoodEditText(ctx, env)) return;
     if (await handleManualText(ctx, env)) return;
     if (await handleWeightText(ctx, env)) return;
-    await ctx.reply(
-      [
-        "Пришли фото еды — посчитаю КБЖУ.",
-        "Команды:",
-        "/today — дневник дня",
-        "/add — ручной ввод",
-        "/checkin — отметить самочувствие",
-        "/advice — совет и корзина",
-        "/goals — пересчитать цели",
-      ].join("\n"),
-    );
+    if (await handleBarcodeText(ctx, env)) return;
+    // Всё остальное — свободный диалог с нутрициологом.
+    await handleChat(ctx, env);
   });
 
   bot.catch((err) => {

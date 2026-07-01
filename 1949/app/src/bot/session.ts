@@ -56,6 +56,12 @@ export interface SessionData {
   manual?: ManualDraft;
   /** Ждём ввод веса (после /weight без аргумента). */
   awaitingWeight?: boolean;
+  /** Режим следующего фото (по умолчанию — блюдо). */
+  scanMode?: "menu" | "label";
+  /** Распознанные блюда меню, ожидающие выбора. */
+  menuItems?: { dish: string; kcal: number; protein: number; fat: number; carb: number; portionG: number }[];
+  /** Короткая история диалога с нутрициологом (роль+текст). */
+  chat?: { role: "user" | "assistant"; content: string }[];
 }
 
 export function initialSession(): SessionData {
