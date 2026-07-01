@@ -76,6 +76,20 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
     await ctx.reply("pong");
   });
 
+  // Разовое принятие лицензии Meta для vision-модели (AiError 5016).
+  // Соглашаясь, подтверждаешь, что не находишься в ЕС.
+  bot.command("agreeai", async (ctx) => {
+    try {
+      await env.AI.run(
+        "@cf/meta/llama-3.2-11b-vision-instruct" as keyof AiModels,
+        { prompt: "agree" } as never,
+      );
+      await ctx.reply("Лицензия модели принята ✅ Теперь пришли фото еды.");
+    } catch (e) {
+      await ctx.reply(`Не удалось принять лицензию: ${String(e)}`);
+    }
+  });
+
   // Фото еды → распознавание.
   bot.on("message:photo", async (ctx) => {
     await handlePhoto(ctx, env);
