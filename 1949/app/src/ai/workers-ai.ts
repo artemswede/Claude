@@ -17,8 +17,15 @@ import {
 // Одна проверенная модель и для vision, и для текста (llama-3.1-8b снята с 2026-05-30).
 export const AI_MODEL = "@cf/meta/llama-3.2-11b-vision-instruct";
 
+// Общая подсказка о реалистичности макросов (частая ошибка модели — занижение углеводов гарниров).
+const MACRO_GUIDANCE =
+  "Оценивай КБЖУ реалистично. Помни: гарниры из круп (гречка, рис, овсянка), " +
+  "макарон, картофеля, хлеба содержат МНОГО углеводов — обычно 15–30 г на 100 г готового блюда, " +
+  "не занижай их. Калорийность должна примерно сходиться: kcal ≈ protein*4 + fat*9 + carb*4.";
+
 const FOOD_PROMPT = [
   "Определи, что за еда на фото, и оцени пищевую ценность съеденной порции.",
+  MACRO_GUIDANCE,
   "Ответь ТОЛЬКО JSON, без markdown и пояснений, строго в формате:",
   '{"dish": строка по-русски, "portion_grams": число, "kcal": число, "protein": число, "fat": число, "carb": число, "confidence": число от 0 до 1, "assumptions": строка по-русски}',
   "Если вес порции по фото неочевиден — снизь confidence.",
@@ -96,6 +103,7 @@ export class WorkersAIProvider implements AIProvider {
   async estimateFromText(dish: string, portionG: number): Promise<FoodRecognition> {
     const prompt = [
       `Оцени пищевую ценность блюда "${dish}" для порции ${portionG} г.`,
+      MACRO_GUIDANCE,
       "Ответь ТОЛЬКО JSON, без markdown и пояснений, строго в формате:",
       '{"dish": строка по-русски, "portion_grams": число, "kcal": число, "protein": число, "fat": число, "carb": число, "confidence": число от 0 до 1, "assumptions": строка по-русски}',
     ].join("\n");
