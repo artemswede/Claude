@@ -6,6 +6,7 @@
  * (когда ИИ недоступен/слаб), и как «скелет логики» для промпта ИИ.
  */
 import type { DayPart } from "../util/time";
+import type { Goal } from "./goals";
 
 export type AdviceStatus = "success" | "warning" | "danger";
 
@@ -29,6 +30,8 @@ export interface AdviceContext {
   mood: string | null; // id состояния (dull/fresh/full/sleepy/lacking/low_energy/hungry)
   consumed: Macros;
   target: Macros;
+  goal: Goal | null; // цель пользователя (похудение/поддержание/набор)
+  eaten: string[]; // что уже съедено сегодня (для разнообразия и контекста)
 }
 
 function pct(part: number, whole: number): number {
@@ -156,11 +159,28 @@ export function deterministicAdvice(ctx: AdviceContext): AdviceResult {
     }
   }
 
-  // Базовый случай.
+  // Базовый случай — с учётом цели и остатка калорий.
+  const goal = ctx.goal;
+  if (goal === "lose" && calsLeft < t.kcal * 0.2) {
+    return {
+      status: "warning",
+      headerStatus: "Почти у лимита",
+      adviceText: `Осталось ~${Math.max(0, Math.round(calsLeft))} ккал. Для похудения добери белком и овощами — они сытные при малых калориях.`,
+      recommendedProduct: "Куриная грудка (150 г) + салат из овощей.",
+    };
+  }
+  if (goal === "gain" && calsLeft > t.kcal * 0.3) {
+    return {
+      status: "warning",
+      headerStatus: "Нужен профицит",
+      adviceText: `Для набора осталось добрать ~${Math.round(calsLeft)} ккал. Добавь калорийный, но полезный приём.`,
+      recommendedProduct: "Рис (150 г) + говядина (150 г) + ложка масла.",
+    };
+  }
   return {
     status: "success",
     headerStatus: "Ты в графике",
-    adviceText: "Показатели в норме. Продолжаем придерживаться плана!",
+    adviceText: `Показатели в норме, осталось ~${Math.max(0, Math.round(calsLeft))} ккал. Продолжаем в том же духе!`,
     recommendedProduct: "Лёгкий перекус по желанию: греческий йогурт (150 г).",
   };
 }

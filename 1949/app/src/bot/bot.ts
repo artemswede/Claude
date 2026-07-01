@@ -13,7 +13,7 @@ import {
 } from "./food";
 import { handleManualText, handleToday, startManualAdd } from "./diary";
 import { handleCheckinCallback, offerCheckin } from "./checkin";
-import { handleAdvice, handleBasketCallback } from "./advice";
+import { handleAdvice, handleAdviceMoreCallback, handleBasketCallback } from "./advice";
 import { getUserByTgId } from "../db/repo";
 
 /** Контекст бота с сессией (хранится в KV). */
@@ -132,6 +132,7 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
     if (await handleFoodCallback(ctx, env)) return;
     if (await handleCheckinCallback(ctx, env)) return;
     if (await handleBasketCallback(ctx, env)) return;
+    if (await handleAdviceMoreCallback(ctx, env)) return;
     await next();
   });
 

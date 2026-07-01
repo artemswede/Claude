@@ -2,7 +2,7 @@ import { InlineKeyboard } from "grammy";
 import type { BotContext } from "./bot";
 import type { Env } from "../env";
 import { getUserByTgId, logEvent } from "../db/repo";
-import { getDayTotals } from "../db/food";
+import { getDayEntries, getDayTotals } from "../db/food";
 import { getLatestMood } from "../db/state";
 import { addRecommendation, getRecommendation } from "../db/recs";
 import { generateAdvice } from "../ai/advise";
@@ -27,9 +27,10 @@ export async function handleAdvice(ctx: BotContext, env: Env): Promise<void> {
   }
 
   const date = localDate(user.tz);
-  const [totals, mood] = await Promise.all([
+  const [totals, mood, entries] = await Promise.all([
     getDayTotals(env.DB, user.id, date),
     getLatestMood(env.DB, user.id, date),
+    getDayEntries(env.DB, user.id, date),
   ]);
 
   const consumed = { kcal: totals.kcal, prot: totals.prot, fat: totals.fat, carb: totals.carb };
@@ -45,6 +46,8 @@ export async function handleAdvice(ctx: BotContext, env: Env): Promise<void> {
     mood,
     consumed,
     target,
+    goal: user.goal,
+    eaten: entries.map((e) => e.dish_name),
   };
 
   const advice = await generateAdvice(env.AI, adviceCtx);
@@ -69,8 +72,20 @@ export async function handleAdvice(ctx: BotContext, env: Env): Promise<void> {
     `_${basket.reason}_`,
   ];
 
-  const kb = new InlineKeyboard().text("🛒 Заказать корзину", `basket:${recId}`);
+  const kb = new InlineKeyboard()
+    .text("🛒 Заказать корзину", `basket:${recId}`)
+    .row()
+    .text("🔄 Другой вариант", "advice:more");
   await ctx.reply(lines.join("\n"), { parse_mode: "Markdown", reply_markup: kb });
+}
+
+/** Кнопка «Другой вариант» — генерируем ещё одну рекомендацию. */
+export async function handleAdviceMoreCallback(ctx: BotContext, env: Env): Promise<boolean> {
+  const data = ctx.callbackQuery?.data;
+  if (data !== "advice:more") return false;
+  await ctx.answerCallbackQuery();
+  await handleAdvice(ctx, env);
+  return true;
 }
 
 /** Клик по «Заказать корзину»: фиксируем KPI и отдаём диплинк партнёра. */
