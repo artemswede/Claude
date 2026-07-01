@@ -113,19 +113,64 @@ function firstJsonObject(s: string): string {
 }
 
 /**
+ * Чинит оборванный JSON (когда вывод модели обрезан по лимиту токенов):
+ * отбрасывает недописанный «хвост», закрывает строку и все открытые скобки.
+ */
+function closeTruncatedJson(s: string): string {
+  let inStr = false;
+  let esc = false;
+  const stack: string[] = [];
+  let lastSafe = -1; // индекс последней «целой» границы (после запятой/закрытия на верхнем уровне массива)
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+    } else if (ch === '"') {
+      inStr = true;
+    } else if (ch === "{" || ch === "[") {
+      stack.push(ch);
+    } else if (ch === "}" || ch === "]") {
+      stack.pop();
+      if (stack.length >= 1) lastSafe = i; // закрыт вложенный объект/элемент
+    }
+  }
+  // Берём до последнего целого элемента и закрываем оставшиеся скобки.
+  let out = lastSafe > 0 ? s.slice(0, lastSafe + 1) : s;
+  // Пересчитываем незакрытые скобки для обрезанной строки.
+  const st: string[] = [];
+  let inS = false;
+  let es = false;
+  for (const ch of out) {
+    if (inS) {
+      if (es) es = false;
+      else if (ch === "\\") es = true;
+      else if (ch === '"') inS = false;
+    } else if (ch === '"') inS = true;
+    else if (ch === "{" || ch === "[") st.push(ch);
+    else if (ch === "}" || ch === "]") st.pop();
+  }
+  if (inS) out += '"';
+  while (st.length) out += st.pop() === "{" ? "}" : "]";
+  return out;
+}
+
+/**
  * Достаёт первый JSON-объект из текста модели (модели любят
  * оборачивать ответ в ```json ... ``` или добавлять болтовню).
- * Устойчив к нескольким объектам, битому экранированию и управляющим символам.
+ * Устойчив к нескольким объектам, битому экранированию, управляющим символам
+ * и обрезанному по лимиту токенов выводу.
  */
 export function extractJson(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = fenced ? fenced[1] : text;
   const raw = firstJsonObject(candidate);
+  const cleaned = stripControlChars(raw).replace(/\\(?!["\\/bfnrtu])/g, "");
   try {
-    return JSON.parse(raw);
+    return JSON.parse(cleaned);
   } catch {
-    // Чиним частые дефекты: управляющие символы и одиночные обратные слэши.
-    const fixed = stripControlChars(raw).replace(/\\(?!["\\/bfnrtu])/g, "");
-    return JSON.parse(fixed);
+    // Возможно, вывод обрезан — пробуем закрыть структуру.
+    return JSON.parse(closeTruncatedJson(cleaned));
   }
 }

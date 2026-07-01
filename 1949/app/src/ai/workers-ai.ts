@@ -24,9 +24,10 @@ const BREAKDOWN_FORMAT =
 const FOOD_PROMPT = [
   "Определи блюдо на фото и разложи его на основные ингредиенты с оценкой веса каждого в граммах.",
   "Например: «гречка с индейкой» → [{«гречка варёная», 150}, {«индейка», 80}].",
+  "Не более 6 основных ингредиентов. Названия — короткие и обобщённые (1-2 слова).",
   "Ответь ТОЛЬКО JSON, без markdown, без описаний и рассуждений — сразу объект:",
   BREAKDOWN_FORMAT,
-  "Если вес порции по фото неочевиден — снизь confidence. Названия ингредиентов — простые и обобщённые.",
+  "Если вес порции по фото неочевиден — снизь confidence.",
 ].join("\n");
 
 const MENU_PROMPT = [
@@ -57,7 +58,7 @@ export class WorkersAIProvider implements AIProvider {
     const res = await this.ai.run(AI_MODEL as keyof AiModels, {
       image: [...imageBytes],
       prompt,
-      max_tokens: 512, // короче вывод → быстрее генерация
+      max_tokens: 768, // запас, чтобы JSON не обрывался
     } as never);
     const text = responseToText(res).trim();
     if (!text) throw new Error("Empty vision response");
