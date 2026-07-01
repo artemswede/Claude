@@ -7,7 +7,7 @@ import { downloadTelegramFile } from "../util/telegram-file";
 import { ensureUser, getUserByTgId, logEvent } from "../db/repo";
 import { addFoodEntry, getDayTotals } from "../db/food";
 import { offerCheckin } from "./checkin";
-import { resolveByName } from "../nutrition/resolve";
+import { computeFromIngredients } from "../nutrition/compute";
 import { localDate } from "../util/time";
 
 const LOW_CONFIDENCE = 0.5;
@@ -35,28 +35,23 @@ export async function handlePhoto(ctx: BotContext, env: Env): Promise<void> {
     const ai = new WorkersAIProvider(env.AI);
     const r = await ai.recognizeFood(bytes);
 
+    // Считаем КБЖУ по разбору на ингредиенты (справочник → OFF → модель).
+    const nutr = await computeFromIngredients(r.ingredients, ai);
+    const portionG =
+      Math.round(r.portion_grams) ||
+      r.ingredients.reduce((s, i) => s + i.grams, 0);
+
     const pending: PendingFood = {
       dish: r.dish,
-      portionG: Math.round(r.portion_grams),
-      kcal: Math.round(r.kcal),
-      protein: Math.round(r.protein),
-      fat: Math.round(r.fat),
-      carb: Math.round(r.carb),
+      portionG,
+      kcal: nutr.kcal,
+      protein: nutr.protein,
+      fat: nutr.fat,
+      carb: nutr.carb,
       confidence: r.confidence,
       source: "photo",
-      nutritionSource: "model",
+      ingredients: nutr.items.map((i) => ({ name: i.name, grams: Math.round(i.grams), source: i.source })),
     };
-
-    // Уточняем КБЖУ по базе Open Food Facts (для упакованных продуктов — точнее модели).
-    const off = await resolveByName(r.dish, pending.portionG);
-    if (off) {
-      pending.kcal = off.kcal;
-      pending.protein = off.protein;
-      pending.fat = off.fat;
-      pending.carb = off.carb;
-      pending.nutritionSource = "off";
-      pending.confidence = Math.max(pending.confidence, 0.8);
-    }
     ctx.session.pendingFood = pending;
 
     await ctx.api.deleteMessage(thinking.chat.id, thinking.message_id).catch(() => {});
@@ -80,13 +75,18 @@ async function sendFoodCard(ctx: BotContext, p: PendingFood): Promise<void> {
     `Порция: ~${p.portionG} г`,
     "",
     `🔥 ${p.kcal} ккал · 🥩 ${p.protein} б · 🥑 ${p.fat} ж · 🍚 ${p.carb} у`,
-    "",
-    p.nutritionSource === "off"
-      ? "_📚 По базе продуктов Open Food Facts._"
-      : "_Значения оценочные (модель)._",
   ];
+  if (p.ingredients && p.ingredients.length > 0) {
+    lines.push("", "*Состав:*");
+    for (const it of p.ingredients) {
+      // Помечаем ингредиенты, посчитанные грубой оценкой модели.
+      const mark = it.source === "model" || it.source === "unknown" ? " ~" : "";
+      lines.push(`• ${it.name} — ${it.grams} г${mark}`);
+    }
+  }
+  lines.push("", "_КБЖУ по базе продуктов и оценке модели. «~» — приблизительно._");
   if (lowConf) {
-    lines.push("", "⚠️ Не уверен в порции — лучше уточни вес для точности.");
+    lines.push("", "⚠️ Не уверен в весе — лучше уточни порцию.");
   }
 
   const kb = new InlineKeyboard()
@@ -144,13 +144,16 @@ export async function handleFoodEditText(ctx: BotContext, env: Env): Promise<boo
       await ctx.reply("Введи вес в граммах от 1 до 5000.");
       return true;
     }
-    // Пересчёт КБЖУ пропорционально новой порции.
+    // Пересчёт пропорционально новой порции — и итоги, и граммовки ингредиентов.
     if (p.portionG > 0) {
       const k = newG / p.portionG;
       p.kcal = Math.round(p.kcal * k);
       p.protein = Math.round(p.protein * k);
       p.fat = Math.round(p.fat * k);
       p.carb = Math.round(p.carb * k);
+      if (p.ingredients) {
+        p.ingredients = p.ingredients.map((it) => ({ ...it, grams: Math.round(it.grams * k) }));
+      }
     }
     p.portionG = Math.round(newG);
     p.confidence = Math.max(p.confidence, LOW_CONFIDENCE); // вес уточнён вручную
@@ -166,34 +169,24 @@ export async function handleFoodEditText(ctx: BotContext, env: Env): Promise<boo
     }
     p.dish = text;
     p.editing = undefined;
-    // Пересчитываем КБЖУ под исправлённое блюдо.
+    // Разбираем исправлённое блюдо на ингредиенты и считаем КБЖУ по базе.
     const wait = await ctx.reply("Пересчитываю КБЖУ… 🔄");
     let estimateErr: unknown = null;
-    // Сначала база продуктов Open Food Facts.
-    const off = await resolveByName(text, p.portionG);
-    if (off) {
-      p.kcal = off.kcal;
-      p.protein = off.protein;
-      p.fat = off.fat;
-      p.carb = off.carb;
-      p.confidence = 0.8;
-      p.nutritionSource = "off";
-    } else {
-      // Иначе — оценка текстовой моделью.
-      try {
-        const ai = new WorkersAIProvider(env.AI);
-        const r = await ai.estimateFromText(text, p.portionG);
-        p.portionG = Math.round(r.portion_grams) || p.portionG;
-        p.kcal = Math.round(r.kcal);
-        p.protein = Math.round(r.protein);
-        p.fat = Math.round(r.fat);
-        p.carb = Math.round(r.carb);
-        p.confidence = r.confidence;
-        p.nutritionSource = "model";
-      } catch (e) {
-        estimateErr = e;
-        console.error("estimateFromText failed:", e);
-      }
+    try {
+      const ai = new WorkersAIProvider(env.AI);
+      const b = await ai.breakdownFromText(text, p.portionG);
+      const nutr = await computeFromIngredients(b.ingredients, ai);
+      p.dish = b.dish || text;
+      p.portionG = Math.round(b.portion_grams) || b.ingredients.reduce((s, i) => s + i.grams, 0) || p.portionG;
+      p.kcal = nutr.kcal;
+      p.protein = nutr.protein;
+      p.fat = nutr.fat;
+      p.carb = nutr.carb;
+      p.confidence = b.confidence;
+      p.ingredients = nutr.items.map((i) => ({ name: i.name, grams: Math.round(i.grams), source: i.source }));
+    } catch (e) {
+      estimateErr = e;
+      console.error("breakdownFromText failed:", e);
     }
     await ctx.api.deleteMessage(wait.chat.id, wait.message_id).catch(() => {});
     if (estimateErr && env.ENVIRONMENT === "dev") {

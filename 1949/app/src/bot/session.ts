@@ -31,8 +31,8 @@ export interface PendingFood {
   carb: number;
   confidence: number;
   source: "photo" | "menu" | "label" | "manual";
-  /** Откуда взяты КБЖУ: база продуктов (off) или оценка модели. */
-  nutritionSource?: "off" | "model";
+  /** Разбор блюда на ингредиенты (для показа и пересчёта). */
+  ingredients?: { name: string; grams: number; source: string }[];
   /** Какое поле сейчас редактируем (ждём текстовый ввод). */
   editing?: "portion" | "dish";
 }

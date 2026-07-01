@@ -1,41 +1,32 @@
 import type { AIProvider } from "./provider";
 import {
-  FoodRecognitionSchema,
+  FoodBreakdownSchema,
   MenuRecognitionSchema,
+  Per100BatchSchema,
   extractJson,
-  type FoodRecognition,
+  type FoodBreakdown,
   type MenuRecognition,
 } from "./schema";
+import type { Per100Macros } from "../nutrition/table";
 
 /**
  * Распознавание на Workers AI.
- * Модель: llama-3.2-11b-vision-instruct — мультимодальная, инструкции и JSON
- * держит заметно лучше устаревшей LLaVA. Ответ валидируется Zod;
- * парсер extractJson устойчив к битому экранированию.
- * Провайдера легко заменить (см. интерфейс AIProvider).
+ * Модель: llama-3.2-11b-vision-instruct — и vision, и текст (llama-3.1-8b снята).
+ * Подход к точности: модель раскладывает блюдо на ИНГРЕДИЕНТЫ с граммами,
+ * а КБЖУ считаем по базе (nutrition/compute), а не доверяем «на глаз» модели.
  */
-// Одна проверенная модель и для vision, и для текста (llama-3.1-8b снята с 2026-05-30).
 export const AI_MODEL = "@cf/meta/llama-3.2-11b-vision-instruct";
 
-// Общая подсказка о реалистичности макросов (частая ошибка модели — занижение углеводов гарниров).
-const MACRO_GUIDANCE =
-  "Оценивай КБЖУ реалистично. Помни: гарниры из круп (гречка, рис, овсянка), " +
-  "макарон, картофеля, хлеба содержат МНОГО углеводов — обычно 15–30 г на 100 г готового блюда, " +
-  "не занижай их. Калорийность должна примерно сходиться: kcal ≈ protein*4 + fat*9 + carb*4.";
+const BREAKDOWN_FORMAT =
+  '{"dish": строка по-русски, "portion_grams": число (общий вес порции), ' +
+  '"ingredients": [{"name": строка по-русски, "grams": число}], "confidence": число от 0 до 1}';
 
 const FOOD_PROMPT = [
-  "Определи, что за еда на фото, и оцени пищевую ценность съеденной порции.",
-  MACRO_GUIDANCE,
+  "Определи блюдо на фото и разложи его на основные ингредиенты с оценкой веса каждого в граммах.",
+  "Например: «гречка с индейкой» → [{«гречка варёная», 150}, {«индейка», 80}].",
   "Ответь ТОЛЬКО JSON, без markdown и пояснений, строго в формате:",
-  '{"dish": строка по-русски, "portion_grams": число, "kcal": число, "protein": число, "fat": число, "carb": число, "confidence": число от 0 до 1, "assumptions": строка по-русски}',
-  "Если вес порции по фото неочевиден — снизь confidence.",
-].join("\n");
-
-const LABEL_PROMPT = [
-  "Прочитай этикетку/состав продукта на фото и оцени пищевую ценность.",
-  "Ответь ТОЛЬКО JSON, без markdown и пояснений, строго в формате:",
-  '{"dish": строка по-русски, "portion_grams": число, "kcal": число, "protein": число, "fat": число, "carb": число, "confidence": число от 0 до 1, "assumptions": строка по-русски}',
-  "Используй значения на 100 г или на порцию, указанные на этикетке.",
+  BREAKDOWN_FORMAT,
+  "Если вес порции по фото неочевиден — снизь confidence. Названия ингредиентов — простые и обобщённые.",
 ].join("\n");
 
 const MENU_PROMPT = [
@@ -52,7 +43,7 @@ export function responseToText(res: unknown): string {
     const r = res as Record<string, unknown>;
     const val = r.response ?? r.description ?? r.result ?? r.text;
     if (typeof val === "string") return val;
-    if (val != null) return JSON.stringify(val); // модель вернула объект — сериализуем
+    if (val != null) return JSON.stringify(val);
     return JSON.stringify(r);
   }
   return String(res ?? "");
@@ -62,37 +53,41 @@ export class WorkersAIProvider implements AIProvider {
   constructor(private readonly ai: Ai) {}
 
   private async runVision(imageBytes: Uint8Array, prompt: string): Promise<string> {
-    // Vision-модель принимает изображение вместе с полем `prompt`
-    // (формат `messages` + image даёт AiError 3030).
+    // Формат `prompt` + image (формат `messages` + image даёт AiError 3030).
     const res = await this.ai.run(AI_MODEL as keyof AiModels, {
       image: [...imageBytes],
       prompt,
-      max_tokens: 512,
+      max_tokens: 700,
     } as never);
     const text = responseToText(res).trim();
     if (!text) throw new Error("Empty vision response");
     return text;
   }
 
-  /** Текстовая генерация той же моделью (без изображения), формат `prompt`. */
   private async runText(prompt: string): Promise<string> {
     const res = await this.ai.run(AI_MODEL as keyof AiModels, {
       prompt,
-      max_tokens: 500,
+      max_tokens: 700,
     } as never);
     const text = responseToText(res).trim();
     if (!text) throw new Error("Empty text response");
     return text;
   }
 
-  async recognizeFood(imageBytes: Uint8Array): Promise<FoodRecognition> {
+  async recognizeFood(imageBytes: Uint8Array): Promise<FoodBreakdown> {
     const text = await this.runVision(imageBytes, FOOD_PROMPT);
-    return FoodRecognitionSchema.parse(extractJson(text));
+    return FoodBreakdownSchema.parse(extractJson(text));
   }
 
-  async recognizeLabel(imageBytes: Uint8Array): Promise<FoodRecognition> {
-    const text = await this.runVision(imageBytes, LABEL_PROMPT);
-    return FoodRecognitionSchema.parse(extractJson(text));
+  async breakdownFromText(dish: string, portionG: number): Promise<FoodBreakdown> {
+    const prompt = [
+      `Разложи блюдо "${dish}" (порция ${portionG} г) на основные ингредиенты с весом каждого в граммах.`,
+      "Ответь ТОЛЬКО JSON, без markdown и пояснений, строго в формате:",
+      BREAKDOWN_FORMAT,
+      "Названия ингредиентов — простые и обобщённые.",
+    ].join("\n");
+    const text = await this.runText(prompt);
+    return FoodBreakdownSchema.parse(extractJson(text));
   }
 
   async recognizeMenu(imageBytes: Uint8Array): Promise<MenuRecognition> {
@@ -100,14 +95,25 @@ export class WorkersAIProvider implements AIProvider {
     return MenuRecognitionSchema.parse(extractJson(text));
   }
 
-  async estimateFromText(dish: string, portionG: number): Promise<FoodRecognition> {
+  async estimatePer100(names: string[]): Promise<Record<string, Per100Macros>> {
+    if (names.length === 0) return {};
     const prompt = [
-      `Оцени пищевую ценность блюда "${dish}" для порции ${portionG} г.`,
-      MACRO_GUIDANCE,
+      "Для каждого продукта укажи пищевую ценность на 100 г.",
       "Ответь ТОЛЬКО JSON, без markdown и пояснений, строго в формате:",
-      '{"dish": строка по-русски, "portion_grams": число, "kcal": число, "protein": число, "fat": число, "carb": число, "confidence": число от 0 до 1, "assumptions": строка по-русски}',
+      '{"items": [{"name": строка, "kcal": число, "protein": число, "fat": число, "carb": число}]}',
+      `Продукты: ${names.join(", ")}`,
     ].join("\n");
     const text = await this.runText(prompt);
-    return FoodRecognitionSchema.parse(extractJson(text));
+    const parsed = Per100BatchSchema.parse(extractJson(text));
+    const map: Record<string, Per100Macros> = {};
+    for (const it of parsed.items) {
+      map[it.name.toLowerCase().trim()] = {
+        kcal: it.kcal,
+        protein: it.protein,
+        fat: it.fat,
+        carb: it.carb,
+      };
+    }
+    return map;
   }
 }

@@ -33,6 +33,37 @@ export const MenuRecognitionSchema = z.object({
 
 export type MenuRecognition = z.infer<typeof MenuRecognitionSchema>;
 
+/** Ингредиент блюда с оценкой веса. */
+export const IngredientSchema = z.object({
+  name: z.string().min(1).max(80),
+  grams: z.coerce.number().min(0).max(3000),
+});
+export type Ingredient = z.infer<typeof IngredientSchema>;
+
+/** Разбор блюда на ингредиенты (для точного расчёта КБЖУ по базе). */
+export const FoodBreakdownSchema = z.object({
+  dish: z.string().min(1).max(200),
+  portion_grams: z.coerce.number().min(0).max(5000).catch(0),
+  ingredients: z.array(IngredientSchema).min(1).max(20),
+  confidence: z.coerce.number().min(0).max(1).catch(0.5),
+});
+export type FoodBreakdown = z.infer<typeof FoodBreakdownSchema>;
+
+/** Оценка КБЖУ ингредиентов на 100 г от модели (fallback, когда нет в базе). */
+export const Per100BatchSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(80),
+        kcal: z.coerce.number().min(0).max(1000),
+        protein: z.coerce.number().min(0).max(100),
+        fat: z.coerce.number().min(0).max(100),
+        carb: z.coerce.number().min(0).max(100),
+      }),
+    )
+    .max(20),
+});
+
 /** Контракт текстового совета нутрициолога. */
 export const AdviceSchema = z.object({
   status: z.enum(["success", "warning", "danger"]),

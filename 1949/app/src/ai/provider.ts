@@ -1,4 +1,5 @@
-import type { FoodRecognition, MenuRecognition } from "./schema";
+import type { FoodBreakdown, MenuRecognition } from "./schema";
+import type { Per100Macros } from "../nutrition/table";
 
 /**
  * Абстракция над ИИ. Бизнес-логика зависит только от этого интерфейса,
@@ -6,12 +7,12 @@ import type { FoodRecognition, MenuRecognition } from "./schema";
  * хэндлеров (см. решение в АРХИТЕКТУРА.md §3).
  */
 export interface AIProvider {
-  /** Распознать готовое блюдо по фото → КБЖУ. */
-  recognizeFood(imageBytes: Uint8Array): Promise<FoodRecognition>;
+  /** Распознать блюдо по фото → название + разбор на ингредиенты с граммами. */
+  recognizeFood(imageBytes: Uint8Array): Promise<FoodBreakdown>;
+  /** Разложить блюдо на ингредиенты по его названию (ручная правка). */
+  breakdownFromText(dish: string, portionG: number): Promise<FoodBreakdown>;
   /** Распознать меню ресторана по фото → список блюд. */
   recognizeMenu(imageBytes: Uint8Array): Promise<MenuRecognition>;
-  /** Распознать этикетку/состав продукта → КБЖУ. */
-  recognizeLabel(imageBytes: Uint8Array): Promise<FoodRecognition>;
-  /** Оценить КБЖУ по названию блюда и весу порции (когда пользователь исправил блюдо вручную). */
-  estimateFromText(dish: string, portionG: number): Promise<FoodRecognition>;
+  /** Оценить КБЖУ на 100 г для списка продуктов (когда их нет в базе). */
+  estimatePer100(names: string[]): Promise<Record<string, Per100Macros>>;
 }
