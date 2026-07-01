@@ -15,6 +15,7 @@ import {
  * Провайдера легко заменить (см. интерфейс AIProvider).
  */
 const VISION_MODEL = "@cf/meta/llama-3.2-11b-vision-instruct";
+const TEXT_MODEL = "@cf/meta/llama-3.1-8b-instruct";
 
 const FOOD_PROMPT = [
   "Определи, что за еда на фото, и оцени пищевую ценность съеденной порции.",
@@ -79,5 +80,21 @@ export class WorkersAIProvider implements AIProvider {
   async recognizeMenu(imageBytes: Uint8Array): Promise<MenuRecognition> {
     const text = await this.runVision(imageBytes, MENU_PROMPT);
     return MenuRecognitionSchema.parse(extractJson(text));
+  }
+
+  async estimateFromText(dish: string, portionG: number): Promise<FoodRecognition> {
+    const prompt = [
+      `Оцени пищевую ценность блюда "${dish}" для порции ${portionG} г.`,
+      "Ответь ТОЛЬКО JSON, без markdown и пояснений, строго в формате:",
+      '{"dish": строка по-русски, "portion_grams": число, "kcal": число, "protein": число, "fat": число, "carb": число, "confidence": число от 0 до 1, "assumptions": строка по-русски}',
+    ].join("\n");
+    const res = await this.ai.run(TEXT_MODEL as keyof AiModels, {
+      messages: [
+        { role: "system", content: "Ты отвечаешь только валидным JSON, без markdown." },
+        { role: "user", content: prompt },
+      ],
+      max_tokens: 400,
+    } as never);
+    return FoodRecognitionSchema.parse(extractJson(responseToText(res)));
   }
 }

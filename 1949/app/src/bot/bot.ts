@@ -107,7 +107,7 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
   // Текстовые сообщения: онбординг → правка карточки → ручной ввод → подсказка.
   bot.on("message:text", async (ctx) => {
     if (await handleOnboardingText(ctx)) return;
-    if (await handleFoodEditText(ctx)) return;
+    if (await handleFoodEditText(ctx, env)) return;
     if (await handleManualText(ctx, env)) return;
     await ctx.reply(
       [

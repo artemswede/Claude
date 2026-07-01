@@ -118,7 +118,7 @@ export async function handleFoodCallback(ctx: BotContext, env: Env): Promise<boo
 }
 
 /** Текстовый ввод при правке порции/блюда. Возвращает true, если ввод обработан. */
-export async function handleFoodEditText(ctx: BotContext): Promise<boolean> {
+export async function handleFoodEditText(ctx: BotContext, env: Env): Promise<boolean> {
   const p = ctx.session.pendingFood;
   if (!p || !p.editing) return false;
   const text = ctx.message?.text?.trim() ?? "";
@@ -151,6 +151,23 @@ export async function handleFoodEditText(ctx: BotContext): Promise<boolean> {
     }
     p.dish = text;
     p.editing = undefined;
+    // Пересчитываем КБЖУ под исправлённое блюдо.
+    const wait = await ctx.reply("Пересчитываю КБЖУ… 🔄");
+    try {
+      const ai = new WorkersAIProvider(env.AI);
+      const r = await ai.estimateFromText(text, p.portionG);
+      p.dish = r.dish || text;
+      p.portionG = Math.round(r.portion_grams) || p.portionG;
+      p.kcal = Math.round(r.kcal);
+      p.protein = Math.round(r.protein);
+      p.fat = Math.round(r.fat);
+      p.carb = Math.round(r.carb);
+      p.confidence = r.confidence;
+    } catch (e) {
+      console.error("estimateFromText failed:", e);
+      // Оставляем прежние значения, если оценка не удалась.
+    }
+    await ctx.api.deleteMessage(wait.chat.id, wait.message_id).catch(() => {});
     await sendFoodCard(ctx, p);
     return true;
   }

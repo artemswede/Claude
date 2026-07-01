@@ -12,4 +12,6 @@ export interface AIProvider {
   recognizeMenu(imageBytes: Uint8Array): Promise<MenuRecognition>;
   /** Распознать этикетку/состав продукта → КБЖУ. */
   recognizeLabel(imageBytes: Uint8Array): Promise<FoodRecognition>;
+  /** Оценить КБЖУ по названию блюда и весу порции (когда пользователь исправил блюдо вручную). */
+  estimateFromText(dish: string, portionG: number): Promise<FoodRecognition>;
 }
