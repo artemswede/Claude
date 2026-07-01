@@ -45,10 +45,20 @@ function bar(consumed: number, add: number, target: number): string {
   return "x".repeat(cSeg) + "o".repeat(aSeg) + "·".repeat(rem);
 }
 
-function line(icon: string, unit: string, consumed: number, add: number, target: number): string {
+function line(
+  letter: string,
+  icon: string,
+  unit: string,
+  consumed: number,
+  add: number,
+  target: number,
+): string {
   const proj = consumed + add;
-  const projStr = add > 0 ? `${Math.round(consumed)}→${Math.round(proj)}` : `${Math.round(consumed)}`;
-  return `${zone(proj, target)} ${icon} [${bar(consumed, add, target)}] ${projStr}/${target}${unit}`;
+  const nums =
+    add > 0
+      ? `${Math.round(consumed)} +${Math.round(add)} → ${Math.round(proj)} / ${target}${unit}`
+      : `${Math.round(consumed)} / ${target}${unit}`;
+  return `${zone(proj, target)} ${letter}${icon} [${bar(consumed, add, target)}] ${nums}`;
 }
 
 /**
@@ -59,10 +69,10 @@ export function renderMacroStatus(consumed: Macros, target: Macros, rec: Macros 
   const r = rec ?? { kcal: 0, prot: 0, fat: 0, carb: 0 };
   const lines = [
     "```",
-    line("🔥", "", consumed.kcal, r.kcal, target.kcal),
-    line("🥩", "г", consumed.prot, r.prot, target.prot),
-    line("🥑", "г", consumed.fat, r.fat, target.fat),
-    line("🍚", "г", consumed.carb, r.carb, target.carb),
+    line("К", "🔥", "", consumed.kcal, r.kcal, target.kcal),
+    line("Б", "🥩", "г", consumed.prot, r.prot, target.prot),
+    line("Ж", "🥑", "г", consumed.fat, r.fat, target.fat),
+    line("У", "🍚", "г", consumed.carb, r.carb, target.carb),
     "```",
   ];
   if (rec) lines.push("_x — съедено · o — добавит рекомендация · · — осталось_");
