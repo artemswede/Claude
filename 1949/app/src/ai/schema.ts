@@ -5,26 +5,26 @@ import { z } from "zod";
  * этой формы; всё валидируется через Zod, прежде чем попасть в дневник.
  */
 export const FoodRecognitionSchema = z.object({
-  dish: z.string().min(1).max(120),
-  portion_grams: z.number().min(0).max(5000),
-  kcal: z.number().min(0).max(10000),
-  protein: z.number().min(0).max(1000),
-  fat: z.number().min(0).max(1000),
-  carb: z.number().min(0).max(2000),
-  confidence: z.number().min(0).max(1),
-  assumptions: z.string().max(300).optional().default(""),
+  dish: z.string().min(1).max(200),
+  portion_grams: z.coerce.number().min(0).max(5000),
+  kcal: z.coerce.number().min(0).max(10000),
+  protein: z.coerce.number().min(0).max(1000),
+  fat: z.coerce.number().min(0).max(1000),
+  carb: z.coerce.number().min(0).max(2000),
+  confidence: z.coerce.number().min(0).max(1).catch(0.5),
+  assumptions: z.string().max(4000).optional().default("").catch(""),
 });
 
 export type FoodRecognition = z.infer<typeof FoodRecognitionSchema>;
 
 /** Одна позиция из распознанного меню/этикетки. */
 export const FoodItemSchema = z.object({
-  dish: z.string().min(1).max(120),
-  portion_grams: z.number().min(0).max(5000),
-  kcal: z.number().min(0).max(10000),
-  protein: z.number().min(0).max(1000),
-  fat: z.number().min(0).max(1000),
-  carb: z.number().min(0).max(2000),
+  dish: z.string().min(1).max(200),
+  portion_grams: z.coerce.number().min(0).max(5000),
+  kcal: z.coerce.number().min(0).max(10000),
+  protein: z.coerce.number().min(0).max(1000),
+  fat: z.coerce.number().min(0).max(1000),
+  carb: z.coerce.number().min(0).max(2000),
 });
 
 export const MenuRecognitionSchema = z.object({

@@ -3,14 +3,13 @@
  * откатом на детерминированный движок (domain/advice).
  */
 import { AdviceSchema, extractJson } from "./schema";
+import { AI_MODEL, responseToText } from "./workers-ai";
 import {
   deterministicAdvice,
   type AdviceContext,
   type AdviceResult,
 } from "../domain/advice";
 import { moodById } from "../domain/states";
-
-const TEXT_MODEL = "@cf/meta/llama-3.1-8b-instruct";
 
 const DAYPART_RU: Record<string, string> = {
   morning: "утро",
@@ -35,24 +34,15 @@ function buildPrompt(ctx: AdviceContext): string {
   ].join("\n");
 }
 
-interface TextGenResponse {
-  response?: string;
-}
-
 /** Совет от ИИ; при любой ошибке/невалидном ответе — детерминированный fallback. */
 export async function generateAdvice(ai: Ai, ctx: AdviceContext): Promise<AdviceResult> {
   try {
-    const res = (await ai.run(TEXT_MODEL as keyof AiModels, {
-      messages: [
-        { role: "system", content: "Отвечай только валидным JSON." },
-        { role: "user", content: buildPrompt(ctx) },
-      ],
+    const res = await ai.run(AI_MODEL as keyof AiModels, {
+      prompt: buildPrompt(ctx),
       max_tokens: 400,
-    } as never)) as TextGenResponse;
-
-    const text = res.response ?? "";
-    const parsed = AdviceSchema.parse(extractJson(text));
-    return parsed;
+    } as never);
+    const text = responseToText(res);
+    return AdviceSchema.parse(extractJson(text));
   } catch (e) {
     console.error("generateAdvice fell back to deterministic:", e);
     return deterministicAdvice(ctx);

@@ -14,8 +14,8 @@ import {
  * парсер extractJson устойчив к битому экранированию.
  * Провайдера легко заменить (см. интерфейс AIProvider).
  */
-const VISION_MODEL = "@cf/meta/llama-3.2-11b-vision-instruct";
-const TEXT_MODEL = "@cf/meta/llama-3.1-8b-instruct";
+// Одна проверенная модель и для vision, и для текста (llama-3.1-8b снята с 2026-05-30).
+export const AI_MODEL = "@cf/meta/llama-3.2-11b-vision-instruct";
 
 const FOOD_PROMPT = [
   "Определи, что за еда на фото, и оцени пищевую ценность съеденной порции.",
@@ -39,7 +39,7 @@ const MENU_PROMPT = [
 ].join("\n");
 
 /** Достаёт текст из ответа Workers AI, каким бы ни был его формат. */
-function responseToText(res: unknown): string {
+export function responseToText(res: unknown): string {
   if (typeof res === "string") return res;
   if (res && typeof res === "object") {
     const r = res as Record<string, unknown>;
@@ -57,13 +57,24 @@ export class WorkersAIProvider implements AIProvider {
   private async runVision(imageBytes: Uint8Array, prompt: string): Promise<string> {
     // Vision-модель принимает изображение вместе с полем `prompt`
     // (формат `messages` + image даёт AiError 3030).
-    const res = await this.ai.run(VISION_MODEL as keyof AiModels, {
+    const res = await this.ai.run(AI_MODEL as keyof AiModels, {
       image: [...imageBytes],
       prompt,
       max_tokens: 512,
     } as never);
     const text = responseToText(res).trim();
     if (!text) throw new Error("Empty vision response");
+    return text;
+  }
+
+  /** Текстовая генерация той же моделью (без изображения), формат `prompt`. */
+  private async runText(prompt: string): Promise<string> {
+    const res = await this.ai.run(AI_MODEL as keyof AiModels, {
+      prompt,
+      max_tokens: 500,
+    } as never);
+    const text = responseToText(res).trim();
+    if (!text) throw new Error("Empty text response");
     return text;
   }
 
@@ -88,13 +99,7 @@ export class WorkersAIProvider implements AIProvider {
       "Ответь ТОЛЬКО JSON, без markdown и пояснений, строго в формате:",
       '{"dish": строка по-русски, "portion_grams": число, "kcal": число, "protein": число, "fat": число, "carb": число, "confidence": число от 0 до 1, "assumptions": строка по-русски}',
     ].join("\n");
-    const res = await this.ai.run(TEXT_MODEL as keyof AiModels, {
-      messages: [
-        { role: "system", content: "Ты отвечаешь только валидным JSON, без markdown." },
-        { role: "user", content: prompt },
-      ],
-      max_tokens: 400,
-    } as never);
-    return FoodRecognitionSchema.parse(extractJson(responseToText(res)));
+    const text = await this.runText(prompt);
+    return FoodRecognitionSchema.parse(extractJson(text));
   }
 }
