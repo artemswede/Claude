@@ -7,15 +7,50 @@
  */
 import type { DayPart } from "../util/time";
 import type { Goal } from "./goals";
+import { lookupTable } from "../nutrition/table";
 
 export type AdviceStatus = "success" | "warning" | "danger";
+export type OptionKey = "budget" | "filling" | "quick";
+
+export interface AdviceOption {
+  key: OptionKey;
+  dish: string;
+  kcal: number;
+  protein: number;
+  fat: number;
+  carb: number;
+}
 
 export interface AdviceResult {
   status: AdviceStatus;
   headerStatus: string;
   adviceText: string;
-  /** Конкретный продукт/блюдо с порцией — основа будущей корзины. */
-  recommendedProduct: string;
+  /** Варианты приёма (1–3). Первый — основной. */
+  options: AdviceOption[];
+}
+
+export const OPTION_LABELS: Record<OptionKey, string> = {
+  budget: "💰 Эконом",
+  filling: "🍖 Сытный",
+  quick: "⚡ Быстрый",
+};
+
+/** Оценка КБЖУ блюда по справочнику (для детерминированных вариантов). */
+function macrosOf(dish: string, key: OptionKey): AdviceOption {
+  const per100 = lookupTable(dish);
+  const g = parseInt(dish.match(/(\d{2,4})\s*г/)?.[1] ?? "150", 10);
+  if (per100) {
+    const f = g / 100;
+    return {
+      key,
+      dish,
+      kcal: Math.round(per100.kcal * f),
+      protein: Math.round(per100.protein * f),
+      fat: Math.round(per100.fat * f),
+      carb: Math.round(per100.carb * f),
+    };
+  }
+  return { key, dish, kcal: 250, protein: 15, fat: 8, carb: 25 };
 }
 
 export interface Macros {
@@ -32,17 +67,43 @@ export interface AdviceContext {
   target: Macros;
   goal: Goal | null; // цель пользователя (похудение/поддержание/набор)
   eaten: string[]; // что уже съедено сегодня (для разнообразия и контекста)
+  dislikes?: string | null; // нелюбимые продукты/аллергии
 }
 
 function pct(part: number, whole: number): number {
   return whole > 0 ? part / whole : 0;
 }
 
+interface PrimaryAdvice {
+  status: AdviceStatus;
+  headerStatus: string;
+  adviceText: string;
+  product: string;
+}
+
 /**
- * Детерминированный совет. Полностью покрывает все ветки —
- * всегда возвращает осмысленный результат.
+ * Детерминированный совет — обёртка: строит основной вариант матрицей
+ * и добавляет 2 запасных варианта (быстрый/эконом), чтобы всегда были варианты.
  */
 export function deterministicAdvice(ctx: AdviceContext): AdviceResult {
+  const p = primaryAdvice(ctx);
+  const options: AdviceOption[] = [macrosOf(p.product, "filling")];
+  // Универсальные запасные варианты (быстрый перекус и бюджетный белок).
+  options.push(macrosOf("Греческий йогурт (150 г)", "quick"));
+  options.push(macrosOf("Яйца (2 шт) с овощами (150 г)", "budget"));
+  return {
+    status: p.status,
+    headerStatus: p.headerStatus,
+    adviceText: p.adviceText,
+    options,
+  };
+}
+
+/**
+ * Основной детерминированный совет — матрица (время × состояние × макросы).
+ * Всегда возвращает осмысленный результат.
+ */
+function primaryAdvice(ctx: AdviceContext): PrimaryAdvice {
   const { dayPart, mood, consumed: c, target: t } = ctx;
   const pPct = pct(c.prot, t.prot);
   const fPct = pct(c.fat, t.fat);
@@ -55,7 +116,7 @@ export function deterministicAdvice(ctx: AdviceContext): AdviceResult {
       status: "danger",
       headerStatus: "Организм уже готовится ко сну",
       adviceText: "Лишняя еда сейчас — плохой сон. Лучше тёплый напиток без калорий.",
-      recommendedProduct: "Травяной чай (ромашка или мята), 0 ккал.",
+      product: "Травяной чай (ромашка или мята), 0 ккал.",
     };
   }
   if (fPct > 1.1) {
@@ -63,7 +124,7 @@ export function deterministicAdvice(ctx: AdviceContext): AdviceResult {
       status: "danger",
       headerStatus: "Жиры в красной зоне",
       adviceText: `Жиров сегодня уже с избытком (${Math.round(c.fat)}/${t.fat} г). Оставшиеся приёмы делаем постными.`,
-      recommendedProduct: "Белая рыба на пару или куриная грудка (200 г) + овощи гриль.",
+      product: "Белая рыба на пару или куриная грудка (200 г) + овощи гриль.",
     };
   }
   if (dayPart === "evening" && pPct < 0.5) {
@@ -71,7 +132,7 @@ export function deterministicAdvice(ctx: AdviceContext): AdviceResult {
       status: "danger",
       headerStatus: "Критический недобор белка",
       adviceText: "Белка за день мало — закрой белковое окно, иначе завтра вялость.",
-      recommendedProduct: "150 г творога 0% или порция изолята протеина.",
+      product: "150 г творога 0% или порция изолята протеина.",
     };
   }
 
@@ -82,7 +143,7 @@ export function deterministicAdvice(ctx: AdviceContext): AdviceResult {
         status: "warning",
         headerStatus: "Запускаем метаболизм",
         adviceText: "Мозгу нужно топливо. Нужны сложные углеводы для долгой энергии.",
-        recommendedProduct: "Овсянка с ягодами и орехами (40 г сухой крупы + 10 г миндаля).",
+        product: "Овсянка с ягодами и орехами (40 г сухой крупы + 10 г миндаля).",
       };
     }
     if (mood === "fresh") {
@@ -90,7 +151,7 @@ export function deterministicAdvice(ctx: AdviceContext): AdviceResult {
         status: "success",
         headerStatus: "Отличный настрой!",
         adviceText: "Поддержим драйв белком, чтобы энергия не упала к полудню.",
-        recommendedProduct: "Омлет из 2 яиц с авокадо (¼ авокадо).",
+        product: "Омлет из 2 яиц с авокадо (¼ авокадо).",
       };
     }
     if (mood === "full") {
@@ -98,7 +159,7 @@ export function deterministicAdvice(ctx: AdviceContext): AdviceResult {
         status: "success",
         headerStatus: "Лёгкий старт дня",
         adviceText: "После плотного вечера начнём легко, чтобы разгрузить ЖКТ.",
-        recommendedProduct: "Зелёный смузи (шпинат + яблоко), 250 мл.",
+        product: "Зелёный смузи (шпинат + яблоко), 250 мл.",
       };
     }
   }
@@ -110,7 +171,7 @@ export function deterministicAdvice(ctx: AdviceContext): AdviceResult {
         status: "warning",
         headerStatus: "Сахарный провал",
         adviceText: "Похоже на углеводную просадку. «Заземлимся» белком и клетчаткой.",
-        recommendedProduct: "Творог 5% с семенами чиа (150 г).",
+        product: "Творог 5% с семенами чиа (150 г).",
       };
     }
     if (mood === "lacking" || fPct < 0.3) {
@@ -118,7 +179,7 @@ export function deterministicAdvice(ctx: AdviceContext): AdviceResult {
         status: "warning",
         headerStatus: "Добавим полезных жиров",
         adviceText: "Не хватает жиров для гормонов — горсть орехов решает вопрос.",
-        recommendedProduct: "Миндаль или кешью (30 г — одна горсть).",
+        product: "Миндаль или кешью (30 г — одна горсть).",
       };
     }
     if (mood === "low_energy" || c.kcal < t.kcal * 0.4) {
@@ -126,7 +187,7 @@ export function deterministicAdvice(ctx: AdviceContext): AdviceResult {
         status: "warning",
         headerStatus: "Энергия на исходе",
         adviceText: "Обед был лёгким — есть риск сорваться к ужину. Добавим перекус.",
-        recommendedProduct: "Протеиновый батончик без сахара или банан.",
+        product: "Протеиновый батончик без сахара или банан.",
       };
     }
   }
@@ -138,7 +199,7 @@ export function deterministicAdvice(ctx: AdviceContext): AdviceResult {
         status: "success",
         headerStatus: "Время плотного ужина",
         adviceText: "Есть запас по калориям — можно плотный, но правильный ужин.",
-        recommendedProduct: "Стейк из индейки + бурый рис (150 г мяса, 100 г риса).",
+        product: "Стейк из индейки + бурый рис (150 г мяса, 100 г риса).",
       };
     }
     if (mood === "hungry" && calsLeft <= 100) {
@@ -146,7 +207,7 @@ export function deterministicAdvice(ctx: AdviceContext): AdviceResult {
         status: "danger",
         headerStatus: "Лимит почти исчерпан",
         adviceText: "Чтобы не лечь голодным — выберем объём без калорий.",
-        recommendedProduct: "Большой салат из огурцов и зелени (300 г, лимонный сок).",
+        product: "Большой салат из огурцов и зелени (300 г, лимонный сок).",
       };
     }
     if (mood === "sleepy" || cPct > 0.9) {
@@ -154,7 +215,7 @@ export function deterministicAdvice(ctx: AdviceContext): AdviceResult {
         status: "warning",
         headerStatus: "Углеводный перебор",
         adviceText: "Ужин был углеводным — чтобы утром не было отёков, добавь воды.",
-        recommendedProduct: "Стакан воды с лимоном и короткая прогулка.",
+        product: "Стакан воды с лимоном и короткая прогулка.",
       };
     }
   }
@@ -166,7 +227,7 @@ export function deterministicAdvice(ctx: AdviceContext): AdviceResult {
       status: "warning",
       headerStatus: "Почти у лимита",
       adviceText: `Осталось ~${Math.max(0, Math.round(calsLeft))} ккал. Для похудения добери белком и овощами — они сытные при малых калориях.`,
-      recommendedProduct: "Куриная грудка (150 г) + салат из овощей.",
+      product: "Куриная грудка (150 г) + салат из овощей.",
     };
   }
   if (goal === "gain" && calsLeft > t.kcal * 0.3) {
@@ -174,13 +235,13 @@ export function deterministicAdvice(ctx: AdviceContext): AdviceResult {
       status: "warning",
       headerStatus: "Нужен профицит",
       adviceText: `Для набора осталось добрать ~${Math.round(calsLeft)} ккал. Добавь калорийный, но полезный приём.`,
-      recommendedProduct: "Рис (150 г) + говядина (150 г) + ложка масла.",
+      product: "Рис (150 г) + говядина (150 г) + ложка масла.",
     };
   }
   return {
     status: "success",
     headerStatus: "Ты в графике",
     adviceText: `Показатели в норме, осталось ~${Math.max(0, Math.round(calsLeft))} ккал. Продолжаем в том же духе!`,
-    recommendedProduct: "Лёгкий перекус по желанию: греческий йогурт (150 г).",
+    product: "Лёгкий перекус по желанию: греческий йогурт (150 г).",
   };
 }

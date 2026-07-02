@@ -64,12 +64,22 @@ export const Per100BatchSchema = z.object({
     .max(20),
 });
 
-/** Контракт текстового совета нутрициолога. */
+/** Один вариант рекомендованного приёма. */
+export const AdviceOptionSchema = z.object({
+  key: z.enum(["budget", "filling", "quick"]).catch("filling"),
+  dish: z.string().min(1).max(200),
+  kcal: z.coerce.number().min(0).max(5000),
+  protein: z.coerce.number().min(0).max(500),
+  fat: z.coerce.number().min(0).max(500),
+  carb: z.coerce.number().min(0).max(500),
+});
+
+/** Контракт текстового совета нутрициолога с несколькими вариантами. */
 export const AdviceSchema = z.object({
-  status: z.enum(["success", "warning", "danger"]),
+  status: z.enum(["success", "warning", "danger"]).catch("success"),
   headerStatus: z.string().min(1).max(120),
   adviceText: z.string().min(1).max(600),
-  recommendedProduct: z.string().min(1).max(200),
+  options: z.array(AdviceOptionSchema).min(1).max(3),
 });
 
 export type AdviceData = z.infer<typeof AdviceSchema>;

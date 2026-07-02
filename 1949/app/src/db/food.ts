@@ -54,6 +54,21 @@ export async function deleteLastFoodEntry(
   return row.dish_name;
 }
 
+/** Удаляет конкретный приём по id (только свой). Возвращает название или null. */
+export async function deleteFoodEntryById(
+  db: D1Database,
+  id: number,
+  userId: number,
+): Promise<string | null> {
+  const row = await db
+    .prepare("SELECT dish_name FROM food_log WHERE id = ? AND user_id = ?")
+    .bind(id, userId)
+    .first<{ dish_name: string }>();
+  if (!row) return null;
+  await db.prepare("DELETE FROM food_log WHERE id = ? AND user_id = ?").bind(id, userId).run();
+  return row.dish_name;
+}
+
 export interface DayTotals {
   kcal: number;
   prot: number;

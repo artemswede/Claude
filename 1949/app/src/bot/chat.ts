@@ -39,6 +39,7 @@ export async function handleChat(ctx: BotContext, env: Env): Promise<void> {
     consumed: totals,
     mood: mood ? (moodById(mood)?.label ?? mood) : "не отмечено",
     eaten: entries.map((e) => e.dish_name),
+    dislikes: user.dislikes ?? "",
     history,
     message,
   });
@@ -67,6 +68,7 @@ interface ChatCtx {
   consumed: { kcal: number; prot: number; fat: number; carb: number };
   mood: string;
   eaten: string[];
+  dislikes: string;
   history: { role: string; content: string }[];
   message: string;
 }
@@ -82,6 +84,7 @@ function buildChatPrompt(c: ChatCtx): string {
     `Съедено сегодня: ккал ${Math.round(c.consumed.kcal)}, Б ${Math.round(c.consumed.prot)}, Ж ${Math.round(c.consumed.fat)}, У ${Math.round(c.consumed.carb)}`,
     `Самочувствие: ${c.mood}`,
     `Блюда сегодня: ${c.eaten.length ? c.eaten.join(", ") : "пока ничего"}`,
+    c.dislikes ? `Не любит / аллергии (избегай советовать): ${c.dislikes}` : "",
     "",
   ];
   if (c.history.length) {

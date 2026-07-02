@@ -6,10 +6,9 @@ import { getDayEntries, getDayTotals } from "../db/food";
 import { getLatestMood } from "../db/state";
 import { addRecommendation, getRecommendation } from "../db/recs";
 import { generateAdvice } from "../ai/advise";
-import { buildBasket, type Basket } from "../domain/basket";
 import { buildPartnerLink } from "../domain/partner";
-import { estimateRecMacros, renderMacroStatus } from "../domain/macrobar";
-import type { AdviceContext } from "../domain/advice";
+import { renderMacroStatus } from "../domain/macrobar";
+import { OPTION_LABELS, type AdviceContext, type OptionKey } from "../domain/advice";
 import { dayPart, localDate, localHour } from "../util/time";
 
 const STATUS_EMOJI: Record<string, string> = {
@@ -18,7 +17,18 @@ const STATUS_EMOJI: Record<string, string> = {
   danger: "🔴",
 };
 
-/** /advice — собрать контекст, выдать совет и корзину с кнопкой заказа. */
+/** Строит поисковый запрос по названию блюда (без граммовок и скобок). */
+function cleanQuery(dish: string): string {
+  return dish.replace(/\(.*?\)/g, "").replace(/\d+\s*г/g, "").trim();
+}
+
+interface StoredOption {
+  key: OptionKey;
+  dish: string;
+  query: string;
+}
+
+/** /advice — контекст, совет с вариантами, кнопки заказа каждого. */
 export async function handleAdvice(ctx: BotContext, env: Env): Promise<void> {
   if (!ctx.from) return;
   const user = await getUserByTgId(env.DB, ctx.from.id);
@@ -49,25 +59,30 @@ export async function handleAdvice(ctx: BotContext, env: Env): Promise<void> {
     target,
     goal: user.goal,
     eaten: entries.map((e) => e.dish_name),
+    dislikes: user.dislikes,
   };
 
-  // Индикатор «думаю» — генерация совета моделью занимает время.
-  const thinking = await ctx.reply("Подбираю рекомендацию… 🤔");
+  const thinking = await ctx.reply("Подбираю варианты… 🤔");
   const advice = await generateAdvice(env.AI, adviceCtx);
   await ctx.api.deleteMessage(thinking.chat.id, thinking.message_id).catch(() => {});
 
-  const basket = buildBasket(consumed, target, advice);
+  const primary = advice.options[0];
+  const recMacros = { kcal: primary.kcal, prot: primary.protein, fat: primary.fat, carb: primary.carb };
+  const statusBlock = renderMacroStatus(consumed, target, recMacros);
+
+  const stored: StoredOption[] = advice.options.map((o) => ({
+    key: o.key,
+    dish: o.dish,
+    query: cleanQuery(o.dish),
+  }));
   const recId = await addRecommendation(
     env.DB,
     user.id,
     advice.status,
     advice.adviceText,
-    JSON.stringify(basket),
+    JSON.stringify({ options: stored }),
   );
-  await logEvent(env.DB, user.id, "rec_shown", { status: advice.status });
-
-  const recMacros = estimateRecMacros(advice.recommendedProduct);
-  const statusBlock = renderMacroStatus(consumed, target, recMacros);
+  await logEvent(env.DB, user.id, "rec_shown", { status: advice.status, options: stored.length });
 
   const lines = [
     `${STATUS_EMOJI[advice.status] ?? ""} *${advice.headerStatus}*`,
@@ -77,50 +92,48 @@ export async function handleAdvice(ctx: BotContext, env: Env): Promise<void> {
     "*📊 Твой день по КБЖУ:*",
     statusBlock,
     "",
-    "*🛒 Корзина:*",
-    ...basket.items.map((i) => `• ${i}`),
-    "",
-    `_${basket.reason}_`,
+    "*🍽 Варианты:*",
   ];
+  for (const o of advice.options) {
+    lines.push(`${OPTION_LABELS[o.key]}: ${o.dish} — ${o.kcal} ккал (Б${o.protein}/Ж${o.fat}/У${o.carb})`);
+  }
 
-  const kb = new InlineKeyboard()
-    .text("🛒 Заказать корзину", `basket:${recId}`)
-    .row()
-    .text("🔄 Другой вариант", "advice:more");
+  const kb = new InlineKeyboard();
+  advice.options.forEach((o) => kb.text(`🛒 ${OPTION_LABELS[o.key]}`, `opt:${recId}:${o.key}`));
+  kb.row().text("🔄 Другие варианты", "advice:more");
+
   await ctx.reply(lines.join("\n"), { parse_mode: "Markdown", reply_markup: kb });
 }
 
-/** Кнопка «Другой вариант» — генерируем ещё одну рекомендацию. */
+/** Кнопка «Другие варианты». */
 export async function handleAdviceMoreCallback(ctx: BotContext, env: Env): Promise<boolean> {
-  const data = ctx.callbackQuery?.data;
-  if (data !== "advice:more") return false;
+  if (ctx.callbackQuery?.data !== "advice:more") return false;
   await ctx.answerCallbackQuery();
   await handleAdvice(ctx, env);
   return true;
 }
 
-/** Клик по «Заказать корзину»: фиксируем KPI и отдаём диплинк партнёра. */
+/** Клик по заказу конкретного варианта: KPI + диплинк партнёра. */
 export async function handleBasketCallback(ctx: BotContext, env: Env): Promise<boolean> {
   const data = ctx.callbackQuery?.data;
-  if (!data || !data.startsWith("basket:")) return false;
+  if (!data || !data.startsWith("opt:")) return false;
 
-  const recId = parseInt(data.slice("basket:".length), 10);
+  const [, recIdStr, key] = data.split(":");
+  const recId = parseInt(recIdStr, 10);
   const rec = Number.isFinite(recId) ? await getRecommendation(env.DB, recId) : null;
   if (!rec || !rec.basket_json) {
-    await ctx.answerCallbackQuery("Корзина устарела");
+    await ctx.answerCallbackQuery("Совет устарел");
     return true;
   }
 
-  const basket = JSON.parse(rec.basket_json) as Basket;
-  const link = buildPartnerLink(env, basket.query);
+  const parsed = JSON.parse(rec.basket_json) as { options: StoredOption[] };
+  const opt = parsed.options.find((o) => o.key === key) ?? parsed.options[0];
+  const link = buildPartnerLink(env, opt.query);
 
-  await logEvent(env.DB, rec.user_id, "basket_click", { recId, partner: link.name });
+  await logEvent(env.DB, rec.user_id, "basket_click", { recId, key, partner: link.name });
   await ctx.answerCallbackQuery();
 
   const kb = new InlineKeyboard().url(`Открыть ${link.name}`, link.url);
-  await ctx.reply(
-    `Готово! Открой корзину в ${link.name} и оформи заказ 👇`,
-    { reply_markup: kb },
-  );
+  await ctx.reply(`Готово! Открой корзину для «${opt.dish}» в ${link.name} 👇`, { reply_markup: kb });
   return true;
 }

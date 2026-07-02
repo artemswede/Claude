@@ -23,6 +23,7 @@ export interface UserRow {
   onboarded_at: string | null;
   reminders_enabled: number;
   last_reminder_date: string | null;
+  dislikes: string | null;
 }
 
 export async function getUserByTgId(db: D1Database, tgId: number): Promise<UserRow | null> {
@@ -105,6 +106,10 @@ export async function getUsersForReminder(db: D1Database): Promise<ReminderUser[
 
 export async function markReminded(db: D1Database, userId: number, date: string): Promise<void> {
   await db.prepare("UPDATE users SET last_reminder_date = ? WHERE id = ?").bind(date, userId).run();
+}
+
+export async function setDislikes(db: D1Database, tgId: number, dislikes: string | null): Promise<void> {
+  await db.prepare("UPDATE users SET dislikes = ? WHERE tg_id = ?").bind(dislikes, tgId).run();
 }
 
 export async function setReminders(db: D1Database, tgId: number, enabled: boolean): Promise<void> {

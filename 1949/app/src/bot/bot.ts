@@ -31,6 +31,8 @@ import {
 } from "./scan";
 import { handleChat } from "./chat";
 import { handleStats } from "./stats";
+import { handleInsights } from "./insights";
+import { handleAvoid } from "./prefs";
 import { getUserByTgId } from "../db/repo";
 
 /** Контекст бота с сессией (хранится в KV). */
@@ -65,6 +67,8 @@ const BOT_COMMANDS = [
   { command: "weight", description: "⚖️ Записать вес" },
   { command: "scan", description: "📷 Скан меню/этикетки" },
   { command: "stats", description: "📈 Моя статистика" },
+  { command: "insights", description: "🔬 Еда × самочувствие" },
+  { command: "avoid", description: "🚫 Нелюбимые продукты" },
   { command: "goals", description: "🎯 Пересчитать цели" },
   { command: "reminders", description: "🔔 Напоминания вкл/выкл" },
   { command: "menu", description: "📋 Показать команды" },
@@ -134,6 +138,14 @@ function registerHandlers(bot: Bot<BotContext>, env: Env): void {
 
   bot.command("stats", async (ctx) => {
     await handleStats(ctx, env);
+  });
+
+  bot.command("insights", async (ctx) => {
+    await handleInsights(ctx, env);
+  });
+
+  bot.command("avoid", async (ctx) => {
+    await handleAvoid(ctx, env);
   });
 
   bot.command("advice", async (ctx) => {

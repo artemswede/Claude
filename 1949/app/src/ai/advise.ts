@@ -36,15 +36,21 @@ function buildPrompt(ctx: AdviceContext): string {
   const goalHint = ctx.goal ? GOAL_HINT[ctx.goal] : "";
   const eaten = ctx.eaten.length ? ctx.eaten.join(", ") : "пока ничего";
 
+  const dislikes = ctx.dislikes?.trim();
+
   return [
-    "Ты — опытный ИИ-нутрициолог. Порекомендуй, ЧТО СЪЕСТЬ в следующий приём пищи именно этому человеку.",
-    "Рекомендация должна одновременно: укладываться в остаток калорий и макросов, подходить под цель,",
-    "соответствовать времени суток и улучшать самочувствие. Предложи конкретное блюдо с порцией в граммах.",
-    "Не повторяй то, что человек уже ел сегодня. Кратко объясни, почему именно это (1-2 предложения).",
+    "Ты — опытный ИИ-нутрициолог. Предложи ТРИ варианта следующего приёма пищи этому человеку.",
+    "Каждый вариант должен укладываться в остаток калорий/макросов, подходить под цель, время суток и самочувствие.",
+    "Три варианта с разным характером:",
+    "- budget — бюджетный (простые доступные продукты),",
+    "- filling — сытный (плотный, максимально закрывает дефицит),",
+    "- quick — быстрый (минимум готовки, перекус).",
+    "Не повторяй уже съеденное сегодня.",
+    dislikes ? `СТРОГО избегай (аллергии/нелюбимое): ${dislikes}.` : "",
     "",
     "Ответь ТОЛЬКО JSON-объектом, без лишнего текста, в формате:",
-    '{"status":"success|warning|danger","headerStatus":string,"adviceText":string,"recommendedProduct":string}',
-    "adviceText — дружелюбное объяснение с опорой на цифры. recommendedProduct — блюдо с порцией (граммы).",
+    '{"status":"success|warning|danger","headerStatus":string,"adviceText":string,"options":[{"key":"budget|filling|quick","dish":строка с порцией в граммах,"kcal":число,"protein":число,"fat":число,"carb":число}]}',
+    "adviceText — 1-2 предложения объяснения с опорой на цифры. options — ровно 3 варианта.",
     "",
     `Цель: ${goalLabel}${goalHint ? ` (${goalHint})` : ""}`,
     `Время суток: ${DAYPART_RU[ctx.dayPart] ?? ctx.dayPart}`,
@@ -52,7 +58,9 @@ function buildPrompt(ctx: AdviceContext): string {
     `Съедено сегодня: ${eaten}`,
     `КБЖУ съедено/цель: ккал ${Math.round(c.kcal)}/${t.kcal}, белки ${Math.round(c.prot)}/${t.prot}, жиры ${Math.round(c.fat)}/${t.fat}, углеводы ${Math.round(c.carb)}/${t.carb}`,
     `ОСТАЛОСЬ до цели: ${leftK} ккал, белки ${leftP} г, жиры ${leftF} г, углеводы ${leftC} г`,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 /** Совет от ИИ; при любой ошибке/невалидном ответе — детерминированный fallback. */
@@ -60,10 +68,16 @@ export async function generateAdvice(ai: Ai, ctx: AdviceContext): Promise<Advice
   try {
     const res = await ai.run(AI_MODEL as keyof AiModels, {
       prompt: buildPrompt(ctx),
-      max_tokens: 400,
+      max_tokens: 600,
     } as never);
     const text = responseToText(res);
-    return AdviceSchema.parse(extractJson(text));
+    const parsed = AdviceSchema.parse(extractJson(text));
+    return {
+      status: parsed.status,
+      headerStatus: parsed.headerStatus,
+      adviceText: parsed.adviceText,
+      options: parsed.options,
+    };
   } catch (e) {
     console.error("generateAdvice fell back to deterministic:", e);
     return deterministicAdvice(ctx);

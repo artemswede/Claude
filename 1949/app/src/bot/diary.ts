@@ -2,7 +2,7 @@ import { InlineKeyboard } from "grammy";
 import type { BotContext } from "./bot";
 import type { Env } from "../env";
 import { ensureUser, getUserByTgId, logEvent } from "../db/repo";
-import { addFoodEntry, deleteLastFoodEntry, getDayEntries, getDayTotals } from "../db/food";
+import { addFoodEntry, deleteFoodEntryById, getDayEntries, getDayTotals } from "../db/food";
 import { renderMacroStatus } from "../domain/macrobar";
 import { handleAdvice } from "./advice";
 import { localDate } from "../util/time";
@@ -36,30 +36,33 @@ export async function handleToday(ctx: BotContext, env: Env): Promise<void> {
     fat: user.goal_fat ?? 0,
     carb: user.goal_carb ?? 0,
   };
-  lines.push(renderMacroStatus(consumed, target, null), "", "*Приёмы:*");
+  lines.push(renderMacroStatus(consumed, target, null), "", "*Приёмы:* (🗑 — удалить)");
   for (const e of entries) {
     const portion = e.portion_g ? `, ${Math.round(e.portion_g)} г` : "";
     lines.push(`• ${e.dish_name}${portion} — ${Math.round(e.kcal)} ккал`);
   }
 
-  const kb = new InlineKeyboard()
-    .text("🥗 Совет", "today:advice")
-    .text("🗑 Удалить последний", "today:del");
+  const kb = new InlineKeyboard().text("🥗 Совет", "today:advice").row();
+  // Кнопка удаления на каждый приём (до 10, чтобы не раздувать клавиатуру).
+  for (const e of entries.slice(0, 10)) {
+    const label = e.dish_name.length > 24 ? e.dish_name.slice(0, 23) + "…" : e.dish_name;
+    kb.text(`🗑 ${label}`, `delitem:${e.id}`).row();
+  }
   await ctx.reply(lines.join("\n"), { parse_mode: "Markdown", reply_markup: kb });
 }
 
-/** Кнопки под /today: удаление последнего приёма и переход к совету. */
+/** Кнопки под /today: удаление конкретного приёма и переход к совету. */
 export async function handleTodayCallback(ctx: BotContext, env: Env): Promise<boolean> {
   const data = ctx.callbackQuery?.data;
-  if (!data || !data.startsWith("today:")) return false;
-  const action = data.slice("today:".length);
+  if (!data) return false;
 
-  if (action === "del") {
+  if (data.startsWith("delitem:")) {
     if (!ctx.from) return true;
+    const id = parseInt(data.slice("delitem:".length), 10);
     const user = await getUserByTgId(env.DB, ctx.from.id);
-    if (user) {
-      const removed = await deleteLastFoodEntry(env.DB, user.id, localDate(user.tz));
-      await ctx.answerCallbackQuery(removed ? `Удалил: ${removed}` : "Нечего удалять");
+    if (user && Number.isFinite(id)) {
+      const removed = await deleteFoodEntryById(env.DB, id, user.id);
+      await ctx.answerCallbackQuery(removed ? `Удалил: ${removed}` : "Уже удалено");
     } else {
       await ctx.answerCallbackQuery();
     }
@@ -68,14 +71,13 @@ export async function handleTodayCallback(ctx: BotContext, env: Env): Promise<bo
     return true;
   }
 
-  if (action === "advice") {
+  if (data === "today:advice") {
     await ctx.answerCallbackQuery();
     await handleAdvice(ctx, env);
     return true;
   }
 
-  await ctx.answerCallbackQuery();
-  return true;
+  return false;
 }
 
 /** /add — старт ручного ввода приёма. */
