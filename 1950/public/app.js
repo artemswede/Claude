@@ -305,11 +305,13 @@ function home() {
 
     <div class="row sec">
       <button class="btn ghost" id="kb">База знаний</button>
+      <button class="btn ghost" id="adv">Чем мы отличаемся</button>
       <button class="btn ghost" id="about">О проекте</button>
     </div>`;
   document.getElementById("start").onclick = onboarding;
   document.getElementById("kb").onclick = knowledge;
   document.getElementById("about").onclick = about;
+  document.getElementById("adv").onclick = advantages;
   app.querySelectorAll(".cmore").forEach((b) => (b.onclick = () => caseDetail(+b.dataset.i)));
   document.getElementById("qmore").onclick = quantum;
 }
@@ -332,6 +334,23 @@ function knowledge() {
     <div class="glo"><b>Где польза:</b> когда вариантов так много, что обычные методы становятся слишком медленными или дорогими.</div>
     <div class="glo"><b>Где пользы нет:</b> простой анализ очень больших объёмов данных — это лучше делает классика.</div>`;
   document.getElementById("back").onclick = home;
+}
+function advantages() {
+  const A = [
+    ["Язык бизнеса на входе — структура эксперта на выходе", "Конкуренты с глубокой формализацией (D-Wave, QBoard) требуют технических знаний уже на входе — QUBO, кубиты, алгоритмы; MS и IBM дают удобный UX, но не выдают квантовый вердикт. Q-Scope принимает бизнес-задачу «как есть» и отдаёт структурированный бриф: начать может операционный или финансовый директор, без найма физика. Команде — отсев нецелевых задач до привлечения дорогого эксперта."],
+    ["Честный вердикт, включая «достаточно классики»", "Вендоры (D-Wave, IBM) и облака (MS/AWS) заинтересованы говорить «да, квант нужен». Q-Scope вендор-нейтрален: рекомендуем то, что реально подходит задаче — классику, квантово-вдохновлённую классику или гибрид. Поэтому вердикту доверяют: мы не продаём конкретное железо."],
+    ["Self-service без sales-gate — результат за 10–15 минут", "У D-Wave и IBM путь «оставьте заявку, менеджер свяжется», MS ведёт к Azure-консультации. Мы даём структурированный результат сразу, без посредника — это расширяет воронку и снижает стоимость привлечения."],
+    ["Маркировка зрелости кейсов", "D-Wave публикует кейсы без явной зрелости, IBM и MS не классифицируют их по применимости. Мы помечаем: в эксплуатации / пилот / исследование — клиент видит реалистичную картину и решает с открытыми глазами."],
+    ["Стандартизированный бриф — операционная ценность", "Ни один конкурент не выдаёт единый документ для передачи задачи эксперту: каждый хэндофф уникален. Q-Scope формирует бриф с фиксированной структурой — хаотичный поток превращается в стандартную очередь и кратно сокращает время первичного разбора."],
+  ];
+  app.innerHTML = `
+    <button class="link" id="back">← На главную</button>
+    <div class="kicker">Чем мы отличаемся</div>
+    <h2>Конкурентные преимущества</h2>
+    ${A.map((a, i) => `<div class="glo"><b>${i + 1}. ${a[0]}</b><br/>${a[1]}</div>`).join("")}
+    <button class="btn" id="start2">Оценить свою задачу</button>`;
+  document.getElementById("back").onclick = home;
+  document.getElementById("start2").onclick = onboarding;
 }
 function about() {
   app.innerHTML = `
