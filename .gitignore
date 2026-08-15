@@ -1,0 +1,14 @@
+# Секреты LinkedIn-интеграции
+linkedin/.env
+.env
+
+# Токены доступа — никогда не коммитить
+token.json
+*.token.json
+*.tmp-*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
