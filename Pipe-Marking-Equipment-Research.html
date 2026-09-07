@@ -1,0 +1,1086 @@
+<title>Маркировка труб Ø508–1420</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --paper:#f4f5f2;
+  --card:#fbfbf9;
+  --ink:#171a1d;
+  --ink-2:#3d454c;
+  --steel:#68737e;
+  --rule:#d2d6d1;
+  --rule-strong:#9ca5a5;
+  --accent:#b4501d;
+  --accent-soft:#f2e2d7;
+  --ok:#2c6a45;
+  --ok-bg:#e2eee7;
+  --warn:#8f6206;
+  --warn-bg:#f5ebd6;
+  --bad:#9d2c20;
+  --bad-bg:#f5e0dc;
+  --nd:#6d777f;
+  --nd-bg:#e7e9e8;
+  --shadow:0 1px 2px rgba(23,26,29,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#14171a;
+    --card:#1b1f23;
+    --ink:#e8eae7;
+    --ink-2:#b6bdc2;
+    --steel:#8e99a3;
+    --rule:#2c3339;
+    --rule-strong:#454f57;
+    --accent:#e08048;
+    --accent-soft:#3a2419;
+    --ok:#79c79b;
+    --ok-bg:#1b2f24;
+    --warn:#dfae54;
+    --warn-bg:#332813;
+    --bad:#e58a7c;
+    --bad-bg:#38201c;
+    --nd:#98a2aa;
+    --nd-bg:#23282c;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#14171a;
+  --card:#1b1f23;
+  --ink:#e8eae7;
+  --ink-2:#b6bdc2;
+  --steel:#8e99a3;
+  --rule:#2c3339;
+  --rule-strong:#454f57;
+  --accent:#e08048;
+  --accent-soft:#3a2419;
+  --ok:#79c79b;
+  --ok-bg:#1b2f24;
+  --warn:#dfae54;
+  --warn-bg:#332813;
+  --bad:#e58a7c;
+  --bad-bg:#38201c;
+  --nd:#98a2aa;
+  --nd-bg:#23282c;
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"IBM Plex Sans","Segoe UI",Arial,sans-serif;
+  font-size:15.5px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:0 28px 96px;}
+h1,h2,h3,h4,.eyebrow,th{font-family:"Oswald","Arial Narrow",sans-serif;}
+h1{font-size:clamp(2rem,4.4vw,3.1rem);line-height:1.05;font-weight:600;letter-spacing:.005em;margin:0;text-wrap:balance;}
+h2{font-size:clamp(1.35rem,2.5vw,1.9rem);font-weight:600;line-height:1.15;margin:0;text-wrap:balance;}
+h3{font-size:1.12rem;font-weight:500;letter-spacing:.01em;margin:0;color:var(--ink);text-wrap:balance;}
+h4{font-size:.98rem;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--steel);margin:0;}
+p{margin:0;max-width:74ch;}
+.eyebrow{font-size:.76rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);font-weight:500;}
+a{color:var(--accent);text-underline-offset:2px;text-decoration-thickness:.5px;}
+a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px;}
+
+/* --- header --- */
+.masthead{border-bottom:2px solid var(--ink);padding:44px 0 20px;display:flex;flex-direction:column;gap:18px;}
+.mast-meta{display:flex;flex-wrap:wrap;gap:10px 26px;font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:var(--steel);letter-spacing:.02em;}
+.lede{font-size:1.08rem;color:var(--ink-2);max-width:76ch;}
+
+/* --- verdict panel --- */
+.verdict{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));margin-top:28px;}
+.vcard{background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--accent);padding:16px 18px;display:flex;flex-direction:column;gap:7px;box-shadow:var(--shadow);}
+.vcard .k{font-family:"Oswald",sans-serif;font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--steel);}
+.vcard .v{font-family:"Oswald",sans-serif;font-size:1.32rem;line-height:1.15;font-weight:500;}
+.vcard .n{font-size:.87rem;color:var(--ink-2);}
+
+section{padding-top:52px;scroll-margin-top:20px;}
+.sec-head{display:flex;flex-direction:column;gap:9px;border-top:1px solid var(--rule-strong);padding-top:16px;margin-bottom:22px;}
+.stack{display:flex;flex-direction:column;gap:16px;}
+.stack-tight{display:flex;flex-direction:column;gap:9px;}
+
+/* --- tables --- */
+.tw{overflow-x:auto;border:1px solid var(--rule);background:var(--card);box-shadow:var(--shadow);}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:.875rem;}
+caption{text-align:left;font-family:"Oswald",sans-serif;font-size:1.02rem;font-weight:500;padding:13px 14px;border-bottom:1px solid var(--rule);color:var(--ink);background:var(--card);}
+th,td{border-bottom:1px solid var(--rule);padding:9px 12px;text-align:left;vertical-align:top;}
+thead th{background:var(--nd-bg);font-weight:500;font-size:.82rem;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-2);border-bottom:1px solid var(--rule-strong);position:sticky;top:0;}
+tbody tr:last-child td{border-bottom:none;}
+td.par{font-weight:500;color:var(--ink);min-width:170px;}
+.num{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-size:.86em;}
+.src{font-family:"IBM Plex Mono",monospace;font-size:.78em;white-space:nowrap;}
+.src a{text-decoration:none;}
+.src a:hover{text-decoration:underline;}
+
+/* --- status chips --- */
+.f{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:.72rem;font-weight:500;padding:1px 5px;border-radius:2px;margin-left:3px;white-space:nowrap;}
+.f-ok{background:var(--ok-bg);color:var(--ok);}
+.f-part{background:var(--warn-bg);color:var(--warn);}
+.f-no{background:var(--bad-bg);color:var(--bad);}
+.f-nd{background:var(--nd-bg);color:var(--nd);}
+
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:.83rem;color:var(--ink-2);align-items:center;}
+
+/* --- callouts --- */
+.flag{border:1px solid var(--rule);border-left:3px solid var(--bad);background:var(--card);padding:14px 16px;display:flex;flex-direction:column;gap:7px;}
+.flag.warn{border-left-color:var(--warn);}
+.flag.info{border-left-color:var(--steel);}
+.flag .t{font-family:"Oswald",sans-serif;font-weight:500;font-size:1rem;letter-spacing:.01em;}
+
+/* --- calc blocks --- */
+.calc{background:var(--card);border:1px solid var(--rule);padding:15px 17px;display:flex;flex-direction:column;gap:9px;}
+.calc .formula{font-family:"IBM Plex Mono",monospace;font-size:.83rem;background:var(--nd-bg);padding:9px 11px;overflow-x:auto;white-space:pre;color:var(--ink);}
+.calc .given{font-size:.86rem;color:var(--ink-2);}
+
+ul,ol{margin:0;padding-left:20px;max-width:76ch;}
+li{margin-bottom:5px;}
+li::marker{color:var(--steel);}
+.tight li{margin-bottom:3px;}
+
+dl.qa{display:grid;grid-template-columns:1fr;gap:12px;margin:0;}
+dl.qa div{border-top:1px solid var(--rule);padding-top:10px;}
+dl.qa dt{font-family:"Oswald",sans-serif;font-weight:500;font-size:1rem;margin-bottom:4px;}
+dl.qa dd{margin:0;color:var(--ink-2);font-size:.93rem;max-width:80ch;}
+
+.rank{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));}
+.rank .r{background:var(--card);border:1px solid var(--rule);padding:13px 15px;display:flex;flex-direction:column;gap:6px;}
+.rank .r h4{margin-bottom:2px;}
+.rank ol{padding-left:18px;font-size:.9rem;}
+
+.refs{columns:2;column-gap:34px;font-size:.83rem;}
+@media(max-width:720px){.refs{columns:1;}}
+.refs li{break-inside:avoid;margin-bottom:7px;color:var(--ink-2);}
+.refs a{word-break:break-word;}
+
+.note{font-size:.85rem;color:var(--steel);max-width:80ch;}
+hr.thin{border:none;border-top:1px solid var(--rule);margin:0;}
+
+@media(max-width:640px){
+  .wrap{padding:0 16px 64px;}
+  body{font-size:15px;}
+}
+@media print{
+  @page{size:A4;margin:12mm;}
+  body{background:#fff;color:#000;font-size:9.5pt;}
+  .wrap{max-width:none;padding:0;}
+  section{padding-top:18pt;break-inside:auto;}
+  .tw{overflow:visible;break-inside:auto;}
+  table{min-width:0;font-size:8pt;}
+  thead th{position:static;}
+  tr{break-inside:avoid;}
+  h2{break-after:avoid;}
+  .verdict,.rank{break-inside:avoid;}
+  a{color:#000;text-decoration:underline;}
+  .f{border:.5pt solid #666;}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <span class="eyebrow">Техническое досье поставщиков · РТК маркировки труб</span>
+  <h1>Маркировка труб Ø508–1420</h1>
+  <p class="lede">Сравнение трёх промышленных роботов (Turin TR30-1900B, CRP RH18-20, Yaskawa Motoman GP25) и двух систем маркировки (Rusmark КПМ-1500, печатающая головка Seiko 510 UV) по открытым источникам, с инженерными расчётами пригодности под цикл 200 с и 18 труб/ч.</p>
+  <div class="mast-meta">
+    <span>Дата исследования: 03.09.2026</span>
+    <span>Проверено моделей: 5</span>
+    <span>Источников: 61</span>
+    <span>Метод: только открытые источники</span>
+  </div>
+</header>
+
+<!-- ================= ГЛАВНЫЙ ВЫВОД ================= -->
+<section id="verdict">
+  <div class="sec-head">
+    <span class="eyebrow">Главный вывод</span>
+    <h2>Три из пяти позиций в КП идентифицированы неточно</h2>
+  </div>
+
+  <div class="stack">
+    <p>Прежде чем сравнивать характеристики, надо закрыть вопрос идентификации. По открытым источникам <strong>обозначение «Turin TR30-1900B» в официальном каталоге производителя отсутствует</strong>; <strong>«Seiko 510 UV» — не маркиратор, а печатающая головка</strong> Seiko Instruments SPT-510, то есть комплектующее, которое сравнивать с законченным маркиратором КПМ-1500 напрямую нельзя; <strong>«Rusmark KIM-1500» — это КПМ-1500</strong> (кириллическая аббревиатура, переданная латиницей), и разные дилеры описывают его технологию противоречиво — как CIJ и как DOD одновременно.</p>
+
+    <div class="verdict">
+      <div class="vcard">
+        <span class="k">Робот · техническое соответствие</span>
+        <span class="v">Yaskawa GP25</span>
+        <span class="n">Единственный с полностью опубликованным паспортом: моменты запястья 52/52/32 Н·м, IP67 кисть, опция IP65 корпуса. Ограничение — сервис в РФ только через реселлеров.</span>
+      </div>
+      <div class="vcard">
+        <span class="k">Робот · риск остановки производства</span>
+        <span class="v">CRP RH18-20</span>
+        <span class="n">Официальный дистрибьютор в РФ со складом и сервисом. Минус — убыток производителя в 2024 г. и заявка на IPO «на грани» порога листинга.</span>
+      </div>
+      <div class="vcard">
+        <span class="k">Маркиратор · качество и QR</span>
+        <span class="v">Система на Seiko SPT-510</span>
+        <span class="n">180 dpi против ~13 dpi у 32-сопловой DOD-головы. Только она даёт читаемый QR и шрифт SC Convoy при высоте символа 20 мм.</span>
+      </div>
+      <div class="vcard">
+        <span class="k">Маркиратор · устойчивость к среде</span>
+        <span class="v">Rusmark КПМ-1500</span>
+        <span class="n">Рабочее расстояние DOD в разы больше, чем у Seiko: прощает кривизну трубы, окалину и биение. Но 12 строк × 20 мм и QR — под вопросом.</span>
+      </div>
+    </div>
+
+    <div class="flag">
+      <span class="t">Ключевое ограничение метода</span>
+      <p>Прямой доступ к сайтам производителей из среды исследования заблокирован политикой сетевого шлюза: сайты <span class="num">turinrobot.com</span>, <span class="num">motoman.com</span>, <span class="num">crprobot.en.made-in-china.com</span>, <span class="num">mirmarking.ru</span> и другие открыть напрямую не удалось. Все данные получены через поисковую выдачу, индексирующую содержимое этих страниц и PDF-паспортов. Это значит: <strong>ни один паспорт не был прочитан целиком</strong>. Каждое значение ниже помечено степенью достоверности, а перечень документов, которые нужно затребовать у поставщиков, вынесен в отдельный раздел.</p>
+    </div>
+
+    <div class="legend">
+      <strong style="font-family:Oswald,sans-serif;font-weight:500;">Обозначения в таблицах:</strong>
+      <span><span class="f f-ok">ОК</span> подтверждено и соответствует</span>
+      <span><span class="f f-part">!</span> подтверждено частично / есть ограничения или противоречия</span>
+      <span><span class="f f-no">Х</span> не соответствует либо не подтверждено</span>
+      <span><span class="f f-nd">Н/Д</span> достоверные сведения отсутствуют</span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ЧАСТЬ A ================= -->
+<section id="ident-robots">
+  <div class="sec-head">
+    <span class="eyebrow">Часть A · Роботы · Шаг 1</span>
+    <h2>Идентификация моделей</h2>
+  </div>
+
+  <div class="stack">
+    <div class="flag">
+      <span class="t">TR30-1900B: точного обозначения в каталоге Turin нет</span>
+      <p>В официальном каталоге Shanghai Turin Smart Robot присутствуют TR30-1720B (30 кг / 1721 мм), TR30-1840P (30 кг / 1840 мм) и TR30-1920B (30 кг / 1920 мм) <span class="src"><a href="https://www.turinrobot.com/products_details/59.html">[1]</a><a href="https://www.turinrobot.com/products_details/2.html">[2]</a><a href="https://www.turinrobot.com/products_details/9.html">[3]</a></span>. У российского дистрибьютора отдельно есть коллаборативный TR30-1800C (30 кг / 1800 мм) <span class="src"><a href="https://amn-stanki.ru/product/dlya-robotizatsii-proizvodstva/kollaborativnye-roboty/">[12]</a></span>. Обозначения «TR30-1900B» среди них нет.</p>
+      <p><strong>Это существенный риск, а не опечатка в КП.</strong> В номенклатуре Turin цифры после дефиса — это вылет в миллиметрах, и разница 1900 против 1920 мм означает либо иную кинематику, либо несуществующий артикул. Не подменяйте модель ближайшим аналогом: если поставщик имеет в виду TR30-1920B, это надо зафиксировать в договоре именно так, потому что от вылета зависит вся геометрия захода в трубу.</p>
+      <p><strong>Что запросить:</strong> паспорт с полем «модель» на фирменном бланке, таблицу параметров производителя (Parameter Table) на конкретный артикул, фото шильдика с серийным номером, письмо Shanghai Turin о том, что артикул выпускается серийно.</p>
+    </div>
+
+    <div class="flag warn">
+      <span class="t">CRP RH18-20: модель существует, но вылет указывается тремя разными числами</span>
+      <p>Артикул подтверждён и в китайском каталоге, и у российских дилеров, в двух исполнениях: CRP-RH18-20 (обслуживание/перемещение) и CRP-RH18-20-W (сварочное) <span class="src"><a href="https://purelogic.ru/catalog/68409/">[14]</a><a href="https://www.rsi-a.com/crp-rh18-20-w">[16]</a></span>. Расхождение: российские дилеры дают рабочий радиус <span class="num">1730 мм</span> <span class="src"><a href="https://k2tool.ru/catalog/3578-promyshlennyj-robot-crp-rh18-20">[15]</a></span>, англоязычная витрина производителя — «arm length 1720 mm» и одновременно «nearly 1.8 m arm span» <span class="src"><a href="https://crprobot.en.made-in-china.com/product/CyNGKQWMSZTo/China-Crobotp-Crp-Rh18-20-Handling-Robot-for-CNC-Machine-Loading-and-Unloading.html">[17]</a></span>. Вероятная причина: «18» в индексе означает округлённые 1,8 м, а фактический радиус по паспорту — 1730 мм; 1720 мм может относиться к более раннему исполнению. Для расчёта захода в трубу разница в 80 мм критична.</p>
+    </div>
+
+    <div class="flag info">
+      <span class="t">Yaskawa GP25: идентификация чистая, но повторяемость публикуется в двух версиях</span>
+      <p>Модель серийная, в действующем каталоге, паспорт открыт. Единственное противоречие — повторяемость: заводской флаер 2018 г. даёт <span class="num">±0,06 мм</span> <span class="src"><a href="https://www.cospa.ru/upload/iblock/d65/YASKAWA_Flyer_Robot_GP12_GP25_GP25-12_2018.pdf">[28]</a></span>, часть агрегаторов и российских продавцов — <span class="num">±0,02 мм</span> <span class="src"><a href="https://3dvision.su/product/robot-yaskawa-gp25-fgg/">[43]</a><a href="https://qviro.com/product/yaskawa/gp25/specifications">[41]</a></span>. ±0,02 мм — это паспортное значение родственной модели GP25-12, перенесённое по ошибке. Для расчётов принимайте ±0,06 мм: даже оно даёт двадцатикратный запас относительно требований к символу 20 мм.</p>
+    </div>
+  </div>
+</section>
+
+<section id="table-robots">
+  <div class="sec-head">
+    <span class="eyebrow">Часть A · Таблица 1</span>
+    <h2>Сравнение роботов</h2>
+  </div>
+  <div class="tw">
+  <table>
+    <caption>Сопоставление с требованиями проекта. Пустая ячейка означает, что параметр не опубликован ни в одном из найденных источников.</caption>
+    <thead>
+      <tr>
+        <th>Показатель</th><th>Требование проекта</th><th>Turin TR30-1900B</th><th>CRP RH18-20</th><th>Yaskawa GP25</th><th>Ист.</th><th>Комментарий и риск</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="par">Изготовитель</td>
+        <td>Юрлицо в паспорте</td>
+        <td>Shanghai Turin Smart Robot Co., Ltd (КНР) <span class="f f-ok">ОК</span></td>
+        <td>Chengdu CRP Robot Technology Co., Ltd / 成都卡诺普 (КНР) <span class="f f-ok">ОК</span></td>
+        <td>Yaskawa Electric Corp. (Япония) <span class="f f-ok">ОК</span></td>
+        <td class="src"><a href="https://www.turinrobot.com/company/1.html">7</a>, <a href="https://baike.baidu.com/en/item/Chengdu%20Kanop%20Robotics%20Technology%20Co.,%20Ltd./939745">21</a>, <a href="https://www.yaskawa.com/products/robotics/robots-with-iec/articulated-robots/gp25">30</a></td>
+        <td>У Turin владелец бренда и изготовитель — одно лицо, контролируемое Baosight Software (China Baowu).</td>
+      </tr>
+      <tr>
+        <td class="par">Наличие точной модели в каталоге</td>
+        <td>Обязательно</td>
+        <td>Не найдено; есть 1720B / 1840P / 1920B <span class="f f-no">Х</span></td>
+        <td>Найдено, два исполнения <span class="f f-ok">ОК</span></td>
+        <td>Найдено, действующий каталог <span class="f f-ok">ОК</span></td>
+        <td class="src"><a href="https://www.turinrobot.com/products_details/59.html">1</a>, <a href="https://purelogic.ru/catalog/68409/">14</a>, <a href="https://www.motoman.com/en-us/products/robots/industrial/assembly/gp-series/gp25">29</a></td>
+        <td>Главный риск части A. Договор нельзя подписывать на несуществующий артикул.</td>
+      </tr>
+      <tr>
+        <td class="par">Полезная нагрузка</td>
+        <td>Головка + УФ-модуль + датчики + кожух: оценочно 12–18 кг</td>
+        <td class="num">30 кг (серия TR30) <span class="f f-part">!</span></td>
+        <td class="num">20 кг <span class="f f-part">!</span></td>
+        <td class="num">25 кг <span class="f f-ok">ОК</span></td>
+        <td class="src"><a href="https://www.turinrobot.com/products_details/59.html">1</a>, <a href="https://k2tool.ru/catalog/3578-promyshlennyj-robot-crp-rh18-20">15</a>, <a href="https://www.cospa.ru/upload/iblock/d65/YASKAWA_Flyer_Robot_GP12_GP25_GP25-12_2018.pdf">28</a></td>
+        <td>У RH18-20 наименьший запас: при массе оснастки 18 кг остаётся 10 %. Масса оснастки заказчиком не задана — это исходные данные, которых не хватает.</td>
+      </tr>
+      <tr>
+        <td class="par">Максимальный рабочий радиус</td>
+        <td>≥1,5 м для захода в трубу на 500 мм</td>
+        <td class="num">1920 мм (у 1920B) <span class="f f-part">!</span></td>
+        <td class="num">1730 мм (1720 / «1,8 м» в других ист.) <span class="f f-part">!</span></td>
+        <td class="num">1730 мм <span class="f f-ok">ОК</span></td>
+        <td class="src"><a href="https://www.turinrobot.com/products_details/59.html">1</a>, <a href="https://crprobot.en.made-in-china.com/product/CyNGKQWMSZTo/China-Crobotp-Crp-Rh18-20-Handling-Robot-for-CNC-Machine-Loading-and-Unloading.html">17</a>, <a href="https://www.cospa.ru/upload/iblock/d65/YASKAWA_Flyer_Robot_GP12_GP25_GP25-12_2018.pdf">28</a></td>
+        <td>Радиуса формально хватает всем трём, но без линейной оси не хватает манёвра — см. расчёт ниже.</td>
+      </tr>
+      <tr>
+        <td class="par">Число осей</td><td>6</td>
+        <td class="num">6 <span class="f f-ok">ОК</span></td><td class="num">6 <span class="f f-ok">ОК</span></td><td class="num">6 <span class="f f-ok">ОК</span></td>
+        <td class="src"><a href="https://www.turinrobotics.eu/products/industrial-robots/6-axis/">4</a>, <a href="https://purelogic.ru/catalog/68409/">14</a>, <a href="https://www.cospa.ru/upload/iblock/d65/YASKAWA_Flyer_Robot_GP12_GP25_GP25-12_2018.pdf">28</a></td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td class="par">Повторяемость по ISO 9283</td>
+        <td>≤0,5 мм для символа 20 мм</td>
+        <td class="num">±0,05 мм (серия TR30) <span class="f f-part">!</span></td>
+        <td class="num">±0,08 мм <span class="f f-ok">ОК</span></td>
+        <td class="num">±0,06 мм (флаер) / ±0,02 мм (дилеры) <span class="f f-part">!</span></td>
+        <td class="src"><a href="https://turin.fi/wp-content/uploads/Turin-Welding-Robot-Brouchure.pdf">5</a>, <a href="https://k2tool.ru/catalog/3578-promyshlennyj-robot-crp-rh18-20">15</a>, <a href="https://www.cospa.ru/upload/iblock/d65/YASKAWA_Flyer_Robot_GP12_GP25_GP25-12_2018.pdf">28</a></td>
+        <td>Все три с запасом ≥6× по требованию. Повторяемость здесь не является различающим фактором — критична абсолютная точность, которую не публикует никто.</td>
+      </tr>
+      <tr>
+        <td class="par">Абсолютная точность</td>
+        <td>Определяет выход на поверхность трубы без ощупывания</td>
+        <td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td>
+        <td>Опция калибровки не подтверждена <span class="f f-nd">Н/Д</span></td>
+        <td class="src">—</td>
+        <td>Ни один производитель не публикует. Без абсолютной точности траектория обязана строиться по данным техзрения, а не по CAD-модели.</td>
+      </tr>
+      <tr>
+        <td class="par">Диапазоны осей</td><td>Заход в трубу без коллизий</td>
+        <td><span class="f f-nd">Н/Д</span></td>
+        <td class="num">J1 ±165°; J2 −155…+105°; J3 −170…+240°; J4 ±190°; J5 −90…+110°; J6 ±210° <span class="f f-ok">ОК</span></td>
+        <td class="num">S ±180°; L −105…+155°; U −86…+160°; R ±200°; B ±150°; T ±455° <span class="f f-ok">ОК</span></td>
+        <td class="src"><a href="https://k2tool.ru/catalog/3578-promyshlennyj-robot-crp-rh18-20">15</a>, <a href="https://www.cospa.ru/upload/iblock/d65/YASKAWA_Flyer_Robot_GP12_GP25_GP25-12_2018.pdf">28</a></td>
+        <td>±455° по оси T у GP25 — реальное преимущество: позволяет разворачивать головку внутри трубы без перехвата.</td>
+      </tr>
+      <tr>
+        <td class="par">Максимальные скорости осей</td><td>Обеспечение такта 200 с</td>
+        <td><span class="f f-nd">Н/Д</span></td>
+        <td class="num">160 / 160 / 169 / 301 / 342 / 708 °/с <span class="f f-ok">ОК</span></td>
+        <td class="num">210 / 210 / 265 / 420 / 420 / 885 °/с <span class="f f-ok">ОК</span></td>
+        <td class="src"><a href="https://k2tool.ru/catalog/3578-promyshlennyj-robot-crp-rh18-20">15</a>, <a href="https://www.cospa.ru/upload/iblock/d65/YASKAWA_Flyer_Robot_GP12_GP25_GP25-12_2018.pdf">28</a></td>
+        <td>GP25 на 25–30 % быстрее по всем осям. Для такта 200 с это не решающее, но даёт запас на переделку задания.</td>
+      </tr>
+      <tr>
+        <td class="par">Допустимый момент на запястье</td>
+        <td>При оснастке 15 кг с вылетом ЦТ 300 мм — 44 Н·м</td>
+        <td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td>
+        <td class="num">R 52 / B 52 / T 32 Н·м <span class="f f-part">!</span></td>
+        <td class="src"><a href="https://www.cospa.ru/upload/iblock/d65/YASKAWA_Flyer_Robot_GP12_GP25_GP25-12_2018.pdf">28</a></td>
+        <td>Запас у GP25 всего 15 % по R/B и <em>дефицит</em> по T. Это узкое место всей компоновки, а не грузоподъёмность. По Turin и CRP данных нет вообще.</td>
+      </tr>
+      <tr>
+        <td class="par">Момент инерции на запястье</td>
+        <td>15 кг × 0,3² = 1,35 кг·м²</td>
+        <td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td>
+        <td class="num">R 2,3 / B 2,3 / T 1,2 кг·м² <span class="f f-part">!</span></td>
+        <td class="src"><a href="https://www.cospa.ru/upload/iblock/d65/YASKAWA_Flyer_Robot_GP12_GP25_GP25-12_2018.pdf">28</a></td>
+        <td>По оси T расчётное 1,35 &gt; допустимого 1,2 кг·м². Компоновку головки придётся балансировать относительно оси T.</td>
+      </tr>
+      <tr>
+        <td class="par">Масса робота</td><td>Влияет на фундамент и линейную ось</td>
+        <td><span class="f f-nd">Н/Д</span></td>
+        <td class="num">285 кг <span class="f f-ok">ОК</span></td>
+        <td class="num">250 кг <span class="f f-ok">ОК</span></td>
+        <td class="src"><a href="https://k2tool.ru/catalog/3578-promyshlennyj-robot-crp-rh18-20">15</a>, <a href="https://www.cospa.ru/upload/iblock/d65/YASKAWA_Flyer_Robot_GP12_GP25_GP25-12_2018.pdf">28</a></td>
+        <td>Для каретки линейной оси разница 35 кг несущественна.</td>
+      </tr>
+      <tr>
+        <td class="par">Монтажное положение</td><td>Пол / портал</td>
+        <td><span class="f f-nd">Н/Д</span></td>
+        <td>Пол, потолок, стена (у стены J1 сужается до ±30°) <span class="f f-ok">ОК</span></td>
+        <td>Пол, стена, потолок <span class="f f-ok">ОК</span></td>
+        <td class="src"><a href="https://k2tool.ru/catalog/3578-promyshlennyj-robot-crp-rh18-20">15</a>, <a href="https://www.motoman.com/en-us/products/robots/industrial/assembly/gp-series/gp25">29</a></td>
+        <td>Сужение J1 до ±30° у CRP при настенном монтаже почти исключает настенную компоновку для этой задачи.</td>
+      </tr>
+      <tr>
+        <td class="par">Степень защиты</td>
+        <td>Пыль + аэрозоль краски → нужен IP65 корпуса</td>
+        <td>IP54 (серия) <span class="f f-part">!</span></td>
+        <td><span class="f f-nd">Н/Д</span></td>
+        <td>Кисть IP67, корпус IP54; опция XP → IP65 <span class="f f-ok">ОК</span></td>
+        <td class="src"><a href="https://turin.fi/wp-content/uploads/Turin-Welding-Robot-Brouchure.pdf">5</a>, <a href="https://www.automate.org/robotics/news/yaskawa-motoman-adds-gp25-model-to-high-speed-gp-series-robot-line">32</a></td>
+        <td><strong>Дифференцирующий параметр.</strong> Штатный IP54 в цеху с повышенной запылённостью и аэрозолем чернил — это ресурс подшипников и энкодеров. Только у Yaskawa есть заводское исполнение IP65.</td>
+      </tr>
+      <tr>
+        <td class="par">Температура эксплуатации</td><td>Труба 0…+50 °C, цех — уже</td>
+        <td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td>
+        <td class="num">0…+45 °C <span class="f f-ok">ОК</span></td>
+        <td class="src"><a href="https://www.automate.org/products/yaskawa-america/gp25-robot">33</a></td>
+        <td>Температура <em>трубы</em> и температура <em>воздуха у робота</em> — разные величины; при трубе +50 °C локальный нагрев кисти надо считать отдельно.</td>
+      </tr>
+      <tr>
+        <td class="par">Электрическая мощность</td><td>Для расчёта питания РТК</td>
+        <td><span class="f f-nd">Н/Д</span></td>
+        <td>3-фаз. 380 В (через разделительный трансформатор) <span class="f f-part">!</span></td>
+        <td class="num">2,0 кВ·А <span class="f f-ok">ОК</span></td>
+        <td class="src"><a href="https://svarka74.ru/catalog/promyshlennye_roboty_crp/promyshlennyy_robot_dlya_obsluzhivaniya_crp_rh18_20/">18</a>, <a href="https://www.cospa.ru/upload/iblock/d65/YASKAWA_Flyer_Robot_GP12_GP25_GP25-12_2018.pdf">28</a></td>
+        <td>Среднее энергопотребление не публикует никто — для расчёта ТСО нужны данные поставщика.</td>
+      </tr>
+      <tr>
+        <td class="par">Ресурс редукторов, межсервисные интервалы, тип смазки, замена батарей, MTBF, уровень шума</td>
+        <td>Для расчёта ТСО и графика ППР</td>
+        <td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td>
+        <td>Есть в руководстве по ТО YRC1000: GP25 Maintenance, содержимое не открыто <span class="f f-nd">Н/Д</span></td>
+        <td class="src"><a href="https://knowledge.motoman.com/hc/en-us/articles/4410112150679-YRC1000-GP25-Instructions">31</a></td>
+        <td>Ни по одному из трёх роботов эти данные не подтверждаются открытыми источниками. Запрашивать у поставщика письменно.</td>
+      </tr>
+      <tr>
+        <td class="par">Соответствие ЕАЭС (ТР ТС 010/2011)</td>
+        <td>Обязательно для ввода в эксплуатацию</td>
+        <td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td>
+        <td class="src"><a href="https://tehnoprogress.ru/tr-ts-0102011-o-bezopasnosti-mashin-i-oborudovaniya/">44</a></td>
+        <td>Ни одной конкретной декларации на эти артикулы в открытом доступе не найдено. Проверять по реестру ФГИС «Росаккредитация» по номеру из паспорта — это обязанность поставщика, а не предположение.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="controllers">
+  <div class="sec-head">
+    <span class="eyebrow">Часть A · Шаг 2</span>
+    <h2>Контроллеры и программное обеспечение</h2>
+  </div>
+  <div class="stack">
+    <div class="flag warn">
+      <span class="t">По контроллерам открытых данных почти нет — и в двух случаях обозначение из КП не сходится с каталогом</span>
+      <p><strong>«Turin B06»</strong> в каталоге как отдельное изделие не выделен: в руководстве TURIN Robot User Manual V2023 фигурирует шкаф управления <span class="num">TRC5-B06</span>, там же есть раздел настройки EtherCAT <span class="src"><a href="https://www.scribd.com/document/699697981/Turin-Industrial-Robot-User-Manual">6</a></span>. Отдельно существует изделие VEICHI VC-TRC5-B06 с очень похожим обозначением — при заказе запчастей это прямой риск получить не то.</p>
+      <p><strong>«CRP G4»</strong> — вероятно поколение системы управления, а не артикул шкафа: российские дилеры описывают поставляемый комплект как интегрированный блок <span class="num">CD60-CRX8</span>, объединяющий контроллер и синхронные сервоприводы <span class="src"><a href="https://svarka74.ru/catalog/promyshlennye_roboty_crp/promyshlennyy_robot_dlya_obsluzhivaniya_crp_rh18_20/">18</a></span>. Chengdu CRP Automation Control числится членом организации EtherCAT Technology Group <span class="src"><a href="https://www.ethercat.org/en/members/members_4437C64FA6E64BDAA4E65DB59CEB6FDF.htm">27</a></span> — это подтверждает поддержку EtherCAT на уровне вендора, но не на уровне конкретной поставки.</p>
+      <p><strong>YRC1000</strong> — единственный контроллер из трёх с публичной документацией: руководства по эксплуатации и ТО связки «YRC1000 + GP25» опубликованы в базе знаний Yaskawa <span class="src"><a href="https://knowledge.motoman.com/hc/en-us/articles/4410112150679-YRC1000-GP25-Instructions">31</a></span>.</p>
+    </div>
+
+    <div class="tw">
+    <table>
+      <caption>Требования проекта к контроллеру и что по ним подтверждается</caption>
+      <thead><tr><th>Что требуется</th><th>Turin (TRC5-B06)</th><th>CRP (G4 / CD60-CRX8)</th><th>Yaskawa YRC1000</th><th>Комментарий</th></tr></thead>
+      <tbody>
+        <tr><td class="par">EtherCAT</td><td>Раздел в руководстве есть <span class="f f-part">!</span></td><td>Вендор — член ETG <span class="f f-part">!</span></td><td>Опция подтверждена документацией <span class="f f-ok">ОК</span></td><td>У всех трёх — «поддерживается», ни у одного не подтверждён состав поставки.</td></tr>
+        <tr><td class="par">PROFINET / EtherNet-IP / Modbus TCP</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td>Опциональные платы <span class="f f-part">!</span></td><td>Для стыковки с АСУ ТП критично. Требовать перечень артикулов плат в спецификации.</td></tr>
+        <tr><td class="par">OPC UA / REST API для MES</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td>Ни по одному контроллеру не подтверждается. Практическое решение — промежуточный ПЛК или шлюз, и это отдельная статья затрат, которой нет в КП.</td></tr>
+        <tr><td class="par">Внешняя линейная ось (7-я)</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td>Штатная функция серии <span class="f f-part">!</span></td><td>Для этого проекта ось обязательна (см. расчёт). Число управляемых внешних осей — обязательный пункт запроса.</td></tr>
+        <tr><td class="par">Коррекция траектории по техзрению</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td>Ключевая функция проекта — компенсация овальности и положения торца. Не подтверждена ни для одного контроллера.</td></tr>
+        <tr><td class="par">Стоимость и бессрочность лицензий, SDK</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td>Открытых прайсов на опции ПО нет ни у кого. Это существенная неопределённость ТСО.</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</section>
+
+<section id="engineering">
+  <div class="sec-head">
+    <span class="eyebrow">Часть A · Шаг 3</span>
+    <h2>Инженерная пригодность: расчёты</h2>
+  </div>
+
+  <div class="stack">
+    <p>Все расчёты ниже выполнены от требований ТЗ и ГОСТ 10692-80. Допущения выделены явно; там, где исходных данных нет, это сказано прямо.</p>
+
+    <div class="calc">
+      <h3>1. Размер поля маркировки</h3>
+      <p class="given">Исходные: ≥40 символов в строке, до 12 строк, высота символа 20–50 мм, ширина ≥10 мм. Допущение: межсимвольный интервал 0,4 от ширины, межстрочный — 0,3 от высоты.</p>
+      <div class="formula">Длина строки  L = 40 × (10 + 4)          = 560 мм
+Высота блока  H = 12 × (20 + 6)          = 312 мм
+При символе 50 мм:  H = 12 × (50 + 15)   = 780 мм  ← за пределом ГОСТ-зоны</div>
+      <p><strong>Вывод:</strong> поле <span class="num">560 × 312 мм</span> при символе 20 мм. ГОСТ 10692-80 требует наносить маркировку на расстоянии не более 500 мм и не менее 20 мм от торца <span class="src"><a href="http://docs.cntd.ru/document/1200004957">45</a></span> — блок 312 мм в эту зону помещается, блок 780 мм при символе 50 мм <strong>не помещается</strong>. Комбинация «12 строк + 50 мм» физически несовместима с ГОСТ-зоной у торца; в ТЗ это противоречие надо снять до проектирования.</p>
+    </div>
+
+    <div class="calc">
+      <h3>2. Кривизна поверхности под печатающей головкой</h3>
+      <p class="given">Худший случай — внутренняя поверхность самой тонкой трубы. Ø508, стенка 12 мм → R<sub>вн</sub> = 242 мм. Ширина печатной полосы Seiko SPT-510 — 71,8 мм.</p>
+      <div class="formula">Стрелка прогиба на хорде 71,8 мм:
+s = R − √(R² − (c/2)²) = 242 − √(242² − 35,9²)
+s = 242 − 239,32 = 2,68 мм</div>
+      <p><strong>Вывод — это определяющее решение всей компоновки.</strong> Рабочее расстояние пьезоголовок класса SPT-510 составляет единицы миллиметров, и разброс 2,68 мм поперёк полосы делает печать негодной по краям. Решение: <strong>ориентировать головку длинной стороной вдоль образующей трубы</strong>, а печать вести по окружности. Тогда 71,8 мм лежат на прямой линии, кривизна вдоль полосы равна нулю, и остаётся только удерживать постоянный зазор по мере обхода — это работа для 6 осей и лазерного датчика расстояния. Для DOD-головы Rusmark с рабочим расстоянием в десятки миллиметров это ограничение несущественно — в этом её главное преимущество на трубе.</p>
+    </div>
+
+    <div class="calc">
+      <h3>3. Досягаемость и необходимость линейной оси</h3>
+      <p class="given">Труба Ø1420, стенка 20 мм → R<sub>вн</sub> = 690 мм. Заход по ГОСТ — до 500 мм от торца. Допущение: база робота отнесена от торца на 600 мм (минимум для безопасного отвода из зоны движения трубы), сборка «фланец + головка + УФ-модуль» имеет вылет 300 мм.</p>
+      <div class="formula">Радиус-вектор от центра J1 до точки печати:
+осевая составляющая  = 600 + 500          = 1100 мм
+радиальная (Ø1420)   = 690 − смещение базы ≈ 690 мм
+|r| = √(1100² + 690²)                      = 1299 мм
+плюс вылет оснастки                        = ~1600 мм
+Радиус GP25 / RH18-20 = 1730 мм → запас 8 %
+Радиус TR30-1920B     = 1920 мм → запас 17 %</div>
+      <p><strong>Вывод:</strong> формально дотягиваются все три, но запас 8 % означает работу на границе рабочей зоны, где падает точность и растут моменты. Кроме того, диапазон Ø508…1420 — это 480 мм разброса по радиусу, а один робот должен обслужить и внутреннюю, и наружную поверхность и уйти из габарита движения трубы. <strong>Линейная ось обязательна</strong> — не для длины трубы (маркировка всегда у торца), а для входа/выхода из расточки, перекрытия диапазона диаметров и безопасного отвода. Это меняет структуру КП: в них линейная ось должна быть отдельной строкой с указанием числа управляемых внешних осей контроллера.</p>
+    </div>
+
+    <div class="calc">
+      <h3>4. Момент и инерция на запястье — узкое место</h3>
+      <p class="given">Оценка массы оснастки (заказчиком не задана, это недостающие исходные данные): головка 0,5 кг, кронштейн и кожух 4 кг, УФ-модуль с охлаждением 6 кг, демпфер/дегазатор 2 кг, датчики 1 кг, участок шлейфа 1,5 кг → <strong>15 кг</strong>, ЦТ на вылете 300 мм.</p>
+      <div class="formula">Момент         M = 15 × 9,81 × 0,30 = 44,1 Н·м
+Инерция (точечная оценка) J = 15 × 0,30²  = 1,35 кг·м²
+
+GP25: доп. момент R/B = 52 Н·м → запас 18 %
+      доп. момент T   = 32 Н·м → ДЕФИЦИТ 38 %
+      доп. инерция T  = 1,2 кг·м² → ДЕФИЦИТ 12 %</div>
+      <p><strong>Вывод:</strong> при такой оснастке ограничивает не грузоподъёмность, а ось T. Компоновку надо строить так, чтобы центр масс лежал близко к оси T (головка симметрично относительно оси вращения кисти), либо снимать УФ-модуль с кисти и ставить его на отдельный кронштейн. По Turin и CRP аналогичный расчёт <strong>невозможен</strong> — допустимые моменты и инерции не опубликованы. Это первый пункт запроса к АМН и КБ42.</p>
+    </div>
+
+    <div class="calc">
+      <h3>5. Время цикла</h3>
+      <p class="given">Такт 18 труб/ч = 200 с. Печать по окружности, полоса 71,8 мм (Seiko), поле 560 × 312 мм → 5 проходов. Скорость печати ограничена частотой головки (см. часть B) и принята 400 мм/с как консервативная.</p>
+      <div class="formula">Один проход: 560 / 400 = 1,4 с + разгон/торможение 1,2 с
+             + переустановка на след. полосу 1,0 с   = 3,6 с
+Внутренняя маркировка: 5 × 3,6                      = 18 с
+Наружная маркировка:   5 × 3,6                      = 18 с
+Обводка (рамка вокруг блока по ГОСТ, 2 × 1744 мм периметра
+ при 400 мм/с)                                      = 9 с
+Заход/выход из расточки, смена поверхности          = 25 с
+Позиционирование трубы, техзрение, замер торца      = 30 с
+Контроль качества (2 съёмки)                        = 10 с
+Промывка/парковка (усреднённо на трубу)             = 8 с
+───────────────────────────────────────────────────────────
+ИТОГО                                               ≈ 118 с
+Запас к такту 200 с                                 = 41 %</div>
+      <p><strong>Вывод:</strong> такт 200 с обеспечивается с существенным запасом — при условии, что печать идёт «на проходе» и УФ-отверждение выполняется лампой, идущей за головкой, а не отдельной операцией. Если отверждение вынести в отдельный проход, время печати удваивается (≈154 с), запас падает до 23 % — всё ещё приемлемо. <strong>Уточнение по ГОСТ:</strong> «обвести или подчеркнуть яркой краской» <span class="src"><a href="http://docs.cntd.ru/document/1200004957">45</a></span> означает рамку вокруг блока текста, а не кольцо вокруг трубы. Если заказчик под «контуром» имеет в виду именно кольцо по окружности Ø1420 (периметр 4461 мм), 6-осевой робот его не нанесёт без вращения трубы или кольцевой оси — это отдельное оборудование, которого нет ни в одном КП.</p>
+    </div>
+
+    <dl class="qa">
+      <div><dt>Нужна ли линейная ось?</dt><dd>Да, обязательно. Не из-за длины трубы, а из-за входа в расточку, диапазона Ø508…1420 и требования безопасного отвода из зоны движения трубы.</dd></div>
+      <div><dt>Достаточна ли повторяемость для символов 20–50 мм?</dt><dd>Да, с запасом более чем 100× у всех трёх роботов. Ограничивающий фактор — не повторяемость робота, а стабильность зазора «сопло–металл» и абсолютная точность выхода на поверхность, которую даёт только техзрение.</dd></div>
+      <div><dt>Как компенсировать овальность и отклонение торца?</dt><dd>Лазерный триангуляционный датчик расстояния на кисти для непрерывной коррекции зазора + 2D-камера для поиска торца и обхода зоны продольного шва. Ни один из трёх контроллеров не имеет подтверждённой функции коррекции траектории по зрению — это надо закладывать как отдельную подсистему.</dd></div>
+      <div><dt>Что требует дополнительной защиты?</dt><dd>Кабель-пакет и шлейф чернил (истирание о кромку трубы при заходе в расточку), энкодеры осей 4–6 (пыль), УФ-модуль (перегрев при трубе +50 °C и отсутствии конвекции внутри расточки), окна датчиков (аэрозоль чернил). Штатный IP54 корпуса для этой среды недостаточен.</dd></div>
+      <div><dt>Можно ли безопасно вывести робот из зоны прохождения трубы?</dt><dd>Только с линейной осью или поворотным основанием. Расчётный габарит отвода при Ø1420 — не менее 1,6 м от оси трубы; обеспечить его одним лишь складыванием манипулятора при вылете оснастки 300 мм не удаётся.</dd></div>
+    </dl>
+  </div>
+</section>
+
+<section id="market">
+  <div class="sec-head">
+    <span class="eyebrow">Часть A · Таблица 2</span>
+    <h2>Производители: рынок и финансовое положение</h2>
+  </div>
+  <div class="tw">
+  <table>
+    <caption>Денежные показатели даны в валюте исходного отчёта. Пересчёт в рубли не приводится: курс на дату каждого отчёта требует подтверждения и в открытых источниках по этим компаниям не публикуется вместе с отчётностью.</caption>
+    <thead><tr><th>Показатель</th><th>Shanghai Turin</th><th>Chengdu CRP / Kanop</th><th>Yaskawa Electric</th><th>Ист.</th></tr></thead>
+    <tbody>
+      <tr><td class="par">Структура собственности</td><td>Контролируется Shanghai Baosight Software (группа China Baowu, крупнейший металлург мира) <span class="f f-ok">ОК</span></td><td>Самостоятельная АО; в ноябре 2025 подала заявку на IPO на Гонконгской бирже по гл. 18C <span class="f f-ok">ОК</span></td><td>Публичная, TSE 6506 <span class="f f-ok">ОК</span></td><td class="src"><a href="https://rbtx.com/en-US/partners/shanghai-turin-smart-robot-co-ltd">10</a>, <a href="https://finance.sina.com.cn/stock/zqgd/2025-11-26/doc-infysxmh2273492.shtml">24</a>, <a href="https://en.wikipedia.org/wiki/Yaskawa_Electric_Corporation">36</a></td></tr>
+      <tr><td class="par">Год основания</td><td>Дата не подтверждена; материнская Baosight — 1978 <span class="f f-part">!</span></td><td>06.09.2012 <span class="f f-ok">ОК</span></td><td>1915 <span class="f f-ok">ОК</span></td><td class="src"><a href="https://en.wikipedia.org/wiki/Baosight_Software">9</a>, <a href="https://baike.baidu.com/en/item/Chengdu%20Kanop%20Robotics%20Technology%20Co.,%20Ltd./939745">21</a></td></tr>
+      <tr><td class="par">Выручка</td><td>Отдельно не раскрывается (входит в консолидацию Baosight) <span class="f f-nd">Н/Д</span></td><td class="num">2022: ¥197 млн<br>2023: ¥222 млн (+12,6 %)<br>2024: ¥234 млн (+5,2 %) <span class="f f-ok">ОК</span></td><td class="num">Робототехника FY2024: ¥237,4 млрд (+1,2 %)<br>Группа FY2025: ¥542,1 млрд <span class="f f-ok">ОК</span></td><td class="src"><a href="https://www.sohu.com/a/961950212_122014422">23</a>, <a href="https://www.yaskawa-global.com/wp-content/uploads/2025/09/YR2025E_A3.pdf">37</a></td></tr>
+      <tr><td class="par">Чистая прибыль / убыток</td><td><span class="f f-nd">Н/Д</span></td><td class="num">2022: +¥28,3 млн<br>2023: +¥1,7 млн<br>2024: <strong>−¥12,9 млн</strong> <span class="f f-no">Х</span></td><td>Прибыльна <span class="f f-ok">ОК</span></td><td class="src"><a href="https://www.sohu.com/a/961950212_122014422">23</a>, <a href="https://m.jiemian.com/article/13670364.html">26</a></td></tr>
+      <tr><td class="par">Финансовые риски</td><td>Риск перенесён на материнскую структуру <span class="f f-part">!</span></td><td>Госсубсидии в выручке: ¥40,1 / 20,8 / 10,3 млн за 2022–2024; отрицательный операционный денежный поток за 2023–2024 суммарно −¥48,6 млн; в публикациях отмечена растущая задолженность по соцстрахованию <span class="f f-no">Х</span></td><td>Не выявлены <span class="f f-ok">ОК</span></td><td class="src"><a href="https://finance.sina.com.cn/stock/zqgd/2025-11-27/doc-infyvhsi0970058.shtml">25</a>, <a href="https://m.jiemian.com/article/13670364.html">26</a></td></tr>
+      <tr><td class="par">Позиция на рынке</td><td>Национальное высокотехнологичное предприятие, «специализированный и инновационный МСП»; куплена итальянская RRRobotica <span class="f f-part">!</span></td><td>№1 в КНР среди производителей сварочных роботов по выручке 2024; ~50 % рынка контроллеров роботов КНР, ~90 % в сварочном и окрасочном сегментах <span class="f f-part">!</span></td><td>Свыше 600 000 установленных роботов Motoman в мире (заявление августа 2025); веха 500 000 подтверждена пресс-релизом <span class="f f-ok">ОК</span></td><td class="src"><a href="https://www.turinrobot.com/history.html">8</a>, <a href="http://www.news.cn/fortune/20250605/c3ec3957f7ab48d2ba8ed43ed14eaa2b/c.html">22</a>, <a href="https://www.yaskawa-global.com/newsrelease/news/38960">34</a></td></tr>
+      <tr><td class="par">Доля экспорта</td><td><span class="f f-nd">Н/Д</span></td><td class="num">15,6 % (2022) → 19 % (2023) → 10,5 % (2024) — снижается <span class="f f-part">!</span></td><td>Глобальный производитель <span class="f f-ok">ОК</span></td><td class="src"><a href="https://www.sohu.com/a/961950212_122014422">23</a></td></tr>
+      <tr><td class="par">Вероятность прекращения поддержки модели</td><td>Модель TR30-1900B не идентифицирована — оценка невозможна <span class="f f-no">Х</span></td><td>Средняя: линейка RH активна, но производитель в фазе перестройки под IPO <span class="f f-part">!</span></td><td>Низкая: GP-серия — актуальная платформа <span class="f f-ok">ОК</span></td><td class="src">—</td></tr>
+      <tr><td class="par">Экспортные ограничения на РФ</td><td>Нет прямых <span class="f f-ok">ОК</span></td><td>Нет прямых <span class="f f-ok">ОК</span></td><td><strong>Есть</strong>: официальный канал поставки роботов в РФ не подтверждён, поставки идут через реселлеров и параллельный импорт <span class="f f-no">Х</span></td><td class="src"><a href="https://delprof.ru/press-center/open-analytics/analiz-rynka-promyshlennykh-robotov-v-rossii/">38</a></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="stack" style="margin-top:18px;">
+    <div class="flag warn">
+      <span class="t">О российском рынке: два несовместимых набора цифр</span>
+      <p>По IFR World Robotics число установок промышленных роботов в России в 2024 г. — <span class="num">1950 шт.</span>; российские отраслевые публикации за тот же период называют <span class="num">12,5 тыс.</span> новых установок и рост парка с 12,8 до ~33 тыс. единиц за 2023–2025 гг. <span class="src"><a href="https://expoelectronica.ru/ru/news/2025/december/05/rynok-robototekhniki-v-rossii/">39</a><a href="https://rb.ru/news/do-80-promyshlennyh-robotov-v-rossii-ostayutsya-importnymi-glavnyj-postavshik-v-2025-godu-kitaj/">40</a></span>. Разница в шесть раз — это разные методики: IFR считает по отчётности производителей-членов и не видит параллельный импорт и мелких интеграторов. <strong>Для оценки риска сервиса ориентируйтесь на согласующуюся часть:</strong> около 80 % парка — импорт, основной поставщик — КНР, доля отечественных решений выросла с ~14 % до ~26 %. Число установленных роботов конкретных моделей TR30-1900B, RH18-20 и GP25 в России в открытых источниках отсутствует.</p>
+    </div>
+  </div>
+</section>
+
+<section id="service">
+  <div class="sec-head">
+    <span class="eyebrow">Часть A · Таблица 3</span>
+    <h2>Сервис в России и статус компаний из КП</h2>
+  </div>
+  <div class="tw">
+  <table>
+    <caption>Статус AMN, КБ42 и «ДЖЕТА-ЛОГИСТИК» относительно производителей. Все сведения об авторизации — заявления самих организаций; независимого подтверждения со стороны производителей в открытых источниках не найдено.</caption>
+    <thead><tr><th>Бренд</th><th>Компания из КП</th><th>Статус</th><th>Что заявлено</th><th>Что не подтверждено</th><th>Ист.</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="par">Turin</td><td>AMN → ООО «АМН Инжиниринг», amn-stanki.ru</td>
+        <td>Официальный дистрибьютор в РФ <span class="f f-part">!</span></td>
+        <td>Доверенность от Shanghai Turin Smart Robot на маркетинг и продажи, техподдержку, обучение персонала, ПНР и гарантийный сервис; заявлено решение большинства проблем удалённо в течение 12 часов.</td>
+        <td>Адреса сервисных центров, состав и местонахождение склада ЗИП, сроки поставки редукторов и энкодеров, стоимость нормо-часа и выезда, наличие учебного центра. Копия доверенности в открытом доступе отсутствует.</td>
+        <td class="src"><a href="https://amn-stanki.ru/product/dlya-robotizatsii-proizvodstva/universalnye-gruzopodemnye-roboty/universalnyy-robot-tr155-3200b/">12</a></td>
+      </tr>
+      <tr>
+        <td class="par">CRP</td><td>КБ42</td>
+        <td><strong>Связь с CRP не подтверждена</strong> <span class="f f-no">Х</span></td>
+        <td>В открытых источниках организация «КБ42» в связке с CRP не обнаружена. Официальным дистрибьютором CRP по РФ, РБ, Казахстану, Киргизии и Армении заявляет себя CRP Automation Russia (crp-robot.ru), Одинцово, Можайское ш. 8, стр. 1; заявляет более 750 роботов в эксплуатации.</td>
+        <td>Является ли КБ42 авторизованным партнёром, субдилером CRP Automation Russia или независимым поставщиком. Это <strong>обязательный вопрос к поставщику</strong>: от ответа зависит, кто несёт гарантию.</td>
+        <td class="src"><a href="https://crp-robot.ru/about">20</a></td>
+      </tr>
+      <tr>
+        <td class="par">Yaskawa</td><td>«ДЖЕТА-ЛОГИСТИК»</td>
+        <td><strong>Связь с Yaskawa не подтверждена</strong> <span class="f f-no">Х</span></td>
+        <td>Организация в открытых источниках в связке с Yaskawa не обнаружена. Само название («логистик») указывает скорее на поставщика, чем на интегратора.</td>
+        <td>Официального представительства Yaskawa по роботам в РФ не подтверждено. На рынке присутствуют несколько компаний, называющих себя официальными партнёрами; при этом подтверждённое партнёрство ООО «КоСПА» относится к направлению Drives &amp; Motion, а не к роботам.</td>
+        <td class="src"><a href="https://www.cospa.ru/news/notice/-ooo-kospa-upolnomochennyy-servisnyy-partner-yaskawa-drives-motion-v-rossii/">41</a></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note" style="margin-top:12px;">По всем трём брендам не подтверждены: адреса авторизованных сервисных центров, круглосуточная телефонная поддержка, наличие склада критических деталей в РФ и сроки их поставки, стоимость нормо-часа, условия постгарантийного обслуживания, возможность восстановления программ и параметров после отказа контроллера. Это не значит, что их нет — это значит, что их нельзя принимать на веру из КП.</p>
+</section>
+
+<section id="reviews-robots">
+  <div class="sec-head">
+    <span class="eyebrow">Часть A · Таблица 4</span>
+    <h2>Отзывы и репутация</h2>
+  </div>
+  <div class="tw">
+  <table>
+    <caption>Результат честный и неудобный: независимых пользовательских отзывов об эксплуатации этих трёх моделей в открытых источниках практически нет.</caption>
+    <thead><tr><th>Бренд</th><th>Независимые отзывы предприятий</th><th>Публикации интеграторов</th><th>Рекламные материалы</th><th>Оценка</th></tr></thead>
+    <tbody>
+      <tr><td class="par">Turin</td><td>Не найдено <span class="f f-nd">Н/Д</span></td><td>Карточки на robotforum.ru, витрины «Перманент», Tiger Prom, Turin Automation — все с коммерческим интересом</td><td>Каталоги производителя и дистрибьютора</td><td>Публичного эксплуатационного опыта в РФ по TR30 нет</td></tr>
+      <tr><td class="par">CRP</td><td>Не найдено <span class="f f-nd">Н/Д</span></td><td>Кейсы CRP Automation Russia (мебель, нефтегаз, электроника, машиностроение, пищевая) — публикации дистрибьютора</td><td>Витрины дилеров (PureLogic, K2Tool, Экосвар, Сварка74, 3DVision)</td><td>Заявление «более 750 роботов в эксплуатации» — реклама дистрибьютора, не проверяемый факт</td></tr>
+      <tr><td class="par">Yaskawa</td><td>Не найдено по GP25 конкретно <span class="f f-nd">Н/Д</span></td><td>Многочисленные, но зарубежные</td><td>Пресс-релизы Yaskawa и отраслевые обзоры</td><td>Косвенный аргумент — 600 000 установленных роботов и доступность б/у GP25 на вторичном рынке (Eurobots)</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note" style="margin-top:12px;">Промпт требует не делать общий вывод по единичному отзыву. Здесь нет даже единичных: по типовым отказам, проблемам редукторов, энкодеров и кабель-пакета для этих моделей открытых данных нет. Единственный проверяемый отраслевой факт по контексту задачи: на предприятиях ТМК роботизированные комплексы, в том числе для маркировки труб, эксплуатируются более 15 лет, а на Северском трубном заводе после модернизации комплекс маркировки стал работать вдвое быстрее и внедрено машинное распознавание маркировки в потоке <span class="src"><a href="https://rspm.ru/ru/about/news/?id=26878">54</a><a href="https://www.metalinfo.ru/ru/news/176806">56</a><a href="https://www.metalinfo.ru/ru/news/171200">55</a></span>. Марки роботов в этих публикациях не названы.</p>
+</section>
+
+<section id="risks-robots">
+  <div class="sec-head">
+    <span class="eyebrow">Часть A · Таблица 5</span>
+    <h2>Риски проекта: роботы</h2>
+  </div>
+  <div class="tw">
+  <table>
+    <thead><tr><th>Риск</th><th>Относится к</th><th>Вероятность</th><th>Последствия</th><th>Итог</th><th>Снижение</th></tr></thead>
+    <tbody>
+      <tr><td class="par">Поставлен робот с иным артикулом, чем в договоре</td><td>Turin</td><td>Высокая</td><td>Несовпадение геометрии, невозможность отработать заложенную траекторию</td><td><span class="f f-no">критический</span></td><td>Зафиксировать точный артикул + серийный номер в спецификации; приёмка по шильдику; штраф за несоответствие</td></tr>
+      <tr><td class="par">Не подтверждены допустимые моменты и инерция на запястье</td><td>Turin, CRP</td><td>Высокая</td><td>Перегруз кисти, ускоренный износ редуктора оси T, дрожание при печати</td><td><span class="f f-no">высокий</span></td><td>Затребовать паспорт с диаграммой нагрузок до заказа; согласовать массу и ЦТ оснастки письменно</td></tr>
+      <tr><td class="par">Отсутствие официального сервиса Yaskawa в РФ</td><td>Yaskawa</td><td>Высокая</td><td>Срок ремонта контроллера и поставки ЗИП не гарантирован; риск неоригинальных компонентов</td><td><span class="f f-no">высокий</span></td><td>Двойной комплект критического ЗИП на складе завода; договор с независимой сервисной организацией; резервный контроллер</td></tr>
+      <tr><td class="par">IP54 корпуса в запылённой среде с аэрозолем чернил</td><td>Все три</td><td>Средняя</td><td>Отказ энкодеров и подшипников кисти, внеплановые простои</td><td><span class="f f-part">средний</span></td><td>Заказывать исполнение IP65 (у Yaskawa — пакет XP); защитный чехол; наддув зоны кисти чистым воздухом</td></tr>
+      <tr><td class="par">Статус КБ42 и «ДЖЕТА-ЛОГИСТИК» относительно производителей не подтверждён</td><td>CRP, Yaskawa</td><td>Высокая</td><td>Гарантия де-факто от перепродавца, а не от завода</td><td><span class="f f-no">высокий</span></td><td>Затребовать авторизационное письмо завода на конкретную сделку; гарантийные обязательства прописать на поставщика</td></tr>
+      <tr><td class="par">Финансовая неустойчивость производителя</td><td>CRP</td><td>Средняя</td><td>Убыток 2024 г., отрицательный денежный поток, зависимость от субсидий → риск сокращения поддержки линейки</td><td><span class="f f-part">средний</span></td><td>Закупка ЗИП на 5 лет вперёд; условие о передаче документации при прекращении поддержки</td></tr>
+      <tr><td class="par">Линейная ось не заложена в КП</td><td>Все три</td><td>Высокая</td><td>РТК не соберётся физически; удорожание после подписания</td><td><span class="f f-no">критический</span></td><td>Ввести линейную ось и число внешних осей контроллера в спецификацию до выбора поставщика</td></tr>
+      <tr><td class="par">Не подтверждена коррекция траектории по техзрению</td><td>Все три</td><td>Высокая</td><td>Невозможно компенсировать овальность и положение торца → брак маркировки</td><td><span class="f f-no">высокий</span></td><td>Демонстрационные испытания с реальной трубой до заключения договора</td></tr>
+      <tr><td class="par">Требование «12 строк × 50 мм» противоречит ГОСТ-зоне 500 мм от торца</td><td>ТЗ проекта</td><td>Высокая</td><td>Требования невыполнимы одновременно</td><td><span class="f f-part">средний</span></td><td>Уточнить ТЗ: либо 12 строк при 20 мм, либо меньшее число строк при 50 мм</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="ranking-robots">
+  <div class="sec-head">
+    <span class="eyebrow">Часть A · Итог</span>
+    <h2>Рейтинги и рекомендация по роботу</h2>
+  </div>
+  <div class="rank">
+    <div class="r"><h4>Техническое соответствие</h4><ol><li>Yaskawa GP25 — полный паспорт, IP65 опцией, ±455° по T</li><li>CRP RH18-20 — параметры движения открыты, моменты нет</li><li>Turin TR30-1900B — модель не идентифицирована</li></ol></div>
+    <div class="r"><h4>Надёжность производителя</h4><ol><li>Yaskawa — 1915 г., 600 тыс. роботов</li><li>Turin — за спиной Baosight / China Baowu</li><li>CRP — убыток 2024 г., IPO «на грани» порога</li></ol></div>
+    <div class="r"><h4>Доступность сервиса в РФ</h4><ol><li>CRP — дистрибьютор с адресом и заявленным сервисом</li><li>Turin — заявленная доверенность завода у АМН</li><li>Yaskawa — официального канала по роботам нет</li></ol></div>
+    <div class="r"><h4>Совокупная стоимость владения</h4><ol><li>Оценка невозможна</li></ol><p class="note">Ни цен, ни стоимости нормо-часа, ни ресурса редукторов, ни энергопотребления в открытых источниках нет ни по одной модели. Любой рейтинг ТСО здесь был бы выдуманным.</p></div>
+    <div class="r"><h4>Минимальный риск остановки производства</h4><ol><li>CRP — сервис и ЗИП внутри РФ</li><li>Turin — сервис заявлен, склад не подтверждён</li><li>Yaskawa — лучший робот, худшая логистика запчастей</li></ol></div>
+  </div>
+
+  <div class="stack" style="margin-top:20px;">
+    <div class="flag info">
+      <span class="t">Рекомендация</span>
+      <p><strong>Основной вариант — CRP RH18-20</strong>, при условии письменного подтверждения допустимых моментов запястья и статуса КБ42. Решает не техника, а сервис: для линии с тактом 200 с и планом 18 труб/ч простой из-за отсутствия энкодера дороже любой разницы в повторяемости, а единственный из трёх брендов с подтверждённым адресом сервиса в РФ — CRP.</p>
+      <p><strong>Технически лучший — Yaskawa GP25</strong>, и если завод готов держать резервный контроллер и двойной ЗИП, он предпочтителен: это единственная модель, по которой инженерный расчёт можно выполнить полностью, не запрашивая данные у поставщика.</p>
+      <p><strong>Turin — не рассматривать до идентификации артикула.</strong> Само по себе владение через Baosight/China Baowu — сильный аргумент (материнская группа сама металлург и понимает эту среду), но сравнивать несуществующее обозначение не с чем.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ЧАСТЬ B ================= -->
+<section id="ident-markers">
+  <div class="sec-head">
+    <span class="eyebrow">Часть B · Маркираторы · Шаг 1</span>
+    <h2>Корректно ли это сравнение</h2>
+  </div>
+  <div class="stack">
+    <div class="flag">
+      <span class="t">Нет. Сравниваются изделия разных классов</span>
+      <p><strong>Rusmark КПМ-1500</strong> — законченный интегрируемый маркиратор: контроллер, головки, система подачи чернил, интерфейс оператора (7-дюймовый дисплей), синхронизация по энкодеру или по скорости линии, передача данных по Wi-Fi и RS-232, автоматическая система очистки <span class="src"><a href="https://mirmarking.ru/rusmark-kpm-1500">46</a><a href="https://indatech.ru/product/rusmark-rm-kpm-1500">47</a></span>.</p>
+      <p><strong>«Seiko 510 UV»</strong> — не изделие, а <em>печатающая головка</em> Seiko Instruments SPT-510 (артикулы RH1513D-3322 для 35 пл, IRH1513U-3522 для 50 пл) <span class="src"><a href="https://www.digitalprinthead.com/product/seiko-spt-510-35pl-printhead/">50</a><a href="https://www.allprintheads.com/products/seiko-spt-510-50pl-printhead">51</a></span>. Производитель — <strong>Seiko Instruments Inc. (SII)</strong>, не Seiko Epson: это разные компании, и путать их при заказе запчастей нельзя. «UV» в обозначении — это указание на совместимость с УФ-чернилами, а не отдельная модель. Полноценной маркировочной системой головка становится только вместе с электроникой управления, системой подачи и дегазации чернил, УФ-модулем и ПО — то есть за обозначением «Seiko 510 UV» в КП стоит <strong>интегрированная система неназванного сборщика</strong>.</p>
+      <p><strong>Практическое следствие:</strong> сравнивать надо не «КПМ-1500 против Seiko 510 UV», а «КПМ-1500 против конкретной системы сборщика X на головке SPT-510». Пока сборщик не назван, вторая колонка сравнения — не изделие, а спецификация комплектующего. Первое, что надо затребовать: наименование производителя системы, её артикул, паспорт и декларацию ЕАЭС.</p>
+    </div>
+
+    <div class="flag warn">
+      <span class="t">КПМ-1500: дилеры описывают технологию двумя взаимоисключающими способами</span>
+      <p>Одни витрины пишут «работает по принципу <em>непрерывного</em> струйного нанесения чернил» — это CIJ <span class="src"><a href="https://mirmarking.ru/rusmark-kpm-1500">46</a></span>. Но по описанию архитектуры это DOD: «контроллер работает с четырьмя 16-сопловыми или двумя 32-сопловыми головками одновременно и независимо друг от друга», «высота символа меняется поворотом сопловой планки и программно» <span class="src"><a href="https://indatech.ru/product/rusmark-rm-kpm-1500">47</a></span>. Непрерывная струя так не устроена: у CIJ одно сопло, а высота символа задаётся отклоняющим полем. Родственная модель того же бренда — ручной КПМ-260B — прямо описана как <strong>DOD с 32 соплами и высотой символа до 60 мм</strong> <span class="src"><a href="https://xn--80ahlkm6a7e.xn--p1ai/product/rusmark/rm_kpm_260b_32/">52</a></span>. В линейке «Русмарк» отдельно существует настоящий CIJ — мелкосимвольный InkJet L-009NET <span class="src"><a href="https://indatech.ru/articles/rusmark-navigaciya-po-brendu">48</a></span>.</p>
+      <p><strong>Вывод:</strong> КПМ-1500 — почти наверняка крупносимвольный DOD (клапанный/пьезо) маркиратор, а формулировка «непрерывный струйный» на витринах — редакторская ошибка, перенесённая между сайтами. Это принципиально: от технологии зависят и рабочее расстояние, и разрешение, и расходники. Требует подтверждения паспортом.</p>
+    </div>
+  </div>
+</section>
+
+<section id="table-markers-1">
+  <div class="sec-head">
+    <span class="eyebrow">Часть B · Таблица 1</span>
+    <h2>Идентификация и комплектность</h2>
+  </div>
+  <div class="tw">
+  <table>
+    <thead><tr><th>Показатель</th><th>Требование проекта</th><th>Rusmark КПМ-1500</th><th>Seiko SPT-510 (как комплектующее)</th><th>Ист.</th><th>Комментарий</th></tr></thead>
+    <tbody>
+      <tr><td class="par">Точное наименование</td><td>Однозначное</td><td>RM-КПМ-1500 <span class="f f-ok">ОК</span></td><td>SPT-510/35PL (RH1513D-3322) либо SPT-510/50PL (IRH1513U-3522) <span class="f f-part">!</span></td><td class="src"><a href="https://indatech.ru/product/rusmark-rm-kpm-1500">47</a>, <a href="https://www.digitalprinthead.com/product/seiko-spt-510-35pl-printhead/">50</a></td><td>В КП «KIM-1500» — латинская транслитерация кириллического «КПМ-1500». Не путать при заказе.</td></tr>
+      <tr><td class="par">Владелец бренда / изготовитель</td><td>Различать</td><td>Бренд «Русмарк», на рынке РФ с 2015 г.; изготовитель не раскрыт <span class="f f-part">!</span></td><td>Seiko Instruments Inc. (Япония) <span class="f f-ok">ОК</span></td><td class="src"><a href="https://indatech.ru/articles/rusmark-navigaciya-po-brendu">48</a>, <a href="https://www.seiko-instruments.de/products/inkjet-print-heads/510bn-binary-inkjet-printhead.html">53</a></td><td>«Русмарк» позиционирует КПМ-260 как прямой аналог EBS и Cycjet ALT160 — то есть речь о локализованном бренде на азиатской платформе. Страна фактического производства КПМ-1500 не подтверждена.</td></tr>
+      <tr><td class="par">Класс изделия</td><td>Законченный маркиратор</td><td>Маркиратор в сборе <span class="f f-ok">ОК</span></td><td>Комплектующее <span class="f f-no">Х</span></td><td class="src">—</td><td>Ключевое различие всего сравнения.</td></tr>
+      <tr><td class="par">Технология</td><td>Стойкая несмываемая маркировка</td><td>DOD (по архитектуре), заявляется как CIJ <span class="f f-part">!</span></td><td>Пьезоэлектрическая DOD <span class="f f-ok">ОК</span></td><td class="src"><a href="https://indatech.ru/product/rusmark-rm-kpm-1500">47</a>, <a href="https://johopetech.com/printerhead/seiko-spt510-35-prit-head/">49</a></td><td>Противоречие, требующее закрытия паспортом.</td></tr>
+      <tr><td class="par">Наличие в действующем каталоге</td><td>Обязательно</td><td>Да, у нескольких дилеров РФ <span class="f f-ok">ОК</span></td><td>Да, серийная головка широкого применения <span class="f f-ok">ОК</span></td><td class="src"><a href="https://markirators.ru/product/rusmark/rm_kpm_1500/">57</a></td><td>—</td></tr>
+      <tr><td class="par">Ориентировочная цена</td><td>—</td><td class="num">374 336 ₽ (дата прайса не указана) <span class="f f-part">!</span></td><td>Головка — расходный узел, цена системы не определена <span class="f f-nd">Н/Д</span></td><td class="src"><a href="https://indatech.ru/product/rusmark-rm-kpm-1500">47</a></td><td>Цена без даты — не основание для расчёта ТСО.</td></tr>
+      <tr><td class="par">Паспорт, руководство, декларация ЕАЭС</td><td>Обязательно</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td class="src">—</td><td>В открытом доступе нет ни одного из этих документов ни по одному из решений.</td></tr>
+      <tr><td class="par">Что нужно дополнительно</td><td>—</td><td>Кронштейн под робота, защита от аэрозоля, интеграция с АСУ ТП</td><td>Электроника управления, система подачи и дегазации чернил, демпфер, УФ-модуль, ПО, чиллер, промывка — фактически вся система <span class="f f-no">Х</span></td><td class="src">—</td><td>Стоимость «обвязки» головки в КП, по-видимому, не учтена. Это основной источник удорожания варианта Seiko.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="table-markers-2">
+  <div class="sec-head">
+    <span class="eyebrow">Часть B · Таблица 2</span>
+    <h2>Технологические характеристики и расчёт разрешения</h2>
+  </div>
+
+  <div class="calc" style="margin-bottom:18px;">
+    <h3>Разрешение: 13 dpi против 180 dpi</h3>
+    <p class="given">Это главный технический вывод части B. Считаем от числа сопел и высоты печатной полосы.</p>
+    <div class="formula">DOD-голова 32 сопла, полоса до 60 мм (по данным родственной КПМ-260):
+  шаг сопел      = 60 / 32          = 1,88 мм  →  ~13,5 dpi
+  символ 20 мм   = 20 / 1,88        = 10,6 точки по высоте
+  максимум модулей QR при 32 соплах = 32       →  версия QR ≤ 3 (29×29)
+  физический размер такого QR       = 29 × 1,88 = 54 мм
+
+Seiko SPT-510, 510 сопел, полоса 71,8 мм:
+  шаг сопел      = 71,8 / 510       = 0,141 мм →  180 dpi
+  символ 20 мм   = 20 / 0,141       = 142 точки по высоте
+  QR версии 1 (21×21) при 2 точках на модуль = 5,9 мм</div>
+    <p><strong>Следствия.</strong> Символ 20 мм высотой в 10–11 точек — это классическая крупносимвольная точечная маркировка: читаемая человеком, но не дающая ни начертания шрифта SC Convoy, ни надёжного машинного распознавания. QR-код при 32 соплах возможен только крупный (≈54 мм) и грубый, с малым запасом на коррекцию ошибок при печати по окалине. Головка SPT-510 в этом отношении вне конкуренции: 142 точки на символ дают и произвольный шрифт, и QR любого разумного размера. <strong>Если требования по QR-кодам и шрифту SC Convoy обязательны — вариант КПМ-1500 отпадает по разрешению, а не по надёжности.</strong></p>
+  </div>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>Показатель</th><th>Требование</th><th>Rusmark КПМ-1500</th><th>Seiko SPT-510</th><th>Ист.</th></tr></thead>
+    <tbody>
+      <tr><td class="par">Число сопел</td><td>—</td><td class="num">16 или 32 на головку; до 4×16 или 2×32 на контроллер <span class="f f-ok">ОК</span></td><td class="num">510 <span class="f f-ok">ОК</span></td><td class="src"><a href="https://indatech.ru/product/rusmark-rm-kpm-1500">47</a>, <a href="https://johopetech.com/printerhead/seiko-spt510-35-prit-head/">49</a></td></tr>
+      <tr><td class="par">Ширина печатной полосы</td><td>—</td><td class="num">до ~60 мм (по родственной модели) <span class="f f-part">!</span></td><td class="num">71,8 мм <span class="f f-ok">ОК</span></td><td class="src"><a href="https://xn--80ahlkm6a7e.xn--p1ai/product/rusmark/rm_kpm_260b_32/">52</a>, <a href="https://www.digitalprinthead.com/product/seiko-spt-510-35pl-printhead/">50</a></td></tr>
+      <tr><td class="par">Разрешение</td><td>Читаемость 20 мм + QR</td><td class="num">~13 dpi <span class="f f-no">Х</span></td><td class="num">180 dpi (до 720 dpi многопроходно) <span class="f f-ok">ОК</span></td><td class="src">расчёт, <a href="https://johopetech.com/printerhead/seiko-spt510-35-prit-head/">49</a></td></tr>
+      <tr><td class="par">Размер капли</td><td>—</td><td><span class="f f-nd">Н/Д</span></td><td class="num">35 пл или 50 пл (в одном источнике 80 пл — противоречие) <span class="f f-part">!</span></td><td class="src"><a href="https://www.allprintheads.com/products/seiko-spt-510-50pl-printhead">51</a>, <a href="https://nuventuretrading.com/products/seiko-spt-510-35pl-printhead-industrial-solvent-uv-inkjet-head">58</a></td></tr>
+      <tr><td class="par">Частота выброса</td><td>Определяет скорость печати</td><td><span class="f f-nd">Н/Д</span></td><td class="num">8,29 кГц (в части источников 7 кГц — противоречие) <span class="f f-part">!</span></td><td class="src"><a href="https://johopetech.com/printerhead/seiko-spt510-35-prit-head/">49</a>, <a href="https://nuventuretrading.com/products/seiko-spt-510-35pl-printhead-industrial-solvent-uv-inkjet-head">58</a></td></tr>
+      <tr><td class="par">Максимальная скорость печати</td><td>Цикл 200 с</td><td><span class="f f-nd">Н/Д</span></td><td class="num">расчёт: 8290 Гц × 0,141 мм = 1169 мм/с при 180 dpi; 585 мм/с при 360 dpi <span class="f f-ok">ОК</span></td><td class="src">расчёт</td></tr>
+      <tr><td class="par">Рабочее расстояние</td><td>Кривизна ±2,7 мм на полосе 72 мм</td><td>Десятки мм (свойство DOD) <span class="f f-ok">ОК</span></td><td>Единицы мм <span class="f f-no">Х</span></td><td class="src"><a href="https://vasystems.ru/blog/posts/dod-vs-cij/">59</a></td></tr>
+      <tr><td class="par">Поддержка 12 строк / 40 символов</td><td>Обязательно</td><td>Только многопроходно: 2×32 сопла дают ~120 мм за проход → ≥3 прохода <span class="f f-part">!</span></td><td>Только многопроходно: 71,8 мм за проход → 5 проходов <span class="f f-part">!</span></td><td class="src">расчёт</td></tr>
+      <tr><td class="par">QR-код</td><td>Обязательно</td><td>Крупный и грубый, ≥54 мм <span class="f f-no">Х</span></td><td>От ~6 мм, надёжно <span class="f f-ok">ОК</span></td><td class="src">расчёт</td></tr>
+      <tr><td class="par">Кириллица</td><td>Обязательно</td><td>Заявлена (буквы на разных языках, 2D-коды, логотипы) <span class="f f-ok">ОК</span></td><td>Зависит от ПО сборщика <span class="f f-nd">Н/Д</span></td><td class="src"><a href="https://xn--80ahlkm6a7e.xn--p1ai/product/rusmark/rm_kpm_260b_32/">52</a></td></tr>
+      <tr><td class="par">Шрифт SC Convoy</td><td>Обязательно</td><td>Невозможен при 10 точках на символ <span class="f f-no">Х</span></td><td>Возможен при 142 точках; поддержка зависит от ПО <span class="f f-part">!</span></td><td class="src">расчёт</td></tr>
+      <tr><td class="par">Ресурс головки</td><td>—</td><td><span class="f f-nd">Н/Д</span></td><td class="num">типично 2–3 года при регулярном обслуживании <span class="f f-part">!</span></td><td class="src"><a href="https://johopetech.com/printerhead/seiko-spt510-35-prit-head/">49</a></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note" style="margin-top:12px;">Не подтверждены ни для одного решения: физическое разрешение по паспорту, требования к дегазации и температуре чернил, наличие рециркуляции, способ очистки, допустимое угловое отклонение головки, допустимая кривизна поверхности.</p>
+</section>
+
+<section id="ink">
+  <div class="sec-head">
+    <span class="eyebrow">Часть B · Таблица 3</span>
+    <h2>Чернила, поверхности и УФ-отверждение</h2>
+  </div>
+  <div class="stack">
+    <div class="flag">
+      <span class="t">По совместимости чернил с конкретными поверхностями данных нет — ни по одному решению</span>
+      <p>Требование промпта здесь выполняется единственным честным способом: <strong>ставим (Н/Д) и не делаем выводов</strong>. Ни для чернил КПМ-1500, ни для УФ-чернил под SPT-510 в открытых источниках не найдено ни паспортов безопасности, ни протоколов испытаний адгезии по решётчатому надрезу (ISO 2409 / ГОСТ 31149), ни данных по истиранию, водо-, масло- и растворителестойкости, ни по стойкости на окалине, полиэтиленовом и эпоксидном покрытии, ни по внутреннему антикоррозионному покрытию. Слово «УФ» само по себе стойкости не подтверждает.</p>
+    </div>
+    <div class="tw">
+    <table>
+      <caption>Совместимость с поверхностями по видам. Ни одна ячейка не заполнена «ОК» — потому что подтверждающих испытаний в открытом доступе нет.</caption>
+      <thead><tr><th>Поверхность</th><th>Rusmark КПМ-1500</th><th>УФ-система на SPT-510</th><th>Что нужно для вывода</th></tr></thead>
+      <tbody>
+        <tr><td class="par">Сталь после дробемётной обработки</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td>Решётчатый надрез + истирание на реальном образце</td></tr>
+        <tr><td class="par">Неочищенная / окисленная сталь, окалина</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td>Адгезия критична: УФ-чернила полимеризуются <em>на</em> окалине, а не на металле — отслаивается вместе с ней</td></tr>
+        <tr><td class="par">Полиэтиленовое покрытие</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td>ПЭ — низкоэнергетическая поверхность; без праймера или обработки адгезия сомнительна</td></tr>
+        <tr><td class="par">Эпоксидное покрытие</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td>Проверка на растрескивание при изгибе трубы</td></tr>
+        <tr><td class="par">Внутреннее антикоррозионное покрытие</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td>Совместимость растворителя чернил с покрытием</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="calc">
+      <h3>Достаточно ли 700 Вт УФ-модуля</h3>
+      <p class="given">Допущения (данных по конкретному модулю нет): УФ-LED 395 нм — отраслевой стандарт для струйной печати, дающий лучший баланс скорости отверждения и проникновения в пигментированный слой <span class="src"><a href="https://www.uvndt.com/uv-led-curing-wavelengths/">60</a></span>. Электрический КПД светодиодного модуля 25–30 %. Окно облучения 100 × 20 мм = 20 см². Скорость прохода 400 мм/с.</p>
+      <div class="formula">Оптическая мощность   = 700 Вт × 0,28        ≈ 195 Вт
+Плотность мощности    = 195 / 20 см²        ≈ 9,8 Вт/см²
+Время экспозиции      = 20 мм / 400 мм/с    = 0,05 с
+Доза                  = 9,8 × 0,05          ≈ 0,49 Дж/см²
+Типовая потребность УФ-струйных чернил      = 0,2…0,6 Дж/см²</div>
+      <p><strong>Вывод: 700 Вт достаточно, но без запаса.</strong> Доза попадает в верхнюю половину типового диапазона при скорости 400 мм/с. При скорости 800 мм/с доза падает до 0,25 Дж/см² — на нижней границе, и любое загрязнение окна лампы или падение КПД уводит систему в неполную полимеризацию. Три фактора ухудшают картину дополнительно: <strong>труба при 0 °C</strong> отводит тепло и замедляет реакцию; на холодном металле в цеху возможен <strong>конденсат</strong>, который убивает адгезию независимо от дозы; <strong>внутри расточки</strong> отражение УФ от стенок частично компенсирует потери, но одновременно нет конвекции, и модуль греется. Требование к поставщику: протокол измерения фактической дозы УФ-радиометром в рабочей точке и результат испытаний при температуре трубы 0 °C.</p>
+    </div>
+  </div>
+</section>
+
+<section id="integration">
+  <div class="sec-head">
+    <span class="eyebrow">Часть B · Таблица 4</span>
+    <h2>Интеграция с роботом</h2>
+  </div>
+  <div class="tw">
+  <table>
+    <thead><tr><th>Параметр</th><th>Rusmark КПМ-1500</th><th>УФ-система на SPT-510</th><th>Комментарий</th></tr></thead>
+    <tbody>
+      <tr><td class="par">Масса на кисти</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td>Определяющий параметр выбора робота — и он неизвестен по обоим вариантам. Оценка 12–18 кг сделана мною по составу узлов, а не по паспорту.</td></tr>
+      <tr><td class="par">Требования к ориентации головки</td><td>Планка поворачивается на 180°, маркировка в любом направлении <span class="f f-ok">ОК</span></td><td>Пьезоголовки чувствительны к ориентации: устойчивость мениска при печати «вверх ногами» требует подтверждения <span class="f f-part">!</span></td><td>Для внутренней поверхности трубы головка работает вверх — это худший режим для мениска.</td></tr>
+      <tr><td class="par">Влияние движения робота на давление в системе</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td>При разгоне робота 1–2 g столб чернил в шланге создаёт инерционный скачок давления. Нужен либо демпфер на кисти, либо ограничение ускорений — второе бьёт по такту.</td></tr>
+      <tr><td class="par">Максимальная высота подъёма чернил</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td>При работе внутри трубы Ø1420 перепад высот до 1,4 м. Это прямой вопрос к поставщику.</td></tr>
+      <tr><td class="par">Дегазатор</td><td><span class="f f-nd">Н/Д</span></td><td>Для УФ-чернил обычно обязателен <span class="f f-part">!</span></td><td>Отдельная статья затрат, в КП не видна.</td></tr>
+      <tr><td class="par">Синхронизация с движением</td><td>Энкодер, скорость линии или заданное расстояние <span class="f f-ok">ОК</span></td><td>Зависит от электроники сборщика <span class="f f-nd">Н/Д</span></td><td>У КПМ-1500 это подтверждённое преимущество: синхронизация «из коробки».</td></tr>
+      <tr><td class="par">Обмен заданиями, MES, форматы</td><td>Wi-Fi, RS-232 <span class="f f-part">!</span></td><td><span class="f f-nd">Н/Д</span></td><td>RS-232 и Wi-Fi для интеграции с MES трубного завода — слабое место. Промышленного Ethernet/OPC UA не заявлено.</td></tr>
+      <tr><td class="par">Автоматическая промывка</td><td>Автоматическая система очистки заявлена <span class="f f-ok">ОК</span></td><td><span class="f f-nd">Н/Д</span></td><td>Критично при простое между трубами и в конце смены.</td></tr>
+      <tr><td class="par">Восстановление после аварийной остановки</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td>Для УФ-системы это ключевой риск: при остановке робота под лампой чернила полимеризуются в соплах.</td></tr>
+      <tr><td class="par">Подтверждение успешной печати</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td>Требуется отдельная камера контроля — в обоих КП не видна.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="cost">
+  <div class="sec-head">
+    <span class="eyebrow">Часть B · Таблицы 5–8</span>
+    <h2>Производительность, эксплуатация, сервис, отзывы</h2>
+  </div>
+  <div class="stack">
+    <div class="tw">
+    <table>
+      <caption>Таблица 5. Производительность: расчёт цикла по сценариям (методика — раздел «Время цикла» части A)</caption>
+      <thead><tr><th>Сценарий</th><th>Проходов</th><th>Время печати</th><th>Полный цикл</th><th>Вписывается в 200 с</th></tr></thead>
+      <tbody>
+        <tr><td class="par">Минимальный текст (2 строки × 20 симв., внутри)</td><td class="num">1</td><td class="num">4 с</td><td class="num">≈75 с</td><td><span class="f f-ok">ОК</span></td></tr>
+        <tr><td class="par">Средний (6 строк × 40 симв., внутри + снаружи)</td><td class="num">3 + 3</td><td class="num">22 с</td><td class="num">≈98 с</td><td><span class="f f-ok">ОК</span></td></tr>
+        <tr><td class="par">Максимум: 12 строк × 40 симв., 20 мм, внутри + снаружи + 2 обводки + QR</td><td class="num">5 + 5</td><td class="num">45 с</td><td class="num">≈118 с</td><td><span class="f f-ok">ОК</span> запас 41 %</td></tr>
+        <tr><td class="par">То же, но с отдельным проходом УФ-отверждения</td><td class="num">10 + 10</td><td class="num">81 с</td><td class="num">≈154 с</td><td><span class="f f-part">!</span> запас 23 %</td></tr>
+        <tr><td class="par">Символы 50 мм, 12 строк</td><td class="num">12 + 12</td><td class="num">—</td><td class="num">—</td><td><span class="f f-no">Х</span> блок 780 мм не помещается в ГОСТ-зону 500 мм от торца</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="tw">
+    <table>
+      <caption>Таблица 6. Эксплуатационные расходы и ТСО</caption>
+      <thead><tr><th>Статья</th><th>Rusmark КПМ-1500</th><th>УФ-система на SPT-510</th><th>Что известно достоверно</th></tr></thead>
+      <tbody>
+        <tr><td class="par">Расход чернил и растворителя, ресурс фильтров и насосов</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td>Для КПМ-260 заявлено «не требует растворителя, низкие эксплуатационные расходы» — это реклама дилера, не измерение</td></tr>
+        <tr><td class="par">Ресурс и стоимость головки</td><td><span class="f f-nd">Н/Д</span></td><td>Ресурс 2–3 года; цена головки не подтверждена официальным прайсом <span class="f f-part">!</span></td><td>Головка SPT-510 — расходный узел с плановой заменой. Это статья ТСО, которой у DOD-варианта нет в таком объёме</td></tr>
+        <tr><td class="par">Стоимость владения 1 / 3 / 5 / 10 лет</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td>Расчёт невозможен: нет цен на расходники, нормо-час, ЗИП и УФ-модуль. Любая цифра здесь была бы выдуманной</td></tr>
+        <tr><td class="par">Стоимость маркировки одной трубы</td><td><span class="f f-nd">Н/Д</span></td><td><span class="f f-nd">Н/Д</span></td><td>Считается только после замера расхода чернил на реальном поле 560×312 мм в ходе испытаний</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="tw">
+    <table>
+      <caption>Таблица 7. Российский сервис</caption>
+      <thead><tr><th>Решение</th><th>Поставщики в РФ</th><th>Статус</th><th>Не подтверждено</th></tr></thead>
+      <tbody>
+        <tr><td class="par">Rusmark КПМ-1500</td><td>Индатэк (indatech.ru), «Мир маркировки», markirators.ru, ЛНПК, PromPortal и др.</td><td>Бренд представлен в РФ с 2015 г., несколько независимых дилеров <span class="f f-ok">ОК</span></td><td>Адреса сервисных центров, склад расходников и головок, сроки поставки, выездной сервис, обучение, гарантия, последствия применения неоригинальных чернил</td></tr>
+        <tr><td class="par">Seiko SPT-510</td><td>Только зарубежные поставщики головок; официального канала Seiko Instruments в РФ не найдено</td><td>Головка доступна на мировом рынке, российский сервис не подтверждён <span class="f f-part">!</span></td><td>Всё: сборщик системы, гарантия, склад головок и чернил в РФ, экспортные ограничения</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="tw">
+    <table>
+      <caption>Таблица 8. Отзывы и типовые проблемы</caption>
+      <thead><tr><th>Тип материала</th><th>Найдено</th><th>Достоверность</th></tr></thead>
+      <tbody>
+        <tr><td class="par">Независимые отзывы предприятий</td><td>Не найдено ни по КПМ-1500, ни по системам на SPT-510 <span class="f f-nd">Н/Д</span></td><td>—</td></tr>
+        <tr><td class="par">Видеодемонстрации</td><td>«Каплеструйная маркировка труб RUSMARK КПМ-1500», опубликовано 28.01.2025 <span class="src"><a href="https://rutube.ru/video/0dc0d9cd3e09ba99a71c63647e50f1b7/">61</a></span></td><td>Материал продавца. Ценен как подтверждение <em>применимости на трубах</em>, но не как оценка качества</td></tr>
+        <tr><td class="par">Рекламные публикации</td><td>Витрины дилеров, обзор «Русмарк: навигация по бренду» на сайте Индатэк</td><td>Высокая вероятность рекламного характера</td></tr>
+        <tr><td class="par">Судебные споры, претензии по качеству</td><td>Не найдено <span class="f f-nd">Н/Д</span></td><td>Отсутствие находок не равно отсутствию споров</td></tr>
+        <tr><td class="par">Типовые проблемы технологии (не модели)</td><td>Для DOD — засыхание сопел при простое; для УФ-струйных — неполная полимеризация, выпадение пигмента, завоздушивание, чувствительность к температуре чернил</td><td>Отраслевые знания, не привязанные к конкретной модели</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</section>
+
+<section id="risks-markers">
+  <div class="sec-head">
+    <span class="eyebrow">Часть B · Таблица 9</span>
+    <h2>Риски проекта: маркировка</h2>
+  </div>
+  <div class="tw">
+  <table>
+    <thead><tr><th>Риск</th><th>Вероятность</th><th>Последствия</th><th>Итог</th><th>Снижение</th></tr></thead>
+    <tbody>
+      <tr><td class="par">Разрешение DOD не обеспечит QR-код и шрифт SC Convoy</td><td>Высокая</td><td>Требования ТЗ не выполняются, машинное распознавание невозможно</td><td><span class="f f-no">критический</span></td><td>Тестовая печать QR на образце заказчика до выбора; либо исключение QR из ТЗ</td></tr>
+      <tr><td class="par">Рабочее расстояние SPT-510 несовместимо с кривизной и биением трубы</td><td>Высокая</td><td>Пропуски сопел, нечитаемая маркировка по краям полосы</td><td><span class="f f-no">критический</span></td><td>Ориентация головки вдоль образующей + лазерный датчик зазора с обратной связью на робота</td></tr>
+      <tr><td class="par">Адгезия на окалине и покрытиях не подтверждена</td><td>Высокая</td><td>Маркировка сходит вместе с окалиной; несоответствие требованию «несмываемая»</td><td><span class="f f-no">критический</span></td><td>Обязательные испытания по решётчатому надрезу на всех пяти видах поверхности до подписания</td></tr>
+      <tr><td class="par">Неполная полимеризация при трубе 0 °C и конденсате</td><td>Средняя</td><td>Липкая маркировка, брак, загрязнение оборудования</td><td><span class="f f-no">высокий</span></td><td>Замер дозы УФ-радиометром; испытания при 0 / +20 / +50 °C; контроль точки росы в цеху</td></tr>
+      <tr><td class="par">Класс изделия в КП подменён: сравнивается головка вместо системы</td><td>Высокая</td><td>Стоимость обвязки (электроника, подача, дегазация, УФ, ПО, чиллер) не учтена в бюджете</td><td><span class="f f-no">критический</span></td><td>Затребовать наименование сборщика системы и полную спецификацию поставки</td></tr>
+      <tr><td class="par">Засыхание сопел при простоях 8 / 24 / 72 ч</td><td>Средняя</td><td>Долгий запуск после выходных, расход промывки</td><td><span class="f f-part">средний</span></td><td>Испытания запуска после простоя — включены в программу ниже</td></tr>
+      <tr><td class="par">Технология КПМ-1500 не подтверждена паспортом (CIJ или DOD)</td><td>Высокая</td><td>Неверный расчёт расходников и обслуживания</td><td><span class="f f-part">средний</span></td><td>Паспорт изделия до размещения заказа</td></tr>
+      <tr><td class="par">Интеграция с MES только по RS-232 / Wi-Fi</td><td>Средняя</td><td>Нестабильный обмен заданиями в цеховой среде с помехами</td><td><span class="f f-part">средний</span></td><td>Требовать промышленный Ethernet; при отсутствии — шлюз на ПЛК как отдельная позиция</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="tests">
+  <div class="sec-head">
+    <span class="eyebrow">Часть B · Программа</span>
+    <h2>Обязательные сравнительные испытания</h2>
+  </div>
+  <div class="stack">
+    <p>Испытания проводятся на образцах заказчика, обоими решениями, по одной и той же программе. Без них выбор делать нельзя: ключевые различия лежат именно там, где открытых данных нет.</p>
+    <div class="tw">
+    <table>
+      <caption>Матрица образцов и критерии приёмки</caption>
+      <thead><tr><th>Испытание</th><th>Образцы / условия</th><th>Критерий приёмки</th></tr></thead>
+      <tbody>
+        <tr><td class="par">Читаемость человеком</td><td>Все 5 видов поверхности; символы 20 и 50 мм</td><td>100 % символов читаются с 2 м при цеховом освещении, двумя независимыми контролёрами</td></tr>
+        <tr><td class="par">Машинное распознавание</td><td>Текст и QR на всех поверхностях</td><td>≥99 % успешных считываний с первой попытки на 100 образцах</td></tr>
+        <tr><td class="par">Адгезия, решётчатый надрез</td><td>Дробемёт, неочищенная, окисленная сталь, ПЭ, эпоксид, внутреннее АКП</td><td>Класс 0–1 по ISO 2409 / ГОСТ 31149 на каждой поверхности</td></tr>
+        <tr><td class="par">Истирание</td><td>Все поверхности после полной полимеризации</td><td>Читаемость сохраняется после 50 двойных ходов абразивной ткани под нормированной нагрузкой</td></tr>
+        <tr><td class="par">Вода, масло, растворитель</td><td>Выдержка 24 ч</td><td>Отсутствие смывания и расплывания контура</td></tr>
+        <tr><td class="par">Температурные режимы</td><td>Поверхность 0, +20 и +50 °C</td><td>Одинаковый класс адгезии во всех трёх режимах; отсутствие липкости при 0 °C</td></tr>
+        <tr><td class="par">Геометрия</td><td>Внутренний и наружный радиус Ø508 и Ø1420</td><td>Отклонение высоты символа ≤10 %; отсутствие пропусков сопел по краям полосы</td></tr>
+        <tr><td class="par">Полный формат</td><td>12 строк × 40 символов + 2 обводки + QR</td><td>Поле помещается в зону ≤500 мм от торца по ГОСТ 10692-80; цикл ≤200 с</td></tr>
+        <tr><td class="par">Повторяемость</td><td>30 труб подряд</td><td>Разброс положения блока ≤±3 мм; ноль брака</td></tr>
+        <tr><td class="par">Расход материалов</td><td>Замер на 30 трубах</td><td>Фиксируется как исходные данные для ТСО (критерия приёмки нет — это измерение)</td></tr>
+        <tr><td class="par">Запуск после простоя</td><td>8, 24 и 72 часа</td><td>Выход на качественную печать ≤5 мин без разборки головки</td></tr>
+        <tr><td class="par">Транспортирование</td><td>Образцы после имитации перевозки</td><td>Сохранение читаемости и класса адгезии</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</section>
+
+<section id="gaps">
+  <div class="sec-head">
+    <span class="eyebrow">Итог</span>
+    <h2>Чего нет в открытых источниках и что запросить</h2>
+  </div>
+  <div class="stack">
+    <div class="rank">
+      <div class="r">
+        <h4>Не подтверждено ни по одному роботу</h4>
+        <ul class="tight">
+          <li>Абсолютная точность и точность следования траектории</li>
+          <li>Ресурс редукторов, межсервисные интервалы, тип и объём смазки</li>
+          <li>MTBF, уровень шума, требования к фундаменту</li>
+          <li>Среднее энергопотребление</li>
+          <li>Стоимость лицензий на ПО, бессрочность, платные опции, SDK/API</li>
+          <li>Номера деклараций ЕАЭС на конкретные артикулы</li>
+          <li>Число установок конкретных моделей в России</li>
+          <li>Независимые отзывы эксплуатирующих предприятий</li>
+        </ul>
+      </div>
+      <div class="r">
+        <h4>Не подтверждено ни по одному маркиратору</h4>
+        <ul class="tight">
+          <li>Паспорт, руководство, декларация ЕАЭС</li>
+          <li>Масса головки в сборе и требования к ориентации</li>
+          <li>Химическая основа, вязкость, срок хранения чернил, паспорт безопасности</li>
+          <li>Совместимость и адгезия на всех пяти видах поверхности</li>
+          <li>Фактическая доза УФ и параметры модуля 700 Вт</li>
+          <li>Расход чернил, промывки, ресурс фильтров и насосов</li>
+          <li>Цены на расходники и ЗИП → ТСО не рассчитывается</li>
+          <li>Наименование сборщика системы на головке SPT-510</li>
+        </ul>
+      </div>
+      <div class="r">
+        <h4>Запросить у поставщиков письменно</h4>
+        <ol>
+          <li>Паспорт и таблицу параметров на точный артикул, с диаграммой допустимых нагрузок на запястье</li>
+          <li>Авторизационное письмо завода на данную сделку (для AMN, КБ42, «ДЖЕТА-ЛОГИСТИК»)</li>
+          <li>Номер декларации ЕАЭС для проверки в реестре Росаккредитации</li>
+          <li>Спецификацию плат промышленных сетей и число управляемых внешних осей</li>
+          <li>Условия и сроки поставки ЗИП, адрес склада в РФ, стоимость нормо-часа и выезда</li>
+          <li>Протокол испытаний адгезии на образцах заказчика</li>
+          <li>Паспорт безопасности чернил и данные по ЛОС, вентиляции, утилизации</li>
+          <li>Полную спецификацию системы на SPT-510 с указанием сборщика</li>
+        </ol>
+      </div>
+      <div class="r">
+        <h4>Внести в договор</h4>
+        <ol>
+          <li>Точный артикул и серийный номер; штраф за подмену модели</li>
+          <li>Приёмочные испытания на образцах заказчика как условие оплаты</li>
+          <li>Гарантия не менее 24 мес. с указанием срока реакции и срока восстановления</li>
+          <li>Обязательный склад ЗИП поставщика на территории РФ либо поставка ЗИП в составе комплекта</li>
+          <li>Передача исходных параметров, программ и резервных копий заказчику</li>
+          <li>Право использования альтернативных чернил без потери гарантии либо явный запрет с обоснованием</li>
+          <li>Обязательство поставщика по обучению персонала с выдачей документов</li>
+          <li>Линейная ось и подсистема техзрения — отдельными строками спецификации</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="flag info">
+      <span class="t">Итоговый ответ на вопрос «что рекомендуется»</span>
+      <p><strong>Робот:</strong> CRP RH18-20 как основной вариант (сервис в РФ), Yaskawa GP25 как технически лучший при готовности держать ЗИП; Turin — после идентификации артикула. Во всех случаях + линейная ось и техзрение.</p>
+      <p><strong>Маркировка:</strong> если QR-коды и шрифт SC Convoy обязательны — только система на головке SPT-510, и тогда надо назвать её сборщика и посчитать полную обвязку. Если QR можно заменить на текстовый идентификатор — КПМ-1500 предпочтительнее: он прощает кривизну, биение и грязь, синхронизируется по энкодеру из коробки, имеет автоочистку и поддержан дилерами в РФ. <strong>Рабочая гипотеза для комбинированного решения:</strong> DOD для крупного постоянного текста + отдельная позиция под QR — но она имеет смысл только если испытания подтвердят адгезию обеих систем чернил на одной и той же поверхности.</p>
+      <p><strong>Что нельзя делать:</strong> подписывать договор до испытаний на реальных образцах. Пять из девяти критических рисков в этом отчёте закрываются одной двухдневной программой испытаний и не закрываются никакими документами.</p>
+    </div>
+  </div>
+</section>
+
+<section id="sources">
+  <div class="sec-head">
+    <span class="eyebrow">Приложение</span>
+    <h2>Источники</h2>
+  </div>
+  <p class="note" style="margin-bottom:14px;">Все ссылки кликабельны. Даты редакций указаны там, где источник их публикует. Ни один документ поставщика (КП) не использовался как независимое подтверждение — в соответствии с правилом 4 исходного задания.</p>
+  <ol class="refs">
+    <li id="s1"><a href="https://www.turinrobot.com/products_details/59.html">Turin TR30-1920B — карточка модели</a>, turinrobot.com</li>
+    <li><a href="https://www.turinrobot.com/products_details/2.html">Turin TR30-1720B — карточка модели</a></li>
+    <li><a href="https://www.turinrobot.com/products_details/9.html">Turin TR30-1840P — карточка модели</a></li>
+    <li><a href="https://www.turinrobotics.eu/products/industrial-robots/6-axis/">TURIN Central Europe — 6-осевые роботы</a></li>
+    <li><a href="https://turin.fi/wp-content/uploads/Turin-Welding-Robot-Brouchure.pdf">Turin Welding Robot Brochure (PDF)</a></li>
+    <li><a href="https://www.scribd.com/document/699697981/Turin-Industrial-Robot-User-Manual">TURIN Industrial Robot User Manual (шкаф TRC5-B06, EtherCAT)</a></li>
+    <li><a href="https://www.turinrobot.com/company/1.html">Shanghai Turin Smart Robot — о компании</a></li>
+    <li><a href="https://www.turinrobot.com/history.html">Turin — история и вехи (в т.ч. покупка RRRobotica)</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/Baosight_Software">Baosight Software — Wikipedia</a></li>
+    <li><a href="https://rbtx.com/en-US/partners/shanghai-turin-smart-robot-co-ltd">RBTX — партнёрская карточка Shanghai Turin</a></li>
+    <li><a href="https://www.hannovermesse.de/exhibitor/shanghai-turin-smart-robot/N1572917">Hannover Messe 2025 — экспонент Shanghai Turin</a></li>
+    <li><a href="https://amn-stanki.ru/product/dlya-robotizatsii-proizvodstva/universalnye-gruzopodemnye-roboty/universalnyy-robot-tr155-3200b/">АМН Инжиниринг — дистрибуция Turin в РФ</a></li>
+    <li><a href="https://turinautomation.ru/catalog">Turin Automation RU — каталог</a></li>
+    <li><a href="https://purelogic.ru/catalog/68409/">PureLogic — CRP-RH18-20</a></li>
+    <li><a href="https://k2tool.ru/catalog/3578-promyshlennyj-robot-crp-rh18-20">K2Tool — CRP RH18-20, характеристики и скорости осей</a></li>
+    <li><a href="https://www.rsi-a.com/crp-rh18-20-w">RSI Automation — CRP-RH18-20-W</a></li>
+    <li><a href="https://crprobot.en.made-in-china.com/product/CyNGKQWMSZTo/China-Crobotp-Crp-Rh18-20-Handling-Robot-for-CNC-Machine-Loading-and-Unloading.html">CRP на Made-in-China — RH18-20</a></li>
+    <li><a href="https://svarka74.ru/catalog/promyshlennye_roboty_crp/promyshlennyy_robot_dlya_obsluzhivaniya_crp_rh18_20/">Сварка74 — CRP-RH18-20, блок CD60-CRX8</a></li>
+    <li><a href="https://www.ecosvar.com/produkciya/robotizatsiya-svarki/">Экосвар — промышленные сварочные роботы CRP</a></li>
+    <li><a href="https://crp-robot.ru/about">CRP Automation Russia — о компании и статусе дистрибьютора</a></li>
+    <li><a href="https://baike.baidu.com/en/item/Chengdu%20Kanop%20Robotics%20Technology%20Co.,%20Ltd./939745">Baidu Baike — Chengdu Kanop Robotics (дата основания)</a></li>
+    <li><a href="http://www.news.cn/fortune/20250605/c3ec3957f7ab48d2ba8ed43ed14eaa2b/c.html">Синьхуа, 05.06.2025 — очерк о卡诺普 (Kanop)</a></li>
+    <li><a href="https://www.sohu.com/a/961950212_122014422">Sohu — разбор проспекта IPO Kanop: выручка, прибыль, субсидии</a></li>
+    <li><a href="https://finance.sina.com.cn/stock/zqgd/2025-11-26/doc-infysxmh2273492.shtml">Sina Finance, 26.11.2025 — Kanop подаёт на IPO в Гонконге</a></li>
+    <li><a href="https://finance.sina.com.cn/stock/zqgd/2025-11-27/doc-infyvhsi0970058.shtml">Sina Finance, 27.11.2025 — задолженность по соцстрахованию, кредиторка</a></li>
+    <li><a href="https://m.jiemian.com/article/13670364.html">Jiemian — IPO-радар: зависимость Kanop от субсидий</a></li>
+    <li><a href="https://www.ethercat.org/en/members/members_4437C64FA6E64BDAA4E65DB59CEB6FDF.htm">EtherCAT Technology Group — членство Chengdu CRP Automation Control</a></li>
+    <li><a href="https://www.cospa.ru/upload/iblock/d65/YASKAWA_Flyer_Robot_GP12_GP25_GP25-12_2018.pdf">YASKAWA Flyer GP12 / GP25 / GP25-12, 2018 (PDF) — полный паспорт GP25</a></li>
+    <li><a href="https://www.motoman.com/en-us/products/robots/industrial/assembly/gp-series/gp25">Motoman GP25 — страница продукта</a></li>
+    <li><a href="https://www.yaskawa.com/products/robotics/robots-with-iec/articulated-robots/gp25">Yaskawa GP25 — обзор и особенности</a></li>
+    <li><a href="https://knowledge.motoman.com/hc/en-us/articles/4410112150679-YRC1000-GP25-Instructions">Yaskawa Knowledge Center — YRC1000: GP25 Instructions</a></li>
+    <li><a href="https://www.automate.org/robotics/news/yaskawa-motoman-adds-gp25-model-to-high-speed-gp-series-robot-line">Automate.org — анонс GP25, IP67 кисть / IP54 корпус / опция XP</a></li>
+    <li><a href="https://www.automate.org/products/yaskawa-america/gp25-robot">Yaskawa America — GP25, условия эксплуатации</a></li>
+    <li><a href="https://www.yaskawa-global.com/newsrelease/news/38960">Yaskawa — пресс-релиз о 500 000 отгруженных роботов Motoman</a></li>
+    <li><a href="https://foodindustryexecutive.com/2025/08/yaskawa-america-announces-new-robotics-manufacturing-expansion-in-franklin-wisconsin/">Yaskawa America, август 2025 — «более 600 000 установленных роботов»</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/Yaskawa_Electric_Corporation">Yaskawa Electric Corporation — Wikipedia</a></li>
+    <li><a href="https://www.yaskawa-global.com/wp-content/uploads/2025/09/YR2025E_A3.pdf">YASKAWA Report 2025 (PDF) — финансовые показатели</a></li>
+    <li><a href="https://delprof.ru/press-center/open-analytics/analiz-rynka-promyshlennykh-robotov-v-rossii/">«Деловой профиль» — анализ рынка промышленных роботов в России</a></li>
+    <li><a href="https://expoelectronica.ru/ru/news/2025/december/05/rynok-robototekhniki-v-rossii/">ExpoElectronica, 05.12.2025 — российский рынок робототехники 2025–2026</a></li>
+    <li><a href="https://rb.ru/news/do-80-promyshlennyh-robotov-v-rossii-ostayutsya-importnymi-glavnyj-postavshik-v-2025-godu-kitaj/">RB.RU — до 80 % промышленных роботов в РФ импортные</a></li>
+    <li><a href="https://www.cospa.ru/news/notice/-ooo-kospa-upolnomochennyy-servisnyy-partner-yaskawa-drives-motion-v-rossii/">ООО «КоСПА» — уполномоченный сервисный партнёр Yaskawa Drives &amp; Motion</a></li>
+    <li><a href="https://qviro.com/product/yaskawa/gp25/specifications">Qviro — спецификации GP25 (источник расхождения по повторяемости)</a></li>
+    <li><a href="https://3dvision.su/product/robot-yaskawa-gp25-fgg/">3DVision — Yaskawa GP25 FGG (заявленные ±0,02 мм)</a></li>
+    <li><a href="https://tehnoprogress.ru/tr-ts-0102011-o-bezopasnosti-mashin-i-oborudovaniya/">ТР ТС 010/2011 — процедура подтверждения соответствия</a></li>
+    <li><a href="http://docs.cntd.ru/document/1200004957">ГОСТ 10692-80 — приёмка, маркировка, упаковка стальных труб</a></li>
+    <li><a href="https://mirmarking.ru/rusmark-kpm-1500">«Мир маркировки» — Rusmark КПМ-1500</a></li>
+    <li><a href="https://indatech.ru/product/rusmark-rm-kpm-1500">Индатэк — RM-КПМ-1500: цена, архитектура контроллера, головки 16/32 сопла</a></li>
+    <li><a href="https://indatech.ru/articles/rusmark-navigaciya-po-brendu">Индатэк — «Русмарк»: навигация по бренду (линейка, год выхода на рынок РФ)</a></li>
+    <li><a href="https://johopetech.com/printerhead/seiko-spt510-35-prit-head/">Johope Technology — Seiko SPT-510/35pl: 510 сопел, 180 dpi, 71,8 мм, ресурс</a></li>
+    <li><a href="https://www.digitalprinthead.com/product/seiko-spt-510-35pl-printhead/">DigitalPrinthead — SPT-510 35pl, артикул RH1513D-3322</a></li>
+    <li><a href="https://www.allprintheads.com/products/seiko-spt-510-50pl-printhead">AllPrintHeads — SPT-510 50pl, артикул IRH1513U-3522</a></li>
+    <li><a href="https://xn--80ahlkm6a7e.xn--p1ai/product/rusmark/rm_kpm_260b_32/">RUSMARK КПМ-260B с 32 соплами — DOD, высота символа до 60 мм</a></li>
+    <li><a href="https://www.seiko-instruments.de/products/inkjet-print-heads/510bn-binary-inkjet-printhead.html">Seiko Instruments GmbH — серия печатающих головок 510BN</a></li>
+    <li><a href="https://rspm.ru/ru/about/news/?id=26878">РСПМ — о роботизации заводов ТМК</a></li>
+    <li><a href="https://www.metalinfo.ru/ru/news/171200">«Металлоснабжение и сбыт» — СТЗ автоматизировал распознавание маркировки труб</a></li>
+    <li><a href="https://www.metalinfo.ru/ru/news/176806">«Металлоснабжение и сбыт» — СТЗ ускорил маркировку вдвое</a></li>
+    <li><a href="https://markirators.ru/product/rusmark/rm_kpm_1500/">Markirators.ru — RUSMARK КПМ-1500</a></li>
+    <li><a href="https://nuventuretrading.com/products/seiko-spt-510-35pl-printhead-industrial-solvent-uv-inkjet-head">Nuventure — SPT-510 (источник расхождения по частоте и объёму капли)</a></li>
+    <li><a href="https://vasystems.ru/blog/posts/dod-vs-cij/">«ВА Системс» — DOD vs CIJ: сравнение струйных технологий</a></li>
+    <li><a href="https://www.uvndt.com/uv-led-curing-wavelengths/">UVET — выбор длины волны УФ-LED: 365 / 385 / 395 / 405 нм</a></li>
+    <li><a href="https://rutube.ru/video/0dc0d9cd3e09ba99a71c63647e50f1b7/">Видео: каплеструйная маркировка труб RUSMARK КПМ-1500, 28.01.2025</a></li>
+  </ol>
+</section>
+
+<hr class="thin" style="margin-top:44px;">
+<p class="note" style="margin-top:16px;">Отчёт подготовлен 03.09.2026 по открытым источникам. Прямой доступ к сайтам производителей из среды исследования был заблокирован сетевой политикой; данные получены через поисковую индексацию этих же страниц и PDF-паспортов. Все значения, помеченные (!) и (Н/Д), требуют подтверждения документами поставщика до принятия решения о закупке.</p>
+
+</div>
