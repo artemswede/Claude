@@ -1,0 +1,10 @@
+{
+  // Статический лендинг «Трубошпунт ЗТЗ» на Cloudflare Workers Static Assets.
+  // Воркер-скрипта нет: всё содержимое отдаётся из ./public.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ztz-truboshpunt",
+  "compatibility_date": "2026-09-09",
+  "assets": {
+    "directory": "./public"
+  }
+}

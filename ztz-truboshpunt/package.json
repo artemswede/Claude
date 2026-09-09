@@ -1,0 +1,13 @@
+{
+  "name": "ztz-truboshpunt",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Статический лендинг «Трубошпунт ЗТЗ» на Cloudflare Workers Static Assets",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.42.0"
+  }
+}

@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<![CDATA[<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="./image-slot.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: #000; }
+  body { font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #F2F2F0; -webkit-font-smoothing: antialiased; }
+  * { box-sizing: border-box; }
+  a { color: #E4531A; text-decoration: none; }
+  a:hover { color: #FF7A18; }
+  input, select, textarea, button { font-family: inherit; }
+  @keyframes ztzFadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  @keyframes ztzPulse { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+</style>
+</helmet>
+
+<div style="background:#000;min-height:100vh;overflow-x:hidden">
+
+  <header style="position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;gap:24px;padding:14px 28px;background:rgba(0,0,0,.72);backdrop-filter:blur(14px);border-bottom:1px solid #1E2124">
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="width:34px;height:34px;display:grid;place-items:center;background:#E4531A;font-family:'Oswald',sans-serif;font-weight:600;font-size:15px;letter-spacing:.5px;color:#0A0A0A">ЗТЗ</div>
+      <div style="display:flex;flex-direction:column;line-height:1.15">
+        <span style="font-family:'Oswald',sans-serif;font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:#F2F2F0">Загорский трубный завод</span>
+        <span style="font-size:11px;letter-spacing:.08em;color:#7C8288;text-transform:uppercase">Трубошпунт · ШТС</span>
+      </div>
+    </div>
+    <nav style="display:flex;align-items:center;gap:26px;flex-wrap:wrap">
+      <a href="#process" style="font-size:13px;color:#9AA0A6;letter-spacing:.03em" style-hover="color:#F2F2F0">Производство</a>
+      <a href="#sortament" style="font-size:13px;color:#9AA0A6;letter-spacing:.03em" style-hover="color:#F2F2F0">Сортамент</a>
+      <a href="#locks" style="font-size:13px;color:#9AA0A6;letter-spacing:.03em" style-hover="color:#F2F2F0">Замки</a>
+      <a href="#engineering" style="font-size:13px;color:#9AA0A6;letter-spacing:.03em" style-hover="color:#F2F2F0">Расчёт стены</a>
+      <a href="#cases" style="font-size:13px;color:#9AA0A6;letter-spacing:.03em" style-hover="color:#F2F2F0">Применение</a>
+      <a href="#tkp" style="display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:#E4531A;color:#0A0A0A;font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase" style-hover="background:#FF7A18;color:#0A0A0A">Запросить ТКП</a>
+    </nav>
+  </header>
+
+  <section id="process" ref="{{ wrapRef }}" style="position:relative">
+    <div style="position:sticky;top:0;height:100vh;width:100%;overflow:hidden;background:#000;margin-bottom:-100vh">
+      <canvas ref="{{ canvasRef }}" width="1152" height="648" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"></canvas>
+      <div style="position:absolute;inset:0;background:radial-gradient(120% 80% at 50% 50%, rgba(0,0,0,0) 30%, rgba(0,0,0,.55) 100%)"></div>
+      <div style="position:absolute;left:28px;bottom:28px;display:flex;align-items:flex-end;gap:14px;font-family:'IBM Plex Mono',monospace">
+        <span ref="{{ counterRef }}" style="font-size:44px;line-height:.9;color:#E4531A">01</span>
+        <span style="font-size:13px;color:#5C6268;padding-bottom:5px">/ 09</span>
+        <span ref="{{ stageNameRef }}" style="font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#9AA0A6;padding-bottom:8px">Стальной лист</span>
+      </div>
+      <div style="position:absolute;right:28px;bottom:34px;width:220px;height:2px;background:#1E2124">
+        <div ref="{{ barRef }}" style="height:100%;width:0%;background:#E4531A"></div>
+      </div>
+    </div>
+
+    <div style="position:relative;z-index:2">
+      <div style="height:100vh;display:flex;flex-direction:column;justify-content:center;padding:0 28px;max-width:1240px;margin:0 auto">
+        <div style="max-width:820px">
+          <div style="display:inline-flex;align-items:center;gap:10px;padding:7px 14px;border:1px solid #34383C;margin-bottom:26px">
+            <span style="width:6px;height:6px;background:#E4531A;animation:ztzPulse 2.4s infinite"></span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#9AA0A6">ГОСТ Р 52664-2010 · завод полного цикла</span>
+          </div>
+          <h1 style="font-family:'Oswald',sans-serif;font-weight:500;font-size:clamp(38px,6.2vw,86px);line-height:.98;letter-spacing:-.01em;margin:0 0 22px;text-wrap:balance">Трубошпунт ШТС<br><span style="color:#E4531A">Ø530–1420 мм</span></h1>
+          <p style="font-size:clamp(15px,1.5vw,19px);line-height:1.55;color:#C4C8CC;max-width:620px;margin:0 0 34px;text-wrap:pretty">Труба и замок производятся на одной площадке: от стального листа Уральской Стали до готового шпунта с приваренными замками, накладками и антикоррозионным покрытием. Немерные длины, сборка до 50 м и более.</p>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:44px">
+            <a href="#tkp" style="padding:16px 30px;background:#E4531A;color:#0A0A0A;font-weight:600;font-size:14px;letter-spacing:.05em;text-transform:uppercase" style-hover="background:#FF7A18">Запросить ТКП</a>
+            <a href="#calc" style="padding:16px 30px;border:1px solid #34383C;color:#F2F2F0;font-weight:500;font-size:14px;letter-spacing:.05em;text-transform:uppercase" style-hover="border-color:#E4531A;color:#E4531A">Калькулятор потребности</a>
+            <a href="#engineering" style="padding:16px 30px;border:1px solid #34383C;color:#F2F2F0;font-weight:500;font-size:14px;letter-spacing:.05em;text-transform:uppercase" style-hover="border-color:#E4531A;color:#E4531A">Расчётные характеристики</a>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#5C6268">
+            <span>Листайте — процесс изготовления</span>
+            <span style="width:44px;height:1px;background:#34383C"></span>
+          </div>
+        </div>
+      </div>
+
+      <sc-for list="{{ stages }}" as="st" hint-placeholder-count="9">
+        <div style="height:100vh;display:flex;align-items:center;padding:0 28px">
+          <div ref="{{ st.ref }}" style="max-width:520px;padding:34px;background:linear-gradient(180deg, rgba(8,9,10,.86), rgba(8,9,10,.66));border-left:2px solid #E4531A;backdrop-filter:blur(3px);opacity:0">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#E4531A;margin-bottom:16px">Этап {{ st.num }}</div>
+            <h2 style="font-family:'Oswald',sans-serif;font-weight:400;font-size:clamp(26px,3.4vw,42px);line-height:1.05;margin:0 0 14px">{{ st.title }}</h2>
+            <p style="font-size:16px;line-height:1.6;color:#C4C8CC;margin:0 0 18px;text-wrap:pretty">{{ st.text }}</p>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:#7C8288;border-top:1px solid #1E2124;padding-top:14px">{{ st.spec }}</div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section id="sortament" style="position:relative;z-index:3;background:#0A0B0C;border-top:1px solid #1E2124;padding:96px 28px">
+    <div style="max-width:1240px;margin:0 auto">
+      <div style="display:flex;align-items:baseline;gap:18px;margin-bottom:46px;flex-wrap:wrap">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;color:#E4531A">01</span>
+        <h2 style="font-family:'Oswald',sans-serif;font-weight:400;font-size:clamp(28px,3.6vw,46px);margin:0;letter-spacing:-.005em">Сортамент трубошпунта</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1px;background:#1E2124;border:1px solid #1E2124;margin-bottom:40px">
+        <div style="background:#101214;padding:28px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#7C8288;margin-bottom:12px">Диаметр</div>
+          <div style="font-family:'Oswald',sans-serif;font-size:34px;line-height:1;color:#F2F2F0">530–1420<span style="font-size:16px;color:#7C8288;margin-left:6px">мм</span></div>
+        </div>
+        <div style="background:#101214;padding:28px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#7C8288;margin-bottom:12px">Толщина стенки</div>
+          <div style="font-family:'Oswald',sans-serif;font-size:34px;line-height:1;color:#F2F2F0">8–20<span style="font-size:16px;color:#7C8288;margin-left:6px">(35) мм</span></div>
+        </div>
+        <div style="background:#101214;padding:28px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#7C8288;margin-bottom:12px">Длина сборки</div>
+          <div style="font-family:'Oswald',sans-serif;font-size:34px;line-height:1;color:#F2F2F0">до 50<span style="font-size:16px;color:#7C8288;margin-left:6px">м и более</span></div>
+        </div>
+        <div style="background:#101214;padding:28px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#7C8288;margin-bottom:12px">Немерные длины</div>
+          <div style="font-family:'Oswald',sans-serif;font-size:34px;line-height:1;color:#E4531A">Да</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:28px">
+        <div style="border:1px solid #1E2124;padding:28px;background:#101214">
+          <div style="font-family:'Oswald',sans-serif;font-size:20px;letter-spacing:.04em;text-transform:uppercase;color:#F2F2F0;margin-bottom:18px">Нормативная документация</div>
+          <div style="display:flex;flex-direction:column;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:#C4C8CC">
+            <div style="display:flex;gap:10px"><span style="color:#E4531A">—</span><span>ГОСТ Р 52664-2010</span></div>
+            <div style="display:flex;gap:10px"><span style="color:#E4531A">—</span><span>ТУ 5256-001-85736056-2017</span></div>
+            <div style="display:flex;gap:10px"><span style="color:#E4531A">—</span><span>ТУ 5264-014-01393674-2012</span></div>
+            <div style="display:flex;gap:10px"><span style="color:#E4531A">—</span><span>ТУ 5264-001-85736056-2023</span></div>
+            <div style="display:flex;gap:10px"><span style="color:#E4531A">—</span><span>ТУ 5264-017-13512256-2016</span></div>
+            <div style="display:flex;gap:10px"><span style="color:#E4531A">—</span><span>ТУ 25.11.23-002-85736056-2024</span></div>
+          </div>
+        </div>
+        <div style="border:1px solid #1E2124;padding:28px;background:#101214">
+          <div style="font-family:'Oswald',sans-serif;font-size:20px;letter-spacing:.04em;text-transform:uppercase;color:#F2F2F0;margin-bottom:18px">Сопутствующая продукция</div>
+          <div style="display:flex;flex-direction:column;gap:16px;font-size:15px;color:#C4C8CC;line-height:1.5">
+            <div><span style="color:#F2F2F0">Трубные сваи Ø508–1420 мм</span> — марки 09Г2С, 17Г1С-У, К52–К60, до КП590 (С590 по ГОСТ 27772-2015).</div>
+            <div><span style="color:#F2F2F0">Сваи сверхбольшого диаметра 1520–2520 мм</span> — стенка 10–35 мм, длина до 12 м без кольцевого шва.</div>
+            <div><span style="color:#F2F2F0">Покрытия</span> — антикоррозионные и теплоизоляционные по спецификации заказчика.</div>
+          </div>
+        </div>
+        <div style="border:1px solid #1E2124;padding:28px;background:#101214">
+          <div style="font-family:'Oswald',sans-serif;font-size:20px;letter-spacing:.04em;text-transform:uppercase;color:#F2F2F0;margin-bottom:18px">Документы</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <a href="#tkp" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border:1px solid #34383C;font-size:14px;color:#F2F2F0" style-hover="border-color:#E4531A;color:#E4531A"><span>Опросный лист на трубошпунт</span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7C8288">PDF</span></a>
+            <a href="#tkp" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border:1px solid #34383C;font-size:14px;color:#F2F2F0" style-hover="border-color:#E4531A;color:#E4531A"><span>Каталог свайной продукции</span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7C8288">PDF</span></a>
+            <a href="#tkp" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border:1px solid #34383C;font-size:14px;color:#F2F2F0" style-hover="border-color:#E4531A;color:#E4531A"><span>Чертежи замковых соединений</span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7C8288">DWG</span></a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="locks" style="position:relative;z-index:3;background:#000;border-top:1px solid #1E2124;padding:96px 28px">
+    <div style="max-width:1240px;margin:0 auto">
+      <div style="display:flex;align-items:baseline;gap:18px;margin-bottom:16px;flex-wrap:wrap">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;color:#E4531A">02</span>
+        <h2 style="font-family:'Oswald',sans-serif;font-weight:400;font-size:clamp(28px,3.6vw,46px);margin:0">Замковые соединения</h2>
+      </div>
+      <p style="font-size:16px;line-height:1.6;color:#9AA0A6;max-width:680px;margin:0 0 46px">Собственный замок ЗГК, партнёрские профили и комбинация с шпунтом типа Ларсена. Характеристики — по брошюре свайной продукции ЗТЗ.</p>
+      <div style="overflow-x:auto;border:1px solid #1E2124">
+        <table style="width:100%;border-collapse:collapse;min-width:760px;font-size:14px">
+          <thead>
+            <tr style="background:#101214">
+              <th style="text-align:left;padding:16px 18px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;font-weight:400;border-bottom:1px solid #1E2124">Замок</th>
+              <th style="text-align:right;padding:16px 18px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;font-weight:400;border-bottom:1px solid #1E2124">Расстояние между трубами</th>
+              <th style="text-align:right;padding:16px 18px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;font-weight:400;border-bottom:1px solid #1E2124">Толщина стали</th>
+              <th style="text-align:right;padding:16px 18px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;font-weight:400;border-bottom:1px solid #1E2124">Вес 1 п.м</th>
+              <th style="text-align:right;padding:16px 18px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;font-weight:400;border-bottom:1px solid #1E2124">Усилие на разрыв</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid #16181A">
+              <td style="padding:18px;color:#F2F2F0"><span style="font-family:'Oswald',sans-serif;font-size:18px;letter-spacing:.04em">ЗГК</span><span style="display:block;font-size:12px;color:#7C8288;margin-top:4px">собственный профиль ЗТЗ</span></td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#C4C8CC">180 мм</td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#C4C8CC">12 мм</td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#C4C8CC">27 кг</td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#E4531A">360 т/м</td>
+            </tr>
+            <tr style="border-bottom:1px solid #16181A">
+              <td style="padding:18px;color:#F2F2F0"><span style="font-family:'Oswald',sans-serif;font-size:18px;letter-spacing:.04em">ЗСГ</span><span style="display:block;font-size:12px;color:#7C8288;margin-top:4px">партнёрский профиль</span></td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#C4C8CC">180 мм</td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#C4C8CC">12 мм</td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#C4C8CC">29 кг</td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#E4531A">244 т/м</td>
+            </tr>
+            <tr style="border-bottom:1px solid #16181A">
+              <td style="padding:18px;color:#F2F2F0"><span style="font-family:'Oswald',sans-serif;font-size:18px;letter-spacing:.04em">PZM-US</span><span style="display:block;font-size:12px;color:#7C8288;margin-top:4px">комбинация со шпунтом типа Ларсена</span></td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#C4C8CC">66 мм</td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#C4C8CC">10 мм</td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#C4C8CC">5,2 / 8,9 кг</td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#E4531A">209,28 т/м</td>
+            </tr>
+            <tr style="border-bottom:1px solid #16181A">
+              <td style="padding:18px;color:#F2F2F0"><span style="font-family:'Oswald',sans-serif;font-size:18px;letter-spacing:.04em">Усиленный комплект</span><span style="display:block;font-size:12px;color:#7C8288;margin-top:4px">наибольшее усилие на разрыв</span></td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#C4C8CC">180 мм</td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#C4C8CC">12 мм</td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#C4C8CC">34,8 кг</td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#E4531A">595,83 т/м</td>
+            </tr>
+            <tr>
+              <td style="padding:18px;color:#F2F2F0"><span style="font-family:'Oswald',sans-serif;font-size:18px;letter-spacing:.04em">WOM / WOF</span><span style="display:block;font-size:12px;color:#7C8288;margin-top:4px">пара «мама-папа»</span></td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#C4C8CC">180 мм</td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#C4C8CC">12 мм</td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#C4C8CC">10,3 / 16,01 кг</td>
+              <td style="padding:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#E4531A">360 т/м</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:16px;font-size:12px;line-height:1.6;color:#5C6268;max-width:760px">Данные приведены по брошюре «Свайная продукция, трубошпунт» АО «ЗТЗ». Наименования профилей «ЗСГ» и «усиленный комплект» требуют подтверждения техотдела; чертежи поперечных сечений и допуски запрашиваются отдельно.</div>
+    </div>
+  </section>
+
+  <section id="engineering" style="position:relative;z-index:3;background:#0A0B0C;border-top:1px solid #1E2124;padding:96px 28px">
+    <div style="max-width:1240px;margin:0 auto">
+      <div style="display:flex;align-items:baseline;gap:18px;margin-bottom:16px;flex-wrap:wrap">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;color:#E4531A">03</span>
+        <h2 style="font-family:'Oswald',sans-serif;font-weight:400;font-size:clamp(28px,3.6vw,46px);margin:0">Характеристики шпунтовой стены</h2>
+      </div>
+      <p style="font-size:16px;line-height:1.6;color:#9AA0A6;max-width:680px;margin:0 0 34px">Шаг профилей, масса 1 п.м стены по высоте и момент сопротивления — по типу применённого замка.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:26px">
+        <sc-for list="{{ lockTabs }}" as="tab" hint-placeholder-count="5">
+          <button onClick="{{ tab.select }}" style="padding:12px 20px;background:{{ tab.bg }};border:1px solid {{ tab.border }};color:{{ tab.color }};font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer">{{ tab.name }}</button>
+        </sc-for>
+      </div>
+      <div style="overflow-x:auto;border:1px solid #1E2124;background:#000">
+        <table style="width:100%;border-collapse:collapse;min-width:700px;font-size:14px">
+          <thead>
+            <tr style="background:#101214">
+              <th style="text-align:left;padding:16px 18px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;font-weight:400;border-bottom:1px solid #1E2124">Диаметр × стенка, мм</th>
+              <th style="text-align:right;padding:16px 18px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;font-weight:400;border-bottom:1px solid #1E2124">Шаг профилей, мм</th>
+              <th style="text-align:right;padding:16px 18px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;font-weight:400;border-bottom:1px solid #1E2124">Масса 1 п.м стены, кг</th>
+              <th style="text-align:right;padding:16px 18px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;font-weight:400;border-bottom:1px solid #1E2124">Момент сопротивления W, см³</th>
+            </tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{ wallRows }}" as="row" hint-placeholder-count="5">
+              <tr style="border-bottom:1px solid #16181A">
+                <td style="padding:16px 18px;font-family:'IBM Plex Mono',monospace;color:#F2F2F0">{{ row.dia }}</td>
+                <td style="padding:16px 18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#C4C8CC">{{ row.step }}</td>
+                <td style="padding:16px 18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#C4C8CC">{{ row.mass }}</td>
+                <td style="padding:16px 18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:#E4531A">{{ row.w }}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:16px;font-size:12px;line-height:1.6;color:#5C6268;max-width:760px">Момент инерции сечения, допустимые усилия на замок и рекомендации по погружению — в опросном листе и техническом задании. Библиотеки профилей для Plaxis / GeoWall / nanoCAD — в разработке.</div>
+    </div>
+  </section>
+
+  <sc-if value="{{ showCalculator }}" hint-placeholder-val="{{ true }}">
+    <section id="calc" style="position:relative;z-index:3;background:#000;border-top:1px solid #1E2124;padding:96px 28px">
+      <div style="max-width:1240px;margin:0 auto">
+        <div style="display:flex;align-items:baseline;gap:18px;margin-bottom:16px;flex-wrap:wrap">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;color:#E4531A">04</span>
+          <h2 style="font-family:'Oswald',sans-serif;font-weight:400;font-size:clamp(28px,3.6vw,46px);margin:0">Калькулятор потребности</h2>
+        </div>
+        <p style="font-size:16px;line-height:1.6;color:#9AA0A6;max-width:680px;margin:0 0 40px">Предварительная оценка количества профилей и тоннажа по длине и высоте стены. Точный расчёт — после опросного листа.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1px;background:#1E2124;border:1px solid #1E2124">
+          <div style="background:#0A0B0C;padding:34px;display:flex;flex-direction:column;gap:26px">
+            <div>
+              <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;margin-bottom:12px">Длина стены, м</label>
+              <input type="number" min="1" step="1" value="{{ calcL }}" onChange="{{ setL }}" onInput="{{ setL }}" style="width:100%;padding:14px 16px;background:#000;border:1px solid #34383C;color:#F2F2F0;font-family:'IBM Plex Mono',monospace;font-size:18px" />
+            </div>
+            <div>
+              <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;margin-bottom:12px">Высота (глубина) стены, м</label>
+              <input type="number" min="1" step="0.5" value="{{ calcH }}" onChange="{{ setH }}" onInput="{{ setH }}" style="width:100%;padding:14px 16px;background:#000;border:1px solid #34383C;color:#F2F2F0;font-family:'IBM Plex Mono',monospace;font-size:18px" />
+            </div>
+            <div>
+              <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;margin-bottom:12px">Типоразмер трубы</label>
+              <select value="{{ calcDia }}" onChange="{{ setDia }}" style="width:100%;padding:14px 16px;background:#000;border:1px solid #34383C;color:#F2F2F0;font-family:'IBM Plex Mono',monospace;font-size:16px">
+                <sc-for list="{{ diaOptions }}" as="d" hint-placeholder-count="5">
+                  <option value="{{ d }}">{{ d }}</option>
+                </sc-for>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;margin-bottom:12px">Замковое соединение</label>
+              <select value="{{ activeLock }}" onChange="{{ setLock }}" style="width:100%;padding:14px 16px;background:#000;border:1px solid #34383C;color:#F2F2F0;font-family:'IBM Plex Mono',monospace;font-size:16px">
+                <sc-for list="{{ lockNames }}" as="n" hint-placeholder-count="5">
+                  <option value="{{ n }}">{{ n }}</option>
+                </sc-for>
+              </select>
+            </div>
+          </div>
+          <div style="background:#101214;padding:34px;display:flex;flex-direction:column;justify-content:space-between;gap:26px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:26px">
+              <div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;margin-bottom:10px">Профилей</div>
+                <div style="font-family:'Oswald',sans-serif;font-size:42px;line-height:1;color:#F2F2F0">{{ resCount }}<span style="font-size:15px;color:#7C8288;margin-left:6px">шт</span></div>
+              </div>
+              <div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;margin-bottom:10px">Масса стены</div>
+                <div style="font-family:'Oswald',sans-serif;font-size:42px;line-height:1;color:#E4531A">{{ resTons }}<span style="font-size:15px;color:#7C8288;margin-left:6px">т</span></div>
+              </div>
+              <div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;margin-bottom:10px">Шаг профилей</div>
+                <div style="font-family:'Oswald',sans-serif;font-size:42px;line-height:1;color:#F2F2F0">{{ resStep }}<span style="font-size:15px;color:#7C8288;margin-left:6px">мм</span></div>
+              </div>
+              <div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;margin-bottom:10px">W стены</div>
+                <div style="font-family:'Oswald',sans-serif;font-size:42px;line-height:1;color:#F2F2F0">{{ resW }}<span style="font-size:15px;color:#7C8288;margin-left:6px">см³</span></div>
+              </div>
+            </div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.7;color:#5C6268;border-top:1px solid #1E2124;padding-top:18px">n = L / шаг · масса = L × H × m(1 п.м) · без учёта накладок, покрытия и запаса на монтаж</div>
+            <a href="#tkp" style="display:inline-flex;align-items:center;justify-content:center;padding:16px 28px;background:#E4531A;color:#0A0A0A;font-weight:600;font-size:14px;letter-spacing:.05em;text-transform:uppercase" style-hover="background:#FF7A18">Отправить расчёт в ТКП</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </sc-if>
+
+  <section id="cases" style="position:relative;z-index:3;background:#0A0B0C;border-top:1px solid #1E2124;padding:96px 28px">
+    <div style="max-width:1240px;margin:0 auto">
+      <div style="display:flex;align-items:baseline;gap:18px;margin-bottom:46px;flex-wrap:wrap">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;color:#E4531A">05</span>
+        <h2 style="font-family:'Oswald',sans-serif;font-weight:400;font-size:clamp(28px,3.6vw,46px);margin:0">Сценарии применения</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1px;background:#1E2124;border:1px solid #1E2124;margin-bottom:56px">
+        <div style="background:#101214;padding:30px;display:flex;flex-direction:column;gap:14px">
+          <div style="font-family:'Oswald',sans-serif;font-size:22px;line-height:1.15;color:#F2F2F0">Причальные стенки и укрепление мостов</div>
+          <div style="font-size:14px;line-height:1.6;color:#9AA0A6">Морские и речные порты, ремонт существующих причалов, защита опор.</div>
+          <a href="#tkp" style="margin-top:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#E4531A">Подобрать профиль →</a>
+        </div>
+        <div style="background:#101214;padding:30px;display:flex;flex-direction:column;gap:14px">
+          <div style="font-family:'Oswald',sans-serif;font-size:22px;line-height:1.15;color:#F2F2F0">Арктика и гидротехнические сооружения</div>
+          <div style="font-size:14px;line-height:1.6;color:#9AA0A6">Хладостойкие марки стали, покрытия для Крайнего Севера.</div>
+          <a href="#tkp" style="margin-top:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#E4531A">Подобрать профиль →</a>
+        </div>
+        <div style="background:#101214;padding:30px;display:flex;flex-direction:column;gap:14px">
+          <div style="font-family:'Oswald',sans-serif;font-size:22px;line-height:1.15;color:#F2F2F0">Котлованы с высоким УГВ</div>
+          <div style="font-size:14px;line-height:1.6;color:#9AA0A6">Ограждение глубоких котлованов в городской застройке, водонепроницаемость замка.</div>
+          <a href="#tkp" style="margin-top:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#E4531A">Подобрать профиль →</a>
+        </div>
+        <div style="background:#101214;padding:30px;display:flex;flex-direction:column;gap:14px">
+          <div style="font-family:'Oswald',sans-serif;font-size:22px;line-height:1.15;color:#F2F2F0">Опоры виадуков и развязок</div>
+          <div style="font-size:14px;line-height:1.6;color:#9AA0A6">Подпорные стенки и ограждения многоуровневых транспортных развязок.</div>
+          <a href="#tkp" style="margin-top:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#E4531A">Подобрать профиль →</a>
+        </div>
+      </div>
+      <sc-if value="{{ showCases }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;align-items:baseline;gap:18px;margin-bottom:26px;flex-wrap:wrap">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;color:#E4531A">06</span>
+        <h2 style="font-family:'Oswald',sans-serif;font-weight:400;font-size:clamp(24px,2.8vw,34px);margin:0">Реализованные поставки</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px">
+        <div style="border:1px solid #1E2124;background:#101214">
+          <div style="position:relative;height:200px"><image-slot id="ztz-case-1" shape="rect" placeholder="Фото объекта: порт «Лавна»"></image-slot></div>
+          <div style="padding:24px;display:flex;flex-direction:column;gap:8px">
+            <div style="font-family:'Oswald',sans-serif;font-size:20px;color:#F2F2F0">Комплекс перегрузки угля «Лавна»</div>
+            <div style="font-size:13px;color:#9AA0A6;line-height:1.6">Морской порт Мурманск. Свайная продукция, 2022–2023.</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#5C6268;margin-top:6px">Тоннаж и номенклатуру — уточнить</div>
+          </div>
+        </div>
+        <div style="border:1px solid #1E2124;background:#101214">
+          <div style="position:relative;height:200px"><image-slot id="ztz-case-2" shape="rect" placeholder="Фото объекта: причальная стенка"></image-slot></div>
+          <div style="padding:24px;display:flex;flex-direction:column;gap:8px">
+            <div style="font-family:'Oswald',sans-serif;font-size:20px;color:#F2F2F0">Причальные сооружения Росморпорта</div>
+            <div style="font-size:13px;color:#9AA0A6;line-height:1.6">Трубошпунт с замковыми соединениями, антикоррозионное покрытие.</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#5C6268;margin-top:6px">Тоннаж и номенклатуру — уточнить</div>
+          </div>
+        </div>
+        <div style="border:1px solid #1E2124;background:#101214">
+          <div style="position:relative;height:200px"><image-slot id="ztz-case-3" shape="rect" placeholder="Фото объекта: опоры эстакады"></image-slot></div>
+          <div style="padding:24px;display:flex;flex-direction:column;gap:8px">
+            <div style="font-family:'Oswald',sans-serif;font-size:20px;color:#F2F2F0">Эстакады и переходы, проект «Восток Ойл»</div>
+            <div style="font-size:13px;color:#9AA0A6;line-height:1.6">Трубная и свайная продукция для наземной инфраструктуры.</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#5C6268;margin-top:6px">Тоннаж и номенклатуру — уточнить</div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+    </div>
+  </section>
+
+  <section id="tkp" style="position:relative;z-index:3;background:#000;border-top:1px solid #1E2124;padding:96px 28px 0">
+    <div style="max-width:1240px;margin:0 auto">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:56px;align-items:start">
+        <div>
+          <div style="display:flex;align-items:baseline;gap:18px;margin-bottom:16px;flex-wrap:wrap">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;color:#E4531A">07</span>
+            <h2 style="font-family:'Oswald',sans-serif;font-weight:400;font-size:clamp(28px,3.6vw,46px);margin:0">Запросить ТКП</h2>
+          </div>
+          <p style="font-size:16px;line-height:1.6;color:#9AA0A6;max-width:520px;margin:0 0 30px">Заполните параметры или приложите спецификацию — менеджер направления «Трубошпунт» подготовит технико-коммерческое предложение.</p>
+          <div style="border:1px solid #1E2124;background:#101214;padding:28px;display:flex;flex-direction:column;gap:18px;max-width:520px">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#7C8288">Менеджер направления</div>
+            <div style="font-family:'Oswald',sans-serif;font-size:26px;color:#F2F2F0">И. Елизаров</div>
+            <div style="font-size:14px;color:#9AA0A6;line-height:1.6">Трубошпунт и свайная продукция, АО «Загорский трубный завод». Москва, Малая Сухаревская площадь, 10.</div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:#5C6268;border-top:1px solid #1E2124;padding-top:18px">
+              <span>Телефон — заполнить</span>
+              <span>E-mail — заполнить</span>
+            </div>
+          </div>
+        </div>
+        <form onSubmit="{{ onSubmit }}" style="border:1px solid #1E2124;background:#0A0B0C;padding:34px;display:flex;flex-direction:column;gap:20px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:20px">
+            <div>
+              <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;margin-bottom:10px">Объект</label>
+              <input type="text" placeholder="название / регион" style="width:100%;padding:13px 15px;background:#000;border:1px solid #34383C;color:#F2F2F0;font-size:15px" />
+            </div>
+            <div>
+              <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;margin-bottom:10px">Диаметр, мм</label>
+              <input type="text" placeholder="1020" style="width:100%;padding:13px 15px;background:#000;border:1px solid #34383C;color:#F2F2F0;font-size:15px" />
+            </div>
+            <div>
+              <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;margin-bottom:10px">Стенка, мм</label>
+              <input type="text" placeholder="12" style="width:100%;padding:13px 15px;background:#000;border:1px solid #34383C;color:#F2F2F0;font-size:15px" />
+            </div>
+            <div>
+              <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;margin-bottom:10px">Длина, м</label>
+              <input type="text" placeholder="18,5" style="width:100%;padding:13px 15px;background:#000;border:1px solid #34383C;color:#F2F2F0;font-size:15px" />
+            </div>
+            <div>
+              <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;margin-bottom:10px">Замок</label>
+              <select style="width:100%;padding:13px 15px;background:#000;border:1px solid #34383C;color:#F2F2F0;font-size:15px">
+                <sc-for list="{{ lockNames }}" as="n" hint-placeholder-count="5">
+                  <option value="{{ n }}">{{ n }}</option>
+                </sc-for>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;margin-bottom:10px">Объём, т</label>
+              <input type="text" placeholder="1 200" style="width:100%;padding:13px 15px;background:#000;border:1px solid #34383C;color:#F2F2F0;font-size:15px" />
+            </div>
+          </div>
+          <div>
+            <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;margin-bottom:10px">Спецификация или опросный лист</label>
+            <div style="display:flex;align-items:center;gap:14px;padding:18px;border:1px dashed #34383C;color:#7C8288;font-size:14px">
+              <span style="width:8px;height:8px;background:#E4531A"></span>
+              <span>Перетащите файл: XLS, DWG, PDF — до 25 МБ</span>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:20px">
+            <div>
+              <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;margin-bottom:10px">Организация</label>
+              <input type="text" placeholder="ООО / проектный институт" style="width:100%;padding:13px 15px;background:#000;border:1px solid #34383C;color:#F2F2F0;font-size:15px" />
+            </div>
+            <div>
+              <label style="display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7C8288;margin-bottom:10px">Телефон или e-mail</label>
+              <input type="text" placeholder="для ответа" style="width:100%;padding:13px 15px;background:#000;border:1px solid #34383C;color:#F2F2F0;font-size:15px" />
+            </div>
+          </div>
+          <button type="submit" style="padding:17px 28px;background:#E4531A;border:none;color:#0A0A0A;font-weight:600;font-size:14px;letter-spacing:.05em;text-transform:uppercase;cursor:pointer" style-hover="background:#FF7A18">{{ submitLabel }}</button>
+          <div style="font-size:12px;line-height:1.6;color:#5C6268">Ответ профильного менеджера — в течение рабочего дня. Отправляя форму, вы соглашаетесь с политикой обработки персональных данных.</div>
+        </form>
+      </div>
+
+      <footer style="margin-top:96px;border-top:1px solid #1E2124;padding:34px 0;display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;font-size:13px;color:#5C6268">
+        <span>АО «Загорский трубный завод» · Уральская Сталь</span>
+        <span style="font-family:'IBM Plex Mono',monospace;letter-spacing:.1em">ГОСТ Р 52664-2010 · ISO 9001 · API 5L</span>
+      </footer>
+    </div>
+  </section>
+
+</div>]]>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showCalculator&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Блоки страницы&quot;},&quot;showCases&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Блоки страницы&quot;}}">
+const WALL = {
+  "ЗГК": [
+    { dia: "720×10", step: "900", mass: "212,67", w: "4 298", stepN: 900, massN: 212.67, wN: "4 298" },
+    { dia: "820×10", step: "1 000", mass: "216,06", w: "5 046", stepN: 1000, massN: 216.06, wN: "5 046" },
+    { dia: "1 020×10", step: "1 200", mass: "221,15", w: "6 561", stepN: 1200, massN: 221.15, wN: "6 561" },
+    { dia: "1 220×10", step: "1 400", mass: "224,79", w: "7 825", stepN: 1400, massN: 224.79, wN: "7 825" },
+    { dia: "1 420×10", step: "1 600", mass: "227,52", w: "9 607", stepN: 1600, massN: 227.52, wN: "9 607" }
+  ],
+  "ЗСГ": [
+    { dia: "720×10", step: "900", mass: "219,47", w: "4 208,30", stepN: 900, massN: 219.47, wN: "4 208" },
+    { dia: "820×10", step: "1 000", mass: "220,22", w: "4 895,26", stepN: 1000, massN: 220.22, wN: "4 895" },
+    { dia: "1 020×10", step: "1 200", mass: "224,48", w: "6 396,90", stepN: 1200, massN: 224.48, wN: "6 397" },
+    { dia: "1 220×10", step: "1 400", mass: "227,55", w: "7 917,22", stepN: 1400, massN: 227.55, wN: "7 917" },
+    { dia: "1 420×10", step: "1 600", mass: "229,88", w: "9 449,36", stepN: 1600, massN: 229.88, wN: "9 449" }
+  ],
+  "PZM-US": [
+    { dia: "720×10", step: "788", mass: "222,99", w: "4 603,59", stepN: 788, massN: 222.99, wN: "4 604" },
+    { dia: "820×10", step: "886", mass: "241,38", w: "5 849,40", stepN: 886, massN: 241.38, wN: "5 849" },
+    { dia: "1 020×10", step: "1 086", mass: "242,34", w: "7 410,51", stepN: 1086, massN: 242.34, wN: "7 411" },
+    { dia: "1 220×10", step: "1 286", mass: "243,01", w: "8 974,39", stepN: 1286, massN: 243.01, wN: "8 974" },
+    { dia: "1 420×10", step: "1 486", mass: "243,49", w: "10 539,92", stepN: 1486, massN: 243.49, wN: "10 540" }
+  ],
+  "Усиленный комплект": [
+    { dia: "720×10", step: "900", mass: "233,22", w: "4 205,05", stepN: 900, massN: 233.22, wN: "4 205" },
+    { dia: "820×10", step: "1 000", mass: "234,56", w: "5 098,32", stepN: 1000, massN: 234.56, wN: "5 098" },
+    { dia: "1 020×10", step: "1 200", mass: "236,57", w: "6 373,54", stepN: 1200, massN: 236.57, wN: "6 374" },
+    { dia: "1 220×10", step: "1 400", mass: "238,00", w: "6 326,41", stepN: 1400, massN: 238.0, wN: "6 326" },
+    { dia: "1 420×10", step: "1 600", mass: "239,08", w: "7 074,65", stepN: 1600, massN: 239.08, wN: "7 075" }
+  ],
+  "WOM / WOF": [
+    { dia: "720×10", step: "900", mass: "212,67", w: "4 298", stepN: 900, massN: 212.67, wN: "4 298" },
+    { dia: "820×10", step: "1 000", mass: "216,06", w: "5 046", stepN: 1000, massN: 216.06, wN: "5 046" },
+    { dia: "1 020×10", step: "1 200", mass: "221,15", w: "6 561", stepN: 1200, massN: 221.15, wN: "6 561" },
+    { dia: "1 220×10", step: "1 400", mass: "224,79", w: "7 825", stepN: 1400, massN: 224.79, wN: "7 825" },
+    { dia: "1 420×10", step: "1 600", mass: "227,52", w: "9 607", stepN: 1600, massN: 227.52, wN: "9 607" }
+  ]
+};
+
+const FRAME_COUNT = 48;
+
+const STAGES = [
+  { num: "01", title: "Стальной лист", text: "Отправная точка — лист от комбината «Уральская Сталь». Один холдинг контролирует передел от плавки до готового шпунта.", spec: "Марки 09Г2С, 17Г1С-У, К52–К60" },
+  { num: "02", title: "Формовка трубы", text: "Лист сворачивается в электросварную прямошовную трубу. Геометрия и шов контролируются на собственной линии ТБД.", spec: "Ø530–1420 мм · стенка 8–20 (35) мм" },
+  { num: "03", title: "Выбор замка", text: "Под грунт, расчётное усилие и шаг стены подбирается замковое соединение: собственный ЗГК, партнёрские профили или комбинация со шпунтом типа Ларсена.", spec: "5 типов замковых соединений" },
+  { num: "04", title: "Приварка замка", text: "Замок приваривается по всей длине трубы. Прочность соединения — ключевой параметр шпунтовой стены.", spec: "Усилие на разрыв 209–596 т/м" },
+  { num: "05", title: "Усиливающие накладки", text: "По проекту добавляются усиливающие накладки и «ножи» для погружения в плотные и каменистые грунты.", spec: "ГОСТ Р 52664-2010 · ТУ завода" },
+  { num: "06", title: "Антикоррозионное покрытие", text: "Наружное и внутреннее покрытие наносится по спецификации заказчика — от эпоксидных систем до трёхслойного полиэтилена.", spec: "ISO 21809-1 · DIN 30670 · EN 10301" },
+  { num: "07", title: "Сборка и отгрузка", text: "Секции собираются в шпунт длиной до 50 м и более, включая немерные длины. Отгрузка авто и железнодорожным транспортом.", spec: "Сборка до 50 м · немерные длины" },
+  { num: "08", title: "Погружение", text: "Погружение вибрационным или ударным методом. Замок обеспечивает плотность стены и совместную работу профилей.", spec: "Причалы · котлованы · опоры" },
+  { num: "09", title: "Готовая стенка", text: "Причальная стенка, ограждение котлована или опора виадука — с расчётным моментом сопротивления до 10 540 см³ на 1 п.м.", spec: "W до 10 540 см³ / 1 п.м стены" }
+];
+
+class Component extends DCLogic {
+  state = { lock: "ЗГК", L: 120, H: 14, dia: "1 020×10", sent: false };
+
+  constructor(props) {
+    super(props);
+    this.canvasRef = React.createRef();
+    this.wrapRef = React.createRef();
+    this.counterRef = React.createRef();
+    this.stageNameRef = React.createRef();
+    this.barRef = React.createRef();
+    this.stageRefs = STAGES.map(() => React.createRef());
+  }
+
+  componentDidMount() {
+    this.running = true;
+    this.lastT = -1;
+    this.lastFrame = -1;
+    this.loadFrames();
+    const loop = () => {
+      if (!this.running) return;
+      this.tick();
+      this.raf = requestAnimationFrame(loop);
+    };
+    this.raf = requestAnimationFrame(loop);
+  }
+
+  componentWillUnmount() {
+    this.running = false;
+    if (this.raf) cancelAnimationFrame(this.raf);
+  }
+
+  loadFrames() {
+    this.frames = [];
+    for (let i = 0; i < FRAME_COUNT; i++) {
+      const img = new Image();
+      img.decoding = "async";
+      img.src = "./assets/frames/f" + String(i).padStart(2, "0") + ".jpg";
+      if (i === 0) img.onload = () => this.draw(0);
+      this.frames.push(img);
+    }
+  }
+
+  draw(i) {
+    const cv = this.canvasRef.current;
+    const img = this.frames && this.frames[i];
+    if (!cv || !img || !img.complete || !img.naturalWidth) return false;
+    const ctx = cv.getContext("2d");
+    ctx.drawImage(img, 0, 0, cv.width, cv.height);
+    return true;
+  }
+
+  tick() {
+    const wrap = this.wrapRef.current;
+    if (!wrap) return;
+    const rect = wrap.getBoundingClientRect();
+    const vh = window.innerHeight || 800;
+    const total = wrap.offsetHeight - vh;
+    if (total <= 0) return;
+    const p = Math.min(1, Math.max(0, -rect.top / total));
+    const panels = STAGES.length + 1;
+    const s = p * panels;
+    const vp = Math.min(1, Math.max(0, p));
+
+    const f = Math.min(FRAME_COUNT - 1, Math.max(0, Math.round(vp * (FRAME_COUNT - 1))));
+    if (f !== this.lastFrame) {
+      if (this.draw(f)) this.lastFrame = f;
+    }
+
+    this.stageRefs.forEach((r, i) => {
+      if (!r.current) return;
+      const d = Math.abs(s - (i + 1.5));
+      const o = Math.min(1, Math.max(0, 1.35 - d * 1.9));
+      const el = r.current;
+      el.style.opacity = o.toFixed(3);
+      el.style.transform = "translateY(" + ((1 - o) * 26).toFixed(1) + "px)";
+    });
+
+    const idx = Math.min(STAGES.length - 1, Math.max(0, Math.round(s - 1.5)));
+    if (this.counterRef.current) this.counterRef.current.textContent = STAGES[idx].num;
+    if (this.stageNameRef.current) this.stageNameRef.current.textContent = STAGES[idx].title;
+    if (this.barRef.current) this.barRef.current.style.width = (vp * 100).toFixed(1) + "%";
+  }
+
+  num(v, d) {
+    const n = parseFloat(String(v).replace(",", "."));
+    return isNaN(n) || n <= 0 ? d : n;
+  }
+
+  renderVals() {
+    const accent = "#E4531A";
+    const lock = this.state.lock;
+    const rows = WALL[lock] || WALL["ЗГК"];
+    const row = rows.find(r => r.dia === this.state.dia) || rows[2];
+    const L = this.num(this.state.L, 120);
+    const H = this.num(this.state.H, 14);
+    const count = Math.ceil(L / (row.stepN / 1000));
+    const tons = (L * H * row.massN) / 1000;
+
+    return {
+      accent,
+      showCalculator: this.props.showCalculator !== false,
+      showCases: this.props.showCases !== false,
+      stages: STAGES.map((s, i) => ({ ...s, ref: this.stageRefs[i] })),
+      canvasRef: this.canvasRef,
+      wrapRef: this.wrapRef,
+      counterRef: this.counterRef,
+      stageNameRef: this.stageNameRef,
+      barRef: this.barRef,
+      lockNames: Object.keys(WALL),
+      diaOptions: rows.map(r => r.dia),
+      activeLock: lock,
+      wallRows: rows,
+      lockTabs: Object.keys(WALL).map(name => ({
+        name,
+        bg: name === lock ? accent : "#000",
+        border: name === lock ? accent : "#34383C",
+        color: name === lock ? "#0A0A0A" : "#9AA0A6",
+        select: () => this.setState({ lock: name, dia: (WALL[name][2] || {}).dia })
+      })),
+      calcL: this.state.L,
+      calcH: this.state.H,
+      calcDia: this.state.dia,
+      setL: e => this.setState({ L: e.target.value }),
+      setH: e => this.setState({ H: e.target.value }),
+      setDia: e => this.setState({ dia: e.target.value }),
+      setLock: e => this.setState({ lock: e.target.value, dia: (WALL[e.target.value][2] || {}).dia }),
+      resCount: count.toLocaleString("ru-RU"),
+      resTons: tons.toLocaleString("ru-RU", { maximumFractionDigits: 0 }),
+      resStep: row.stepN.toLocaleString("ru-RU"),
+      resW: row.wN,
+      submitLabel: this.state.sent ? "Заявка отправлена" : "Отправить запрос",
+      onSubmit: e => { e.preventDefault(); this.setState({ sent: true }); }
+    };
+  }
+}
+</script>
+</body>
+</html>
