@@ -321,7 +321,9 @@ class LoggerService : Service() {
         t.logger = logger
         LiveData.store.reset(logger.columns.map { it.name })
         t.report = SessionReport(vehicle, adapterInfo, info).also { files.info.writeText(it.render(logger, null, null)) }
-        LoggerState.update { it.copy(dtcInfo = dtcSummary(info.dtcs) + "\nПротокол: ${info.protocol}") }
+        LoggerState.update {
+            it.copy(dtcInfo = dtcSummary(info.dtcs) + "\nПротокол: ${info.protocol}", currentCsv = files.csv.absolutePath, protocol = info.protocol)
+        }
         return t
     }
 
@@ -469,6 +471,7 @@ class LoggerService : Service() {
                 dtcInfo = finalDtcs?.let { d -> "В конце поездки:\n" + dtcSummary(d) } ?: it.dtcInfo,
                 exported = results.mapNotNull { r -> r.uri },
                 savedTrips = it.savedTrips + 1,
+                currentCsv = null,
             )
         }
         updateNotification(if (waitingNext) "Автозапись: жду двигатель" else "Сохранено")
@@ -522,11 +525,11 @@ class LoggerService : Service() {
     private fun notification(text: String): Notification {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         fun action(title: String, action: String, code: Int) = Notification.Action.Builder(
-            Icon.createWithResource(this, R.drawable.ic_launcher), title,
+            Icon.createWithResource(this, R.drawable.ic_notify), title,
             PendingIntent.getService(this, code, Intent(this, LoggerService::class.java).setAction(action), PendingIntent.FLAG_IMMUTABLE),
         ).build()
         return Compat.notificationBuilder(this, CHANNEL_ID, "Запись OBD")
-            .setSmallIcon(R.drawable.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notify)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(text)
             .setContentIntent(open)

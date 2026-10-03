@@ -35,6 +35,10 @@ object LoggerState {
         val exported: List<Uri> = emptyList(),
         /** Bumped when a trip is saved, so the trips tab refreshes. */
         val savedTrips: Int = 0,
+        /** CSV of the trip being written, so the main screen can analyse it live. */
+        val currentCsv: String? = null,
+        /** «ISO 9141-2» — for the lamps tooltip. */
+        val protocol: String = "",
     )
 
     private val main = Handler(Looper.getMainLooper())

@@ -36,6 +36,9 @@ enum class Metric(val ru: String, val unit: String) {
 
 enum class Severity(val ru: String) { OK("норма"), WATCH("наблюдать"), WARN("внимание"), BAD("проблема") }
 
+/** One line of «Почему Бортач так думает»: label, value, and whether the value is out of norm. */
+data class Evidence(val label: String, val value: String, val deviating: Boolean = false, val emphasis: Boolean = false)
+
 data class Finding(
     val severity: Severity,
     val title: String,
@@ -43,6 +46,21 @@ data class Finding(
     val advice: String,
     /** высокая / средняя / низкая */
     val confidence: String,
+    /** Short headline for the main screen («Подсос воздуха на холостом»). */
+    val headline: String = title,
+    /** What it means for driving, calm wording. */
+    val urgency: String? = null,
+    /** 2–3 numbers from the log that support the version. */
+    val why: List<Evidence> = emptyList(),
+)
+
+/** Per-row series of a trip for the main-screen chart. */
+class TripTrace(
+    val minutes: DoubleArray,
+    /** LTFT+STFT bank 1, NaN where unknown. */
+    val trimB1: DoubleArray,
+    val modes: Array<DriveMode?>,
+    val start: LocalDateTime?,
 )
 
 class TripSummary(
@@ -54,7 +72,12 @@ class TripSummary(
     val metrics: Map<Metric, Double>,
     val dtcs: List<String>?,
     val findings: List<Finding>,
+    val trace: TripTrace? = null,
+    /** Seconds of warm idle standing — the mode most versions need. */
+    val warmIdleSec: Double = 0.0,
 ) {
+    /** The version to show first: highest severity, real findings only. */
+    val top: Finding? get() = findings.firstOrNull { it.severity >= Severity.WARN }
     val label: String get() = start?.format(DateTimeFormatter.ofPattern("dd.MM HH:mm")) ?: name
 }
 
@@ -177,8 +200,17 @@ object TripAnalyzer {
         val dtcs = info?.let(::parseDtcs)
         val duration = (ms.lastOrNull() ?: 0L) / 60_000.0
         val modeRows = DriveMode.entries.associateWith { m -> modes.count { it == m } }
+        val trace = TripTrace(
+            DoubleArray(rows.size) { ms[it] / 60_000.0 },
+            DoubleArray(rows.size) { trim1[it] ?: Double.NaN },
+            modes.toTypedArray(),
+            times.firstNotNullOfOrNull { it },
+        )
+        // Rows are ~3 s apart on K-line; count time, not rows.
+        var warmIdleMs = 0L
+        for (i in 1 until rows.size) if (modes[i] == DriveMode.WARM_IDLE) warmIdleMs += (ms[i] - ms[i - 1]).coerceIn(0L, 10_000L)
         return TripSummary(name, times.firstNotNullOfOrNull { it }, duration, rows.size, modeRows, metrics, dtcs,
-            findings(metrics, modeRows, dtcs))
+            findings(metrics, modeRows, dtcs), trace, warmIdleMs / 1000.0)
     }
 
     private fun findings(m: Map<Metric, Double>, modeRows: Map<DriveMode, Int>, dtcs: List<String>?): List<Finding> {
@@ -207,6 +239,16 @@ object TripAnalyzer {
                     "Недолив топлива: давление топлива, бензонасос/фильтр, форсунки; или ДМРВ занижает во всём диапазоне"
                 },
                 if (cruiseMax != null) "высокая" else "средняя",
+                headline = if (onlyIdle) "Подсос воздуха на холостом" else "Бедная смесь на всех режимах",
+                urgency = if (idleMax > 30) "Ехать можно, но не откладывайте проверку." else "Не критично для поездки. Проверьте в ближайшие дни.",
+                why = buildList {
+                    add(Evidence("ХХ: ЭБУ добавляет топливо", pct(idleMax), deviating = true))
+                    if (cruiseMax != null) {
+                        add(if (onlyIdle) Evidence("В движении — норма", pct(cruiseMax), emphasis = true)
+                        else Evidence("В движении тоже бедно", pct(cruiseMax), deviating = true))
+                    }
+                    m[Metric.IDLE_REAR_O2]?.takeIf { it < 0.15 }?.let { add(Evidence("Задняя лямбда на ХХ: «бедно»", "${fmt(it)} В", deviating = true)) }
+                },
             )
         } else if (idleMax != null && idleMax < -10) {
             out += Finding(if (idleMax < -20) Severity.BAD else Severity.WARN, "Богатая смесь на холостом",
@@ -223,7 +265,12 @@ object TripAnalyzer {
         if (dips >= 2) {
             out += Finding(if (dips >= 5) Severity.BAD else Severity.WARN, "Провалы холостого хода",
                 "${dips.toInt()} раз обороты опускались ниже ${DIP_RPM.toInt()} при прогретом моторе и закрытом дросселе",
-                "Нагар на дросселе и в EGR (для D-4 типично), подсос воздуха, слабый аккумулятор. Чистка дросселя/EGR, затем обучение холостого", "высокая")
+                "Нагар на дросселе и в EGR (для D-4 типично), подсос воздуха, слабый аккумулятор. Чистка дросселя/EGR, затем обучение холостого", "высокая",
+                urgency = "Мотор может заглохнуть на остановке. Проверьте в ближайшие дни.",
+                why = listOfNotNull(
+                    Evidence("Провалы ниже ${DIP_RPM.toInt()} об/мин", "${dips.toInt()} раз", deviating = true),
+                    idleRpm?.let { Evidence("Обороты холостого, медиана", "${it.toInt()}") },
+                ))
         } else if (idleRpm != null && idleRpm < 620) {
             out += Finding(Severity.WATCH, "Низкие обороты холостого", "Медиана ${idleRpm.toInt()} об/мин",
                 "Чистка дросселя, проверка подсоса воздуха", "средняя")
@@ -244,7 +291,10 @@ object TripAnalyzer {
         val vMin = m[Metric.CHARGE_V_MIN]
         if (volts != null && volts < 13.4) {
             out += Finding(Severity.WARN, "Слабая зарядка", "Медиана ${fmt(volts)} В на работающем моторе",
-                "Генератор, регулятор напряжения, ремень, клеммы", "средняя")
+                "Генератор, регулятор напряжения, ремень, клеммы", "средняя",
+                urgency = "Проверьте зарядку до дальней поездки.",
+                why = listOfNotNull(Evidence("Напряжение на работающем моторе", "${fmt(volts)} В", deviating = true),
+                    vMin?.let { Evidence("Минимум", "${fmt(it)} В", deviating = it < 12.8) }))
         } else if (vMin != null && vMin < 12.8) {
             out += Finding(Severity.WATCH, "Просадки напряжения", "Минимум ${fmt(vMin)} В на работающем моторе",
                 "Ремень генератора, клеммы, аккумулятор; совпадает ли с провалами оборотов", "низкая")
@@ -253,7 +303,9 @@ object TripAnalyzer {
         val coolantMax = m[Metric.COOLANT_MAX]
         if (coolantMax != null && coolantMax > 104) {
             out += Finding(Severity.BAD, "Перегрев", "Температура ОЖ до ${coolantMax.toInt()} °C",
-                "Вентилятор радиатора, уровень ОЖ, термостат, помпа", "высокая")
+                "Вентилятор радиатора, уровень ОЖ, термостат, помпа", "высокая",
+                urgency = "Остановитесь, дайте мотору остыть и проверьте уровень жидкости.",
+                why = listOf(Evidence("Температура ОЖ, максимум", "${coolantMax.toInt()} °C", deviating = true)))
         } else if (coolantMax != null && coolantMax < 75 && (modeRows.values.sum()) > 300) {
             out += Finding(Severity.WATCH, "Мотор не прогревается", "Максимум ${coolantMax.toInt()} °C за длинную поездку",
                 "Термостат открыт постоянно или датчик температуры", "средняя")
@@ -264,6 +316,9 @@ object TripAnalyzer {
         }
         return out.sortedByDescending { it.severity }
     }
+
+    /** «+21.9 %» / «−3.1 %» with a real minus sign. */
+    fun pct(v: Double): String = (if (v < 0) "−" else "+") + String.format(Locale.ROOT, "%.1f", abs(v)) + " %"
 
     private fun parseDtcs(info: String): List<String>? {
         val section = info.substringAfter("В конце сессии", "").ifEmpty { info }

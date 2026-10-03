@@ -60,3 +60,21 @@ class SensorNamesTest {
         assertEquals("Обороты (rpm)", SensorNames.full("rpm"))
     }
 }
+
+class HomePresentationTest {
+    @Test
+    fun eveningTripHeadlineAndEvidence() {
+        val name = "obd_20261003_195129"
+        val t = TripAnalyzer.analyze(name, javaClass.getResource("/trips/$name.csv")!!.readText())!!
+        val top = t.top!!
+        assertEquals("Подсос воздуха на холостом", top.headline)
+        assertEquals("Не критично для поездки. Проверьте в ближайшие дни.", top.urgency)
+        assertEquals(listOf("ХХ: ЭБУ добавляет топливо", "В движении — норма", "Задняя лямбда на ХХ: «бедно»"), top.why.map { it.label })
+        assertEquals("+21.9 %", top.why[0].value)
+        assertEquals("−3.1 %", top.why[1].value)
+        val trace = t.trace!!
+        assertEquals(t.rows, trace.minutes.size)
+        assertTrue(trace.modes.count { it == DriveMode.WARM_IDLE } > 100)
+        assertTrue(t.warmIdleSec > 300, "warm idle ${t.warmIdleSec}")
+    }
+}

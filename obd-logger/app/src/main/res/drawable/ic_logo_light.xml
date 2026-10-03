@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- «Бортач» mark: a signal line settling after the check mark. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M2 14C3.5 10 5.5 10 7 14S10.5 18 12 14H22" android:strokeColor="#23211E" android:strokeWidth="2"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M15 9V19" android:strokeColor="#2F6B5E" android:strokeWidth="2" android:strokeLineCap="round" />
+    <path android:pathData="M12.6 4.5h4.8L15 8z" android:fillColor="#2F6B5E" />
+</vector>

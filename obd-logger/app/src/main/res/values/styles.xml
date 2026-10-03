@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- «Бортач»: светлая тема «мануал»; экраны записи перекрашиваются в тёмную в коде. -->
+    <style name="Bortach" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/bt_bg</item>
+        <item name="android:colorPrimary">@color/bt_acc</item>
+        <item name="android:colorPrimaryDark">@color/bt_bg</item>
+        <item name="android:colorAccent">@color/bt_acc</item>
+        <item name="android:statusBarColor">@color/bt_bg</item>
+        <item name="android:textColorPrimary">@color/bt_t1</item>
+        <item name="android:textColorSecondary">@color/bt_t2</item>
+    </style>
+</resources>

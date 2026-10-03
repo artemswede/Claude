@@ -22,10 +22,17 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
-import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
+import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import com.obdlogger.app.ui.Bt
+import com.obdlogger.app.ui.HomeModel
+import com.obdlogger.app.ui.HomeView
+import com.obdlogger.app.ui.Shell
+import com.obdlogger.app.ui.dp
+import com.obdlogger.app.ui.text
 
 class MainActivity : Activity() {
     private lateinit var devicesView: Spinner
@@ -41,12 +48,20 @@ class MainActivity : Activity() {
     private lateinit var extended: CheckBox
     private lateinit var auto: CheckBox
     private lateinit var autoSetup: View
-    private lateinit var strip: StatusStrip
+    private lateinit var shell: Shell
+    private lateinit var home: HomeView
+    private lateinit var tripsText: TextView
     private lateinit var monitor: MonitorPanel
     private val handler = Handler(Looper.getMainLooper())
+    private var ticks = 0
+    @Volatile private var homeLoading = false
+    private var tripsShownFor = -1
     private val ticker = object : Runnable {
         override fun run() {
-            monitor.refresh()
+            if (shell.page == Shell.Page.RECORD) monitor.refresh()
+            // The main screen re-analyses the trip every 5 s while visible.
+            if (shell.page == Shell.Page.OVERVIEW && ticks % 5 == 0) refreshHome()
+            ticks++
             handler.postDelayed(this, 1000)
         }
     }
@@ -58,7 +73,30 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        shell = Shell(this)
+        setContentView(shell.root)
+        // Настройки: прежние элементы управления, светлая тема.
+        val settings = layoutInflater.inflate(R.layout.controls, null)
+        shell.containers.getValue(Shell.Page.SETTINGS).addView(ScrollView(this).apply {
+            setPadding(dp(16), dp(8), dp(16), dp(16))
+            addView(settings)
+        })
+        home = HomeView(this, shell.sc) { shell.show(Shell.Page.TRIPS) }
+        shell.containers.getValue(Shell.Page.OVERVIEW).addView(home)
+        tripsText = text("Загрузка поездок…", if (shell.sc.phone) 11f else 14f, Bt.LIGHT.t1, 400, mono = true).apply {
+            setPadding(dp(24), dp(20), dp(24), dp(20))
+            setTextIsSelectable(true)
+        }
+        shell.containers.getValue(Shell.Page.TRIPS).addView(ScrollView(this).apply {
+            addView(HorizontalScrollView(this@MainActivity).apply { addView(tripsText) })
+        })
+        shell.onPage = { pg ->
+            when (pg) {
+                Shell.Page.OVERVIEW -> refreshHome()
+                Shell.Page.TRIPS -> refreshTrips(force = true)
+                else -> Unit
+            }
+        }
         devicesView = findViewById(R.id.devices)
         vehicleView = findViewById(R.id.vehicle)
         startStop = findViewById(R.id.startStop)
@@ -74,9 +112,7 @@ class MainActivity : Activity() {
         autoSetup = findViewById(R.id.autoSetup)
         extended.isChecked = Prefs.extended(this)
         auto.isChecked = Prefs.auto(this)
-        strip = StatusStrip(this)
-        findViewById<FrameLayout>(R.id.statusStrip).addView(strip)
-        monitor = MonitorPanel(this, findViewById(R.id.monitor))
+        monitor = MonitorPanel(this, shell.containers.getValue(Shell.Page.RECORD))
 
         vehicleView.setText(Prefs.vehicle(this))
         findViewById<Button>(R.id.refresh).setOnClickListener { loadDevices() }
@@ -297,12 +333,45 @@ class MainActivity : Activity() {
         }.start()
     }
 
+    /** Analyses trips off the main thread and updates the main screen. */
+    private fun refreshHome() {
+        if (homeLoading) return
+        homeLoading = true
+        val snap = LoggerState.snapshot
+        Thread {
+            val model = try {
+                HomeModel.build(this, snap)
+            } catch (e: Exception) {
+                null
+            }
+            runOnUiThread {
+                homeLoading = false
+                if (model != null) home.bind(model, LoggerState.snapshot)
+            }
+        }.start()
+    }
+
+    private fun refreshTrips(force: Boolean = false) {
+        val saved = LoggerState.snapshot.savedTrips
+        if (!force && saved == tripsShownFor) return
+        tripsShownFor = saved
+        Thread {
+            val text = try {
+                SessionFiles.compareRecent(this)
+            } catch (e: Exception) {
+                "Не удалось разобрать поездки: ${e.message}"
+            }
+            runOnUiThread { tripsText.text = text }
+        }.start()
+    }
+
     private fun showStatus(text: String) {
         statusView.text = text
     }
 
     private fun render(s: LoggerState.Snapshot) {
-        strip.update(s)
+        shell.render(s)
+        if (shell.page == Shell.Page.TRIPS) refreshTrips()
         statusView.text = s.status
         startStop.text = when {
             s.auto -> "Остановить автозапись"

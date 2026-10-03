@@ -18,9 +18,10 @@
 
     <application
         android:allowBackup="false"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:theme="@android:style/Theme.Material.NoActionBar">
+        android:theme="@style/Bortach">
 
         <activity
             android:name=".MainActivity"
