@@ -61,7 +61,8 @@ class SessionReport(
             val unit = if (c.unit.isNotEmpty()) ", ${c.unit}" else ""
             appendLine("${c.name} — ${c.description}$unit")
         }
-        appendLine("marker — метки, поставленные кнопкой «Метка» (водитель отметил момент, когда что-то почувствовал)")
+        appendLine("marker — метки, поставленные кнопкой «Метка» (водитель отметил момент, когда что-то почувствовал);")
+        appendLine("  RECONNECT — первая строка после паузы: двигатель глушили/перезапускали, связь с ЭБУ восстановлена")
         appendLine()
         appendLine("=== Сводка по столбцам: min / среднее / max (число замеров) ===")
         for (c in logger.columns) {

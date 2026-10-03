@@ -19,7 +19,6 @@ import com.obdlogger.core.DataLogger
 import com.obdlogger.core.DtcSnapshot
 import com.obdlogger.core.ElmConnection
 import com.obdlogger.core.ElmIo
-import com.obdlogger.core.ElmTimeoutException
 import com.obdlogger.core.ObdSession
 import com.obdlogger.core.Pids
 import com.obdlogger.core.SessionReport
@@ -146,11 +145,13 @@ class LoggerService : Service() {
                     status("Запись")
                     updateNotification(if (address == null) "Демо-запись" else "Идёт запись")
                     var silentCycles = 0
+                    var autoMarker: String? = null
                     while (!stopRequested) {
                         val marker = LoggerState.peekMarker()
-                        val r = activeLogger.cycle(elm, marker)
+                        val r = activeLogger.cycle(elm, listOfNotNull(autoMarker, marker).joinToString(" ").ifEmpty { null })
                         if (r.wroteRow) {
                             LoggerState.consumeMarker(marker)
+                            autoMarker = null
                             LiveData.store.add(activeLogger.lastRowMs, activeLogger.lastRow)
                         }
                         LoggerState.update {
@@ -168,21 +169,24 @@ class LoggerService : Service() {
                         }
                         if (r.wroteRow) {
                             silentCycles = 0
-                        } else if (++silentCycles >= SILENT_CYCLES_BEFORE_REINIT) {
-                            // ECU went quiet (engine stalled or restarted): a K-line session must be
-                            // re-initialised, the adapter will not do it on its own.
-                            trace.write("ecu silent for $silentCycles cycles: closing protocol and reconnecting")
-                            try {
-                                elm.command("ATPC")
-                            } catch (_: ElmTimeoutException) {
-                            }
+                        } else if (r.adapterReset || ++silentCycles >= SILENT_CYCLES_BEFORE_REINIT) {
+                            // Engine switched off / restarted: the K-line session is dead and the adapter may
+                            // have rebooted from the cranking voltage dip (losing echo/header settings).
+                            // Re-initialise everything and keep writing the same CSV.
+                            trace.write("ecu silent (${r.error}), adapter reset=${r.adapterReset}: re-initialising")
+                            status("Двигатель перезапускается? Жду ЭБУ, запись продолжится автоматически…")
+                            updateNotification("Ожидание ЭБУ…")
+                            session.initAdapter()
                             while (!stopRequested && !session.connectEcu()) {
                                 status("ЭБУ не отвечает (${session.lastError}). Жду запуска двигателя или зажигания…")
-                                Thread.sleep(3000)
+                                Thread.sleep(2000)
                             }
+                            if (stopRequested) break
                             trace.write("ecu back: ${session.protocolName}")
                             activeLogger.onReconnect()
+                            autoMarker = "RECONNECT"
                             silentCycles = 0
+                            updateNotification(if (address == null) "Демо-запись" else "Идёт запись")
                         } else {
                             Thread.sleep(1000)
                         }
@@ -305,7 +309,7 @@ class LoggerService : Service() {
         const val EXTRA_VEHICLE = "vehicle"
         const val EXTRA_DEMO = "demo"
         const val EXTRA_EXTENDED = "extended"
-        private const val SILENT_CYCLES_BEFORE_REINIT = 3
+        private const val SILENT_CYCLES_BEFORE_REINIT = 2
         /** Demo drive runs 5× faster: the 12-minute scenario (warm-up, city, highway) in ~2.5 minutes. */
         private const val DEMO_TIME_SCALE = 5.0
         private const val CHANNEL_ID = "recording"

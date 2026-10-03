@@ -34,7 +34,13 @@ class ColumnStats {
     }
 }
 
-data class CycleResult(val wroteRow: Boolean, val durationMs: Long, val error: String?)
+data class CycleResult(
+    val wroteRow: Boolean,
+    val durationMs: Long,
+    val error: String?,
+    /** The adapter printed its boot banner: it rebooted (e.g. voltage dip while cranking) and lost its settings. */
+    val adapterReset: Boolean = false,
+)
 
 /**
  * Polls [items] in cycles and writes one CSV row per cycle. Slow items are
@@ -90,8 +96,12 @@ class DataLogger(
         val t = clock()
         val values = ArrayList<String?>(columns.size)
         var ecuAnswered = 0
+        var ecuFailed = 0
         var lastError: String? = null
+        var adapterReset = false
         for (item in items) {
+            // Engine off / restarting: stop early instead of waiting out every request of the cycle.
+            if (ecuAnswered == 0 && ecuFailed >= SILENT_REQUESTS_TO_GIVE_UP) break
             if (item.slow && !includeSlow) {
                 repeat(item.columns.size) { values.add(null) }
                 continue
@@ -107,15 +117,21 @@ class DataLogger(
                 if (++consecutiveTimeouts >= MAX_CONSECUTIVE_TIMEOUTS) throw IOException("Адаптер перестал отвечать", e)
                 null
             }
+            if (raw != null && raw.contains("ELM327")) {
+                adapterReset = true
+                break
+            }
             val parsed = raw?.let(item::parse) ?: List(item.columns.size) { null }
             if (parsed.any { it != null }) {
                 if (item.fromEcu) ecuAnswered++
             } else if (item.fromEcu) {
+                ecuFailed++
                 lastError = raw?.let(ElmResponse::error) ?: "таймаут"
             }
             values.addAll(parsed)
         }
         val duration = clock() - t
+        if (adapterReset) return CycleResult(false, duration, "адаптер перезагрузился", adapterReset = true)
         if (ecuAnswered == 0) return CycleResult(false, duration, lastError)
 
         out.write(Csv.row(listOf(formatTime(t), Values.format((t - startMs) / 1000.0)) + values + marker))
@@ -136,5 +152,6 @@ class DataLogger(
 
     companion object {
         const val MAX_CONSECUTIVE_TIMEOUTS = 5
+        const val SILENT_REQUESTS_TO_GIVE_UP = 4
     }
 }

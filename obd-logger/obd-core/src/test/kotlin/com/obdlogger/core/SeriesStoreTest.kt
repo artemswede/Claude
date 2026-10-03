@@ -43,3 +43,31 @@ class SeriesStoreTest {
         assertEquals(15.0, store.values("rpm").first())
     }
 }
+
+class EngineRestartTest {
+    @Test
+    fun silentEcuEndsCycleEarly() {
+        val items = Pids.pollItems((0x04..0x11).toSet(), singleResponse = false)
+        val elm = object : ElmIo {
+            var ecuRequests = 0
+            override fun command(cmd: String, timeoutMs: Long): String {
+                if (cmd.startsWith("01")) ecuRequests++
+                return if (cmd == "ATRV") "11.7V" else "NO DATA"
+            }
+        }
+        val r = DataLogger(items, java.io.StringWriter()).cycle(elm, null)
+        assertTrue(!r.wroteRow && !r.adapterReset)
+        assertEquals(DataLogger.SILENT_REQUESTS_TO_GIVE_UP, elm.ecuRequests)
+    }
+
+    @Test
+    fun adapterRebootIsDetected() {
+        val items = Pids.pollItems(setOf(0x0C, 0x0D), singleResponse = false)
+        val elm = object : ElmIo {
+            override fun command(cmd: String, timeoutMs: Long) =
+                if (cmd == "010C") "\r\rELM327 v1.5\r\r" else "41 0D 10"
+        }
+        val r = DataLogger(items, java.io.StringWriter()).cycle(elm, null)
+        assertTrue(r.adapterReset && !r.wroteRow)
+    }
+}
