@@ -13,7 +13,7 @@ android {
 
     defaultConfig {
         applicationId = "com.obdlogger.app"
-        minSdk = 29
+        minSdk = 24
         targetSdk = 34
         versionCode = buildNumber
         versionName = "0.1.$buildNumber"
@@ -34,6 +34,8 @@ android {
     }
 
     compileOptions {
+        // java.time (trip analysis, CSV timestamps) on Android 7.
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -45,4 +47,5 @@ kotlin {
 
 dependencies {
     implementation(project(":obd-core"))
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.3")
 }

@@ -61,6 +61,35 @@
         android:checked="true"
         android:text="Искать скрытые параметры Toyota (режим 21; старт дольше на ~1 мин)" />
 
+    <CheckBox
+        android:id="@+id/auto"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Автозапись: сам записывать каждую поездку, когда заводится двигатель" />
+
+    <LinearLayout
+        android:id="@+id/autoSetup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/battery"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Не ограничивать в фоне"
+            android:textAllCaps="false" />
+
+        <Button
+            android:id="@+id/overlay"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Открывать при старте"
+            android:textAllCaps="false" />
+    </LinearLayout>
+
     <Button
         android:id="@+id/startStop"
         android:layout_width="match_parent"

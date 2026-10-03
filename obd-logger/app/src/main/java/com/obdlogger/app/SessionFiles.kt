@@ -2,14 +2,21 @@ package com.obdlogger.app
 
 import android.content.ContentValues
 import android.content.Context
+import android.media.MediaScannerConnection
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import com.obdlogger.core.TripAnalyzer
+import com.obdlogger.core.TripComparison
+import com.obdlogger.core.TripSummary
 import java.io.BufferedWriter
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * Files of one recording. They are written to app storage while recording
@@ -22,34 +29,88 @@ class SessionFiles(dir: File, baseName: String) {
 
     fun existing() = listOf(csv, info, elmLog).filter { it.exists() && it.length() > 0 }
 
+    /** Result of copying one file to Downloads; [uri] is shareable, null when sharing is not possible. */
+    class Exported(val ok: Boolean, val uri: Uri?)
+
     companion object {
         const val DOWNLOAD_FOLDER = "OBD-Logger"
+        private const val DEMO_PREFIX = "demo_"
 
         fun dir(ctx: Context) = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "sessions").apply { mkdirs() }
 
-        fun create(ctx: Context) =
-            SessionFiles(dir(ctx), "obd_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()))
+        /** Demo recordings get their own prefix so they never mix into trip comparisons. */
+        fun create(ctx: Context, demo: Boolean = false) = SessionFiles(
+            dir(ctx),
+            (if (demo) DEMO_PREFIX else "obd_") + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()),
+        )
 
-        /** Copies [file] to the public Downloads/OBD-Logger folder (no storage permission needed on Android 10+). */
-        fun exportToDownloads(ctx: Context, file: File): Uri? {
+        /** Copies [file] to Downloads/OBD-Logger: MediaStore on Android 10+, the public folder before. */
+        fun exportToDownloads(ctx: Context, file: File): Exported {
             val mime = when (file.extension) {
                 "csv" -> "text/csv"
                 else -> "text/plain"
             }
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) exportMediaStore(ctx, file, mime) else exportLegacy(ctx, file, mime)
+        }
+
+        private fun exportMediaStore(ctx: Context, file: File, mime: String): Exported {
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, file.name)
                 put(MediaStore.MediaColumns.MIME_TYPE, mime)
                 put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/$DOWNLOAD_FOLDER")
             }
             val resolver = ctx.contentResolver
-            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return null
+            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return Exported(false, null)
             return try {
-                resolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: return null
-                uri
+                resolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } }
+                    ?: return Exported(false, null)
+                Exported(true, uri)
             } catch (e: Exception) {
                 resolver.delete(uri, null, null)
+                Exported(false, null)
+            }
+        }
+
+        /** Android 7–9: needs WRITE_EXTERNAL_STORAGE; the media scanner gives a content:// URI for sharing. */
+        @Suppress("DEPRECATION")
+        private fun exportLegacy(ctx: Context, file: File, mime: String): Exported {
+            return try {
+                val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), DOWNLOAD_FOLDER)
+                dir.mkdirs()
+                val target = File(dir, file.name)
+                file.copyTo(target, overwrite = true)
+                val latch = CountDownLatch(1)
+                var uri: Uri? = null
+                MediaScannerConnection.scanFile(ctx, arrayOf(target.absolutePath), arrayOf(mime)) { _, u ->
+                    uri = u
+                    latch.countDown()
+                }
+                latch.await(5, TimeUnit.SECONDS)
+                Exported(true, uri)
+            } catch (e: Exception) {
+                Exported(false, null)
+            }
+        }
+
+        /** Real (non-demo) recorded trips, oldest first. */
+        fun tripCsvs(ctx: Context): List<File> =
+            dir(ctx).listFiles().orEmpty()
+                .filter { it.name.startsWith("obd_") && it.name.endsWith(".csv") && it.length() > 0 }
+                .sortedBy { it.name }
+
+        fun analyze(csv: File): TripSummary? {
+            val info = File(csv.parentFile, csv.name.removeSuffix(".csv") + "_info.txt")
+            return try {
+                TripAnalyzer.analyze(csv.nameWithoutExtension, csv.readText(), if (info.exists()) info.readText() else null)
+            } catch (e: Exception) {
                 null
             }
+        }
+
+        /** Analysis of the latest trip compared with up to [count] - 1 previous ones. */
+        fun compareRecent(ctx: Context, count: Int = 6): String {
+            val trips = tripCsvs(ctx).takeLast(count).mapNotNull(::analyze).filter { it.rows >= 10 }
+            return TripComparison.render(trips)
         }
     }
 }
@@ -59,10 +120,11 @@ class ElmTraceLog(file: File) {
     private val writer: BufferedWriter = file.bufferedWriter()
     private val time = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
     private var written = 0L
+    private var closed = false
 
     @Synchronized
     fun write(line: String) {
-        if (written > MAX_BYTES) return
+        if (closed || written > MAX_BYTES) return
         val text = "${time.format(Date())} $line\n"
         written += text.length
         writer.write(text)
@@ -71,7 +133,10 @@ class ElmTraceLog(file: File) {
     }
 
     @Synchronized
-    fun close() = writer.close()
+    fun close() {
+        if (!closed) writer.close()
+        closed = true
+    }
 
     companion object {
         private const val MAX_BYTES = 5_000_000L

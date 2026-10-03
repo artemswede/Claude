@@ -7,23 +7,44 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.view.MotionEvent
 import android.view.View
+import com.obdlogger.core.SensorNames
 import com.obdlogger.core.SensorStats
 import com.obdlogger.core.Values
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.max
 
+/** Colour tokens from the design (docs: obd-logger-ui, «Токены»). */
 object Palette {
-    const val BG = 0xFF0E1116.toInt()
-    const val PANEL = 0xFF161B22.toInt()
-    const val GRID = 0xFF2A313C.toInt()
-    const val TEXT = 0xFFE6EDF3.toInt()
-    const val MUTED = 0xFF8B949E.toInt()
-    const val ACCENT = 0xFF4FD1C5.toInt()
-    const val WARN = 0xFFF6AD55.toInt()
-    const val BAD = 0xFFFC8181.toInt()
+    const val BG = 0xFF0E1114.toInt()
+    const val PANEL = 0xFF161A1F.toInt()
+    const val S2 = 0xFF1E242B.toInt()
+    const val GRID = 0xFF2C343D.toInt()
+    const val TEXT = 0xFFECEFF2.toInt()
+    const val T2 = 0xFFA9B3BD.toInt()
+    const val MUTED = 0xFF7E8994.toInt()
+    const val ACCENT = 0xFF5AAEFF.toInt()
+    const val OK = 0xFF3DBE7A.toInt()
+    const val WARN = 0xFFF2B33D.toInt()
+    const val BAD = 0xFFFF6259.toInt()
+    const val NEU = 0xFF5F6B77.toInt()
+    const val MARK = 0xFFB794FF.toInt()
+    const val OBS = 0xFF3FD0C9.toInt()
+    const val DEMO = 0xFFFF5CC8.toInt()
     val LINES = intArrayOf(
-        0xFF4FD1C5.toInt(), 0xFFF6AD55.toInt(), 0xFF63B3ED.toInt(), 0xFFF687B3.toInt(),
-        0xFF9AE6B4.toInt(), 0xFFFC8181.toInt(), 0xFFB794F4.toInt(), 0xFFFAF089.toInt(),
+        0xFF5AAEFF.toInt(), 0xFFF2B33D.toInt(), 0xFF3FD0C9.toInt(), 0xFFFF8FA3.toInt(),
+        0xFFB794FF.toInt(), 0xFF9BE36B.toInt(), 0xFFFF9F5A.toInt(), 0xFFE6E6E6.toInt(),
     )
+
+    fun lamp(l: Lamp) = when (l) {
+        Lamp.OK -> OK
+        Lamp.WAIT -> WARN
+        Lamp.FAIL -> BAD
+        Lamp.OFF -> NEU
+    }
 }
 
 /** What a jumpy reading of a sensor usually points to. */
@@ -47,11 +68,30 @@ object SensorHints {
     }
 }
 
-private fun fmt(v: Double) = Values.format(if (kotlin.math.abs(v) >= 100) Math.round(v).toDouble() else v) ?: "—"
+private fun fmt(v: Double) = Values.format(if (abs(v) >= 100) Math.round(v).toDouble() else Math.round(v * 100) / 100.0) ?: "—"
 
-/** Live multi-line chart; every line is scaled to its own min–max in the window (units differ). */
+private fun fit(s: String, p: Paint, width: Float): String {
+    if (p.measureText(s) <= width) return s
+    var end = s.length
+    while (end > 1 && p.measureText(s, 0, end) + p.measureText("…") > width) end--
+    return s.substring(0, end) + "…"
+}
+
+/** «19:51», or «03.10 19:51» when not today. */
+fun clock(ms: Long): String {
+    val now = Calendar.getInstance()
+    val then = Calendar.getInstance().apply { timeInMillis = ms }
+    val sameDay = now.get(Calendar.YEAR) == then.get(Calendar.YEAR) && now.get(Calendar.DAY_OF_YEAR) == then.get(Calendar.DAY_OF_YEAR)
+    return SimpleDateFormat(if (sameDay) "HH:mm" else "dd.MM HH:mm", Locale.US).format(Date(ms))
+}
+
+/**
+ * Live multi-line chart. Every line is scaled to its own min–max in the window
+ * (units differ), so each line carries its own label at its right end: the name,
+ * current value and range sit exactly where the line ends.
+ */
 class LineChartView(context: Context) : View(context) {
-    class Line(val name: String, val color: Int, val times: LongArray, val values: DoubleArray)
+    class Line(val code: String, val color: Int, val times: LongArray, val values: DoubleArray)
 
     var lines: List<Line> = emptyList()
         set(value) {
@@ -60,67 +100,183 @@ class LineChartView(context: Context) : View(context) {
         }
     var windowMs = 5 * 60_000L
     var endMs = 0L
+    /** False when showing an old recording: the right edge is a past time, not «now». */
+    var live = true
 
     private val dp = resources.displayMetrics.density
     private val grid = Paint().apply { color = Palette.GRID; strokeWidth = dp }
-    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Palette.MUTED; textSize = 11 * dp }
-    private val legend = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 13 * dp }
+    private val axis = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Palette.MUTED; textSize = 11 * dp }
+    private val name = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 13 * dp; isFakeBoldText = true }
+    private val sub = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Palette.MUTED; textSize = 11 * dp }
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 2 * dp }
+    private val leader = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeWidth = dp }
+    private val dot = Paint(Paint.ANTI_ALIAS_FLAG)
 
     override fun onDraw(canvas: Canvas) {
         canvas.drawColor(Palette.PANEL)
-        val legendH = (lines.size.coerceAtLeast(1) + 0) * 18 * dp + 8 * dp
-        val plot = RectF(8 * dp, legendH, width - 8 * dp, height - 20 * dp)
+        val labelW = minOf(250 * dp, width * 0.4f)
+        val plot = RectF(8 * dp, 12 * dp, width - labelW - 12 * dp, height - 22 * dp)
         for (i in 0..4) {
             val y = plot.top + plot.height() * i / 4
             canvas.drawLine(plot.left, y, plot.right, y, grid)
         }
-        val minutes = (windowMs / 60_000).toInt()
+        val minutes = (windowMs / 60_000).toInt().coerceAtLeast(1)
         for (m in 0..minutes) {
             val x = plot.right - plot.width() * m / minutes
             canvas.drawLine(x, plot.top, x, plot.bottom, grid)
-            val label = if (m == 0) "сейчас" else "-$m мин"
-            canvas.drawText(label, (x - text.measureText(label)).coerceAtLeast(plot.left), height - 6 * dp, text)
+            val label = when {
+                m == 0 && live -> "сейчас"
+                m == 0 -> clock(endMs)
+                else -> "−$m мин"
+            }
+            canvas.drawText(label, (x - axis.measureText(label) / 2).coerceIn(plot.left, plot.right - axis.measureText(label)), height - 6 * dp, axis)
         }
         if (lines.isEmpty()) {
-            legend.color = Palette.MUTED
-            canvas.drawText("Нажмите на датчик в «Статистике» или «Нестабильности», чтобы добавить линию", 12 * dp, 22 * dp, legend)
+            sub.color = Palette.MUTED
+            canvas.drawText("Нажмите на датчик во вкладке «Статистика» или «Нестабильность», чтобы добавить линию", 12 * dp, 28 * dp, sub)
             return
         }
         val start = endMs - windowMs
-        lines.forEachIndexed { li, line ->
-            legend.color = line.color
+
+        class Tag(val line: Line, val endX: Float, val endY: Float, var y: Float)
+        val tags = mutableListOf<Tag>()
+        for (line in lines) {
             val n = line.values.size
-            if (n == 0) {
-                canvas.drawText("${line.name}: нет данных", 12 * dp, (li + 1) * 18 * dp, legend)
-                return@forEachIndexed
-            }
+            if (n == 0) continue
             var lo = line.values.min()
             var hi = line.values.max()
             if (hi - lo < 1e-9) {
                 lo -= 1
                 hi += 1
             }
-            canvas.drawText("${line.name}: ${fmt(line.values.last())}   (${fmt(line.values.min())} … ${fmt(line.values.max())})",
-                12 * dp, (li + 1) * 18 * dp, legend)
             val path = Path()
+            var lastX = 0f
+            var lastY = 0f
             for (i in 0 until n) {
                 val x = plot.left + plot.width() * ((line.times[i] - start).toFloat() / windowMs)
                 val y = plot.bottom - plot.height() * ((line.values[i] - lo) / (hi - lo)).toFloat()
                 if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                lastX = x
+                lastY = y
             }
             stroke.color = line.color
             canvas.drawPath(path, stroke)
+            dot.color = line.color
+            canvas.drawCircle(lastX, lastY, 3.5f * dp, dot)
+            tags += Tag(line, lastX, lastY, lastY)
         }
+
+        // Labels sit at the height of their line's last point; overlapping ones are pushed apart.
+        val tagH = 34 * dp
+        val top = plot.top + tagH / 2
+        val bottom = plot.bottom - tagH / 2
+        tags.sortBy { it.endY }
+        for (i in tags.indices) {
+            tags[i].y = tags[i].y.coerceIn(top, bottom)
+            if (i > 0) tags[i].y = max(tags[i].y, tags[i - 1].y + tagH)
+        }
+        for (i in tags.indices.reversed()) {
+            if (tags[i].y > bottom) tags[i].y = bottom
+            if (i < tags.size - 1) tags[i].y = minOf(tags[i].y, tags[i + 1].y - tagH)
+        }
+        val labelX = plot.right + 12 * dp
+        for (tag in tags) {
+            val line = tag.line
+            leader.color = line.color
+            canvas.drawLine(tag.endX, tag.endY, labelX - 3 * dp, tag.y, leader)
+            name.color = line.color
+            val unit = SensorNames.unit(line.code).let { if (it.isEmpty()) "" else " $it" }
+            val value = fmt(line.values.last()) + unit
+            val valueW = name.measureText(value)
+            val title = fit(SensorNames.label(line.code), name, width - labelX - valueW - 12 * dp)
+            canvas.drawText(title, labelX, tag.y - 2 * dp, name)
+            canvas.drawText(value, width - valueW - 6 * dp, tag.y - 2 * dp, name)
+            canvas.drawText("${fmt(line.values.min())} … ${fmt(line.values.max())}$unit за окно", labelX, tag.y + 12 * dp, sub)
+        }
+    }
+}
+
+/**
+ * Two connection lamps — tablet↔ECU and ECU↔engine — plus mode, poll rate and data age.
+ * Minimal on purpose: a dot, a short word, nothing to read while driving.
+ */
+class StatusStrip(context: Context) : View(context) {
+    private var s = LoggerState.Snapshot()
+    private val dp = resources.displayMetrics.density
+    private val title = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Palette.MUTED; textSize = 11 * dp }
+    private val value = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Palette.TEXT; textSize = 14 * dp }
+    private val badge = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 12 * dp; isFakeBoldText = true }
+    private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    fun update(snapshot: LoggerState.Snapshot) {
+        s = snapshot
+        invalidate()
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), (44 * dp).toInt())
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        canvas.drawColor(Palette.PANEL)
+        fill.color = Palette.GRID
+        canvas.drawRect(0f, height - dp, width.toFloat(), height.toFloat(), fill)
+        var x = 14 * dp
+        x = lamp(canvas, x, "Планшет ↔ ЭБУ", s.link, s.linkText)
+        x = lamp(canvas, x + 22 * dp, "ЭБУ ↔ двигатель", s.engine, s.engineText)
+
+        // Right side: mode badge and figures.
+        val (mode, color) = when {
+            s.demo && s.running -> "ДЕМО" to Palette.DEMO
+            s.auto && s.recording -> "АВТО · ЗАПИСЬ" to Palette.OK
+            s.auto -> "АВТО · ОЖИДАНИЕ" to Palette.ACCENT
+            s.recording -> "ЗАПИСЬ" to Palette.OK
+            s.running -> "ПОДКЛЮЧЕНИЕ" to Palette.WARN
+            else -> "СТОП" to Palette.NEU
+        }
+        val info = when {
+            s.recording -> "1 стр / %.1f с · %d:%02d · %d строк".format(s.cycleMs / 1000.0, s.elapsedSec / 60, s.elapsedSec % 60, s.rows)
+            s.lastDataMs > 0 -> "данные от ${clock(s.lastDataMs)}"
+            else -> ""
+        }
+        val infoW = value.measureText(info)
+        val badgeW = badge.measureText(mode) + 16 * dp
+        var right = width - 12 * dp
+        if (info.isNotEmpty() && right - infoW - badgeW - 12 * dp > x) {
+            value.color = Palette.T2
+            canvas.drawText(info, right - infoW, height / 2f + 5 * dp, value)
+            right -= infoW + 12 * dp
+        }
+        if (right - badgeW > x) {
+            fill.color = color
+            fill.alpha = 40
+            val r = RectF(right - badgeW, height / 2f - 11 * dp, right, height / 2f + 11 * dp)
+            canvas.drawRoundRect(r, 6 * dp, 6 * dp, fill)
+            fill.alpha = 255
+            badge.color = color
+            canvas.drawText(mode, r.left + 8 * dp, height / 2f + 4.5f * dp, badge)
+        }
+    }
+
+    private fun lamp(canvas: Canvas, x0: Float, label: String, lamp: Lamp, text: String): Float {
+        val cy = height / 2f
+        fill.color = Palette.lamp(lamp)
+        canvas.drawCircle(x0 + 6 * dp, cy, 6 * dp, fill)
+        val tx = x0 + 18 * dp
+        canvas.drawText(label, tx, cy - 4 * dp, title)
+        value.color = if (lamp == Lamp.OFF) Palette.MUTED else Palette.TEXT
+        val shown = fit(text, value, 190 * dp)
+        canvas.drawText(shown, tx, cy + 13 * dp, value)
+        return tx + max(title.measureText(label), value.measureText(shown))
     }
 }
 
 /** Distribution of one sensor with min / median / mean / max markers. */
 class HistogramView(context: Context) : View(context) {
-    var title = ""
-    var stats: SensorStats? = null
-    var bins: IntArray = IntArray(0)
-    var color = Palette.ACCENT
+    private var code = ""
+    private var stats: SensorStats? = null
+    private var bins: IntArray = IntArray(0)
+    private var color = Palette.ACCENT
 
     private val dp = resources.displayMetrics.density
     private val bar = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -128,8 +284,8 @@ class HistogramView(context: Context) : View(context) {
     private val small = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Palette.MUTED; textSize = 11 * dp }
     private val marker = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeWidth = 2 * dp }
 
-    fun update(title: String, stats: SensorStats?, bins: IntArray, color: Int) {
-        this.title = title
+    fun update(code: String, stats: SensorStats?, bins: IntArray, color: Int) {
+        this.code = code
         this.stats = stats
         this.bins = bins
         this.color = color
@@ -143,8 +299,9 @@ class HistogramView(context: Context) : View(context) {
             canvas.drawText("Нажмите на датчик ниже — здесь появится распределение его значений", 12 * dp, 22 * dp, small)
             return
         }
+        val unit = SensorNames.unit(code)
         canvas.drawText(
-            "$title   мин ${fmt(s.min)} · медиана ${fmt(s.median)} · среднее ${fmt(s.mean)} · макс ${fmt(s.max)} · замеров ${s.count}",
+            fit("${SensorNames.label(code)}, $unit   мин ${fmt(s.min)} · медиана ${fmt(s.median)} · среднее ${fmt(s.mean)} · макс ${fmt(s.max)} · замеров ${s.count}", text, width - 24 * dp),
             12 * dp, 20 * dp, text,
         )
         val plot = RectF(12 * dp, 30 * dp, width - 12 * dp, height - 18 * dp)
@@ -170,8 +327,9 @@ class HistogramView(context: Context) : View(context) {
 }
 
 /**
- * Sensor list drawn on one canvas. STATS: min–max range bar with median (white)
- * and mean (orange) ticks. INSTABILITY: bar of the chosen instability score.
+ * Sensor list drawn on one canvas, Russian name with the CSV code under it.
+ * STATS: min–max range bar with median (white) and mean (orange) ticks.
+ * INSTABILITY: bar of the chosen instability score.
  */
 class SensorTableView(context: Context) : View(context) {
     enum class Mode { STATS, INSTABILITY }
@@ -179,15 +337,16 @@ class SensorTableView(context: Context) : View(context) {
     var mode = Mode.STATS
     var sortByCv = false
     var rows: List<SensorStats> = emptyList()
-    /** Sensor name → line colour if it is on the chart. */
+    /** Sensor code → line colour if it is on the chart. */
     var onChart: Map<String, Int> = emptyMap()
     var focused: String? = null
     var onRowClick: (String) -> Unit = {}
 
     private val dp = resources.displayMetrics.density
-    private val rowH = 40 * dp
-    private val name = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Palette.TEXT; textSize = 13 * dp }
-    private val small = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Palette.MUTED; textSize = 11 * dp }
+    private val rowH = 46 * dp
+    private val name = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Palette.TEXT; textSize = 14 * dp }
+    private val code = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Palette.MUTED; textSize = 10 * dp }
+    private val small = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Palette.T2; textSize = 12 * dp }
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
 
     fun update(rows: List<SensorStats>) {
@@ -217,7 +376,7 @@ class SensorTableView(context: Context) : View(context) {
             canvas.drawText("Данных пока нет — начните запись или демо", 12 * dp, 24 * dp, small)
             return
         }
-        val nameW = width * 0.34f
+        val nameW = width * 0.36f
         val numW = width * 0.30f
         val barL = nameW + 8 * dp
         val barR = width - numW - 8 * dp
@@ -232,9 +391,10 @@ class SensorTableView(context: Context) : View(context) {
                 fill.color = it
                 canvas.drawRect(0f, top + 8 * dp, 4 * dp, top + rowH - 8 * dp, fill)
             }
-            val label = TextUtilsEllipsize.fit(s.name, name, nameW - 12 * dp)
-            canvas.drawText(label, 10 * dp, top + rowH / 2 + 5 * dp, name)
+            canvas.drawText(fit(SensorNames.label(s.name), name, nameW - 12 * dp), 10 * dp, top + 21 * dp, name)
+            canvas.drawText(fit(s.name, code, nameW - 12 * dp), 10 * dp, top + 36 * dp, code)
             val mid = top + rowH / 2
+            val unit = SensorNames.unit(s.name).let { if (it.isEmpty()) "" else " $it" }
             when (mode) {
                 Mode.STATS -> {
                     fill.color = Palette.GRID
@@ -247,7 +407,7 @@ class SensorTableView(context: Context) : View(context) {
                     }
                     tick(s.median, Palette.TEXT)
                     tick(s.mean, Palette.WARN)
-                    canvas.drawText("${fmt(s.min)} / ${fmt(s.median)} / ${fmt(s.mean)} / ${fmt(s.max)}",
+                    canvas.drawText(fit("${fmt(s.min)} / ${fmt(s.median)} / ${fmt(s.mean)} / ${fmt(s.max)}$unit", small, numW),
                         barR + 8 * dp, mid + 4 * dp, small)
                 }
                 Mode.INSTABILITY -> {
@@ -256,21 +416,12 @@ class SensorTableView(context: Context) : View(context) {
                     fill.color = when {
                         frac > 0.66f -> Palette.BAD
                         frac > 0.33f -> Palette.WARN
-                        else -> Palette.ACCENT
+                        else -> Palette.OK
                     }
                     canvas.drawRect(barL, mid - 6 * dp, barL + (barR - barL) * frac, mid + 6 * dp, fill)
-                    canvas.drawText("%.1f %%   сейчас %s".format(sc, fmt(s.last)), barR + 8 * dp, mid + 4 * dp, small)
+                    canvas.drawText(fit("%.1f %% · сейчас %s%s".format(sc, fmt(s.last), unit), small, numW), barR + 8 * dp, mid + 4 * dp, small)
                 }
             }
         }
-    }
-}
-
-private object TextUtilsEllipsize {
-    fun fit(s: String, p: Paint, width: Float): String {
-        if (p.measureText(s) <= width) return s
-        var end = s.length
-        while (end > 1 && p.measureText(s, 0, end) + p.measureText("…") > width) end--
-        return s.substring(0, end) + "…"
     }
 }

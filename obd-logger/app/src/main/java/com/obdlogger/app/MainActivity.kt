@@ -13,13 +13,16 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.WindowManager
+import android.os.PowerManager
+import android.provider.Settings
 import android.view.View
+import android.view.WindowManager
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -36,6 +39,9 @@ class MainActivity : Activity() {
     private lateinit var progressView: TextView
     private lateinit var dtcView: TextView
     private lateinit var extended: CheckBox
+    private lateinit var auto: CheckBox
+    private lateinit var autoSetup: View
+    private lateinit var strip: StatusStrip
     private lateinit var monitor: MonitorPanel
     private val handler = Handler(Looper.getMainLooper())
     private val ticker = object : Runnable {
@@ -48,7 +54,7 @@ class MainActivity : Activity() {
 
     private val listener: (LoggerState.Snapshot) -> Unit = { render(it) }
 
-    private val prefs by lazy { getSharedPreferences("settings", MODE_PRIVATE) }
+    private val prefs by lazy { Prefs.of(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,13 +70,21 @@ class MainActivity : Activity() {
         progressView = findViewById(R.id.progress)
         dtcView = findViewById(R.id.dtc)
         extended = findViewById(R.id.extended)
-        extended.isChecked = prefs.getBoolean(PREF_EXTENDED, true)
+        auto = findViewById(R.id.auto)
+        autoSetup = findViewById(R.id.autoSetup)
+        extended.isChecked = Prefs.extended(this)
+        auto.isChecked = Prefs.auto(this)
+        strip = StatusStrip(this)
+        findViewById<FrameLayout>(R.id.statusStrip).addView(strip)
         monitor = MonitorPanel(this, findViewById(R.id.monitor))
 
-        vehicleView.setText(prefs.getString(PREF_VEHICLE, "Toyota Avensis 2005"))
+        vehicleView.setText(Prefs.vehicle(this))
         findViewById<Button>(R.id.refresh).setOnClickListener { loadDevices() }
         startStop.setOnClickListener { if (LoggerState.snapshot.running) stopRecording() else startRecording() }
         demo.setOnClickListener { startDemo() }
+        auto.setOnCheckedChangeListener { _, checked -> setAuto(checked) }
+        findViewById<Button>(R.id.battery).setOnClickListener { askBatteryExemption() }
+        findViewById<Button>(R.id.overlay).setOnClickListener { askOverlay() }
         devicesView.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) = updateDeviceHint()
             override fun onNothingSelected(parent: AdapterView<*>?) = updateDeviceHint()
@@ -84,6 +98,10 @@ class MainActivity : Activity() {
 
         requestNeededPermissions()
         loadDevices()
+        // Auto mode is on but the service is not running (app was updated, killed or the tablet rebooted).
+        if (Prefs.auto(this) && !LoggerState.snapshot.running && Prefs.device(this) != null && hasBluetoothPermission()) {
+            startAuto()
+        }
     }
 
     override fun onStart() {
@@ -108,6 +126,8 @@ class MainActivity : Activity() {
         val needed = buildList {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) add(Manifest.permission.BLUETOOTH_CONNECT)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
+            // Android 7–9 save to the public Downloads folder directly.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (needed.isNotEmpty()) requestPermissions(needed.toTypedArray(), 1)
     }
@@ -120,20 +140,19 @@ class MainActivity : Activity() {
     private fun loadDevices() {
         val adapter = getSystemService(BluetoothManager::class.java)?.adapter
         when {
-            adapter == null -> return showStatus("На телефоне нет Bluetooth")
+            adapter == null -> return showStatus("На устройстве нет Bluetooth")
             !hasBluetoothPermission() -> return showStatus("Нужно разрешение «Устройства поблизости» для Bluetooth")
             !adapter.isEnabled -> {
                 startActivity(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
                 return showStatus("Включите Bluetooth и нажмите «Обновить»")
             }
         }
-        // Adapters usually call themselves OBDII / OBD2 / ELM327 / V-LINK; show them first.
         devices = adapter!!.bondedDevices.sortedBy { d -> if (looksLikeObd(d)) 0 else 1 }
         devicesView.adapter = ArrayAdapter(
             this, android.R.layout.simple_spinner_dropdown_item,
             devices.map { "${it.name ?: "?"}  (${it.address})" },
         )
-        val last = prefs.getString(PREF_DEVICE, null)
+        val last = Prefs.device(this)
         devices.indexOfFirst { it.address == last }.takeIf { it >= 0 }?.let { devicesView.setSelection(it) }
         if (devices.isEmpty()) showStatus("Нет сопряжённых устройств. Сопрягите адаптер в настройках Bluetooth (PIN 1234 или 0000).")
         updateDeviceHint()
@@ -153,23 +172,64 @@ class MainActivity : Activity() {
             "Если в списке нет адаптера: вставьте его в разъём, включите зажигание и сопрягите в настройках Bluetooth."
     }
 
+    /** Saves the chosen adapter and car; false if no adapter is selected. */
+    private fun saveChoice(): Boolean {
+        val device = devices.getOrNull(devicesView.selectedItemPosition)
+        if (device == null) {
+            showStatus("Выберите адаптер")
+            return false
+        }
+        prefs.edit()
+            .putString(Prefs.DEVICE, device.address)
+            .putString(Prefs.VEHICLE, vehicleView.text.toString().trim())
+            .putBoolean(Prefs.EXTENDED, extended.isChecked)
+            .apply()
+        return true
+    }
+
     private fun startRecording() {
         if (!hasBluetoothPermission()) return requestNeededPermissions()
-        val device = devices.getOrNull(devicesView.selectedItemPosition)
-            ?: return showStatus("Выберите адаптер")
-        val vehicle = vehicleView.text.toString().trim()
-        prefs.edit().putString(PREF_DEVICE, device.address).putString(PREF_VEHICLE, vehicle)
-            .putBoolean(PREF_EXTENDED, extended.isChecked).apply()
-        startForegroundService(
+        if (!saveChoice()) return
+        if (auto.isChecked) return startAuto()
+        Compat.startForegroundService(
+            this,
             LoggerService.intent(this, LoggerService.ACTION_START)
-                .putExtra(LoggerService.EXTRA_ADDRESS, device.address)
-                .putExtra(LoggerService.EXTRA_VEHICLE, vehicle)
+                .putExtra(LoggerService.EXTRA_ADDRESS, Prefs.device(this))
+                .putExtra(LoggerService.EXTRA_VEHICLE, Prefs.vehicle(this))
                 .putExtra(LoggerService.EXTRA_EXTENDED, extended.isChecked),
         )
     }
 
+    private fun startAuto() {
+        Compat.startForegroundService(this, LoggerService.intent(this, LoggerService.ACTION_AUTO))
+    }
+
+    private fun setAuto(on: Boolean) {
+        if (on) {
+            if (!hasBluetoothPermission()) {
+                auto.isChecked = false
+                return requestNeededPermissions()
+            }
+            if (!saveChoice()) {
+                auto.isChecked = false
+                return
+            }
+            prefs.edit().putBoolean(Prefs.AUTO, true).apply()
+            if (!LoggerState.snapshot.running) startAuto()
+            Toast.makeText(
+                this,
+                "Автозапись включена. Чтобы она не выключалась в фоне, нажмите «Не ограничивать в фоне» и «Открывать при старте».",
+                Toast.LENGTH_LONG,
+            ).show()
+        } else {
+            prefs.edit().putBoolean(Prefs.AUTO, false).apply()
+            if (LoggerState.snapshot.auto) stopRecording()
+        }
+    }
+
     private fun startDemo() {
-        startForegroundService(
+        Compat.startForegroundService(
+            this,
             LoggerService.intent(this, LoggerService.ACTION_START)
                 .putExtra(LoggerService.EXTRA_DEMO, true)
                 .putExtra(LoggerService.EXTRA_VEHICLE, "ДЕМО: симуляция, не реальный автомобиль"),
@@ -177,7 +237,36 @@ class MainActivity : Activity() {
     }
 
     private fun stopRecording() {
+        // «Стоп» turns everything off, including auto mode.
+        if (auto.isChecked) auto.isChecked = false
         startService(LoggerService.intent(this, LoggerService.ACTION_STOP))
+    }
+
+    @SuppressLint("BatteryLife")
+    private fun askBatteryExemption() {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            try {
+                startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
+            } catch (e: Exception) {
+                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            }
+        }
+        if (Build.MANUFACTURER.equals("HUAWEI", ignoreCase = true) || Build.MANUFACTURER.equals("HONOR", ignoreCase = true)) {
+            Toast.makeText(
+                this,
+                "Huawei: Настройки → Батарея → Запуск приложений → OBD Логгер → «Управлять вручную», включить все три переключателя.",
+                Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
+
+    private fun askOverlay() {
+        if (Settings.canDrawOverlays(this)) {
+            Toast.makeText(this, "Уже разрешено: приложение откроется само, когда начнётся поездка", Toast.LENGTH_SHORT).show()
+            return
+        }
+        startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
     }
 
     private fun shareLast() {
@@ -192,13 +281,13 @@ class MainActivity : Activity() {
 
     /** Re-exports every session kept in app storage, e.g. after the app was killed mid-recording. */
     private fun exportAll() {
-        if (LoggerState.snapshot.running) {
-            Toast.makeText(this, "Сначала остановите запись", Toast.LENGTH_SHORT).show()
+        if (LoggerState.snapshot.recording) {
+            Toast.makeText(this, "Сначала дождитесь конца записи", Toast.LENGTH_SHORT).show()
             return
         }
         Thread {
             val files = SessionFiles.dir(this).listFiles().orEmpty().filter { it.length() > 0 }.sortedBy { it.name }
-            val ok = files.count { SessionFiles.exportToDownloads(this, it) != null }
+            val ok = files.count { SessionFiles.exportToDownloads(this, it).ok }
             val text = when {
                 files.isEmpty() -> "Сохранённых записей пока нет"
                 ok < files.size -> "Скопировано $ok из ${files.size} файлов в Загрузки/${SessionFiles.DOWNLOAD_FOLDER}"
@@ -213,29 +302,29 @@ class MainActivity : Activity() {
     }
 
     private fun render(s: LoggerState.Snapshot) {
+        strip.update(s)
         statusView.text = s.status
-        startStop.text = if (s.running) "Остановить запись" else "Начать запись"
+        startStop.text = when {
+            s.auto -> "Остановить автозапись"
+            s.running -> "Остановить запись"
+            else -> "Начать запись"
+        }
         demo.isEnabled = !s.running
-        mark.isEnabled = s.running
+        mark.isEnabled = s.recording
         mark.text = if (s.markers > 0) "Метка (поставлено: ${s.markers})" else "Метка (что-то почувствовал)"
-        share.isEnabled = !s.running && s.exported.isNotEmpty()
+        share.isEnabled = !s.recording && s.exported.isNotEmpty()
         devicesView.isEnabled = !s.running
         vehicleView.isEnabled = !s.running
-        progressView.text = if (s.running || s.rows > 0) {
+        extended.isEnabled = !s.running
+        autoSetup.visibility = if (auto.isChecked) View.VISIBLE else View.GONE
+        progressView.text = if (s.recording || s.rows > 0) {
             "Строк: ${s.rows}   Время: %d:%02d   Цикл: %.1f с".format(s.elapsedSec / 60, s.elapsedSec % 60, s.cycleMs / 1000.0)
         } else ""
         dtcView.text = s.dtcInfo
-        extended.isEnabled = !s.running
-        if (s.running) {
+        if (s.recording) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         } else {
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
-    }
-
-    companion object {
-        private const val PREF_DEVICE = "device"
-        private const val PREF_VEHICLE = "vehicle"
-        private const val PREF_EXTENDED = "extended"
     }
 }

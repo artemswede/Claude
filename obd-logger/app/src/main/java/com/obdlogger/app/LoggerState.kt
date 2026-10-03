@@ -5,18 +5,36 @@ import android.os.Handler
 import android.os.Looper
 import java.util.concurrent.CopyOnWriteArrayList
 
+/** Status lamp: grey = off/unknown, amber = trying, green = connected. */
+enum class Lamp { OFF, WAIT, OK, FAIL }
+
 /** Process-wide session state shared by [LoggerService] (writer) and [MainActivity] (reader). */
 object LoggerState {
     data class Snapshot(
         val running: Boolean = false,
+        /** Auto mode: the service waits for the engine and records every trip by itself. */
+        val auto: Boolean = false,
+        /** A trip is being written right now (false while auto mode waits). */
+        val recording: Boolean = false,
+        val demo: Boolean = false,
         val status: String = "Готов к работе",
+        /** Tablet ↔ ECU: Bluetooth, adapter and ECU answering. */
+        val link: Lamp = Lamp.OFF,
+        val linkText: String = "нет связи",
+        /** ECU ↔ engine: engine running (rpm > 300). */
+        val engine: Lamp = Lamp.OFF,
+        val engineText: String = "неизвестно",
         val rows: Int = 0,
         val elapsedSec: Long = 0,
         val cycleMs: Long = 0,
+        /** Wall time of the last written row; the monitor uses it to show data age. */
+        val lastDataMs: Long = 0,
         val values: List<Pair<String, String>> = emptyList(),
         val dtcInfo: String = "",
         val markers: Int = 0,
         val exported: List<Uri> = emptyList(),
+        /** Bumped when a trip is saved, so the trips tab refreshes. */
+        val savedTrips: Int = 0,
     )
 
     private val main = Handler(Looper.getMainLooper())

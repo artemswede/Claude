@@ -2,21 +2,34 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0E1116"
+    android:background="#0E1114"
     android:fitsSystemWindows="true"
     android:orientation="vertical">
 
-    <ScrollView
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="2">
-
-        <include layout="@layout/controls" />
-    </ScrollView>
-
+    <!-- Connection lamps: tablet ↔ ECU and ECU ↔ engine. Filled in code. -->
     <FrameLayout
-        android:id="@+id/monitor"
+        android:id="@+id/statusStrip"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="3" />
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="2">
+
+            <include layout="@layout/controls" />
+        </ScrollView>
+
+        <FrameLayout
+            android:id="@+id/monitor"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="3" />
+    </LinearLayout>
 </LinearLayout>
