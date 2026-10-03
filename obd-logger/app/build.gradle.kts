@@ -6,6 +6,8 @@ plugins {
 }
 
 val buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+/** «20261003_2247» — build time (Moscow) set by CI; shown in Settings and in the APK file name. */
+val buildVersion = System.getenv("BORTACH_VERSION") ?: "dev"
 
 android {
     namespace = "com.obdlogger.app"
@@ -16,7 +18,7 @@ android {
         minSdk = 24
         targetSdk = 34
         versionCode = buildNumber
-        versionName = "0.1.$buildNumber"
+        versionName = buildVersion
     }
 
     // Fixed debug key so CI builds install over each other without uninstalling.

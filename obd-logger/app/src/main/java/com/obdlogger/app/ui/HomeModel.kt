@@ -4,6 +4,8 @@ import android.content.Context
 import com.obdlogger.app.Lamp
 import com.obdlogger.app.LoggerState
 import com.obdlogger.app.SessionFiles
+import com.obdlogger.core.HomeLogic
+import com.obdlogger.core.HomeState
 import com.obdlogger.core.Metric
 import com.obdlogger.core.TripAnalyzer
 import com.obdlogger.core.TripSummary
@@ -11,9 +13,6 @@ import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-
-/** The six states of the main screen (Д1–Д6 in the mock-ups). */
-enum class HomeState { VERSION, CALM, DTC, NODATA, WAIT, NOCONN }
 
 class Trend(val title: String, val values: List<Double>, val valuesText: String, val calm: Boolean)
 
@@ -23,18 +22,15 @@ class Trend(val title: String, val values: List<Double>, val valuesText: String,
  */
 class HomeModel(
     val state: HomeState,
-    /** Trip the conclusion is about: current one while recording, otherwise the last saved. */
+    /** Trip shown on the chart: the current one while recording, otherwise the last saved. */
     val trip: TripSummary?,
     val live: Boolean,
+    /** Last saved trip with enough data — quoted as a past conclusion when nothing is recorded. */
+    val past: TripSummary?,
     val trend: Trend?,
     val lastTripText: String,
-    /** Warm idle collected so far, for the «мало данных» state. */
-    val warmIdleSec: Double,
 ) {
     companion object {
-        /** Warm idle needed before the idle-based versions can be trusted. */
-        const val NEED_IDLE_SEC = 120.0
-
         private val DATE = DateTimeFormatter.ofPattern("dd.MM")
 
         /** Heavy: reads CSV files. Call off the main thread. */
@@ -45,18 +41,12 @@ class HomeModel(
             val live = current != null
             val trip = current ?: saved.lastOrNull()
 
-            val state = when {
-                s.auto && !s.recording && s.link == Lamp.FAIL -> HomeState.NOCONN
-                s.auto && !s.recording -> HomeState.WAIT
-                trip == null -> HomeState.NODATA
-                !trip.dtcs.isNullOrEmpty() -> HomeState.DTC
-                trip.top != null -> HomeState.VERSION
-                trip.warmIdleSec < NEED_IDLE_SEC -> HomeState.NODATA
-                else -> HomeState.CALM
-            }
+            val lastSaved = saved.lastOrNull()
+            val state = HomeLogic.decide(current, lastSaved, s.recording, s.auto, s.link == Lamp.FAIL)
+            val past = saved.lastOrNull { HomeLogic.conclusive(it) }
 
             val history = (saved + listOfNotNull(current)).distinctBy { it.name }
-            return HomeModel(state, trip, live, trend(history), lastTrip(trip, live), trip?.warmIdleSec ?: 0.0)
+            return HomeModel(state, trip, live, past, trend(history), lastTrip(trip, live))
         }
 
         private fun trend(trips: List<TripSummary>): Trend? {

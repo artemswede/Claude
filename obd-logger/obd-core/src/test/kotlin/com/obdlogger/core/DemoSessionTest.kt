@@ -55,8 +55,8 @@ class DemoSessionTest {
         assertTrue(lines.all { it.split(",").size == header.size })
         assertTrue(lines.drop(1).all { Regex("^\\d{4}-\\d\\d-\\d\\d \\d\\d:\\d\\d:\\d\\d\\.\\d{3},").containsMatchIn(it) })
         assertEquals(1, lines.count { it.endsWith(",M1") })
-        val ltft = logger.stats.getValue("ltft_b1_pct")
-        assertEquals(12.5, ltft.mean, 0.5)
+        // The demo car has learned +18 % for warm idle only.
+        assertEquals(18.0, logger.stats.getValue("ltft_b1_pct").max, 0.8)
         assertTrue(logger.stats.getValue("coolant_c").max > 85)
         assertTrue(logger.stats.getValue("speed_kmh").max >= 85)
         assertTrue("P0171" in report && "M1 в " in report)

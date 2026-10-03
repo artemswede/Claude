@@ -183,7 +183,8 @@ object TripAnalyzer {
         put(Metric.CHARGE_V, median(volts))
         if (volts.size >= MIN_SAMPLES) put(Metric.CHARGE_V_MIN, volts.min())
         // Max coolant only says something about a trip where the engine got warm.
-        raw("coolant_c").filterNotNull().maxOrNull()?.takeIf { it >= 75 }?.let { put(Metric.COOLANT_MAX, it) }
+        val coolantPeak = raw("coolant_c").filterNotNull().maxOrNull()
+        coolantPeak?.takeIf { it >= 75 }?.let { put(Metric.COOLANT_MAX, it) }
         put(Metric.INTAKE_AIR, median(raw("intake_air_c").filterNotNull()))
 
         // Dips: warm engine, closed throttle, (almost) standing, rpm below 560 — counted as events.
@@ -210,16 +211,20 @@ object TripAnalyzer {
         var warmIdleMs = 0L
         for (i in 1 until rows.size) if (modes[i] == DriveMode.WARM_IDLE) warmIdleMs += (ms[i] - ms[i - 1]).coerceIn(0L, 10_000L)
         return TripSummary(name, times.firstNotNullOfOrNull { it }, duration, rows.size, modeRows, metrics, dtcs,
-            findings(metrics, modeRows, dtcs), trace, warmIdleMs / 1000.0)
+            findings(metrics, modeRows, dtcs, coolantPeak, duration), trace, warmIdleMs / 1000.0)
     }
 
-    private fun findings(m: Map<Metric, Double>, modeRows: Map<DriveMode, Int>, dtcs: List<String>?): List<Finding> {
+    private fun findings(
+        m: Map<Metric, Double>, modeRows: Map<DriveMode, Int>, dtcs: List<String>?,
+        coolantPeak: Double? = null, durationMin: Double = 0.0,
+    ): List<Finding> {
         val out = mutableListOf<Finding>()
         fun f(v: Double) = String.format(Locale.ROOT, "%+.1f", v)
 
         if (!dtcs.isNullOrEmpty()) {
             out += Finding(Severity.BAD, "Коды неисправностей: ${dtcs.joinToString(", ")}",
-                "ЭБУ сообщает сохранённые коды", "Расшифровать коды для этого двигателя", "высокая")
+                "ЭБУ сообщает сохранённые коды", "Расшифровать коды для этого двигателя", "высокая",
+                headline = "Блок записал коды: ${dtcs.joinToString(", ")}")
         }
 
         val idle = listOfNotNull(m[Metric.IDLE_TRIM_B1], m[Metric.IDLE_TRIM_B2])
@@ -253,7 +258,10 @@ object TripAnalyzer {
         } else if (idleMax != null && idleMax < -10) {
             out += Finding(if (idleMax < -20) Severity.BAD else Severity.WARN, "Богатая смесь на холостом",
                 "Коррекция на холостом ${idle.joinToString(" / ") { f(it) + " %" }}",
-                "Подтекающие форсунки, давление топлива, продувка адсорбера (EVAP), датчик температуры ОЖ", "средняя")
+                "Подтекающие форсунки, давление топлива, продувка адсорбера (EVAP), датчик температуры ОЖ", "средняя",
+                urgency = "Не критично для поездки. Расход выше обычного — проверьте в ближайшие дни.",
+                why = listOfNotNull(Evidence("ХХ: ЭБУ убирает топливо", pct(idleMax), deviating = true),
+                    cruiseMax?.let { Evidence("В движении", pct(it), deviating = abs(it) > 10) }))
         }
         if (cruiseMax != null && cruiseMax < -10) {
             out += Finding(Severity.WARN, "Богатая смесь в движении", "Коррекция в движении ${cruise.joinToString(" / ") { f(it) + " %" }}",
@@ -306,9 +314,13 @@ object TripAnalyzer {
                 "Вентилятор радиатора, уровень ОЖ, термостат, помпа", "высокая",
                 urgency = "Остановитесь, дайте мотору остыть и проверьте уровень жидкости.",
                 why = listOf(Evidence("Температура ОЖ, максимум", "${coolantMax.toInt()} °C", deviating = true)))
-        } else if (coolantMax != null && coolantMax < 75 && (modeRows.values.sum()) > 300) {
-            out += Finding(Severity.WATCH, "Мотор не прогревается", "Максимум ${coolantMax.toInt()} °C за длинную поездку",
-                "Термостат открыт постоянно или датчик температуры", "средняя")
+        } else if (coolantMax == null && coolantPeak != null && coolantPeak < 75 && durationMin >= 15) {
+            out += Finding(Severity.WARN, "Мотор не прогревается", "Максимум ${coolantPeak.toInt()} °C за ${durationMin.toInt()} мин",
+                "Термостат открыт постоянно или датчик температуры", "средняя",
+                headline = "Мотор не прогревается",
+                urgency = "Ехать можно. Расход и износ выше, печка греет хуже — проверьте термостат.",
+                why = listOf(Evidence("Температура ОЖ, максимум", "${coolantPeak.toInt()} °C", deviating = true),
+                    Evidence("Норма для прогретого мотора", "80–100 °C")))
         }
 
         if (out.none { it.severity >= Severity.WARN }) {

@@ -16,6 +16,8 @@ import com.obdlogger.app.Lamp
 import com.obdlogger.app.LoggerState
 import com.obdlogger.app.R
 import com.obdlogger.core.Finding
+import com.obdlogger.core.HomeLogic
+import com.obdlogger.core.HomeState
 import com.obdlogger.core.Metric
 import com.obdlogger.core.TripAnalyzer
 
@@ -23,7 +25,12 @@ import com.obdlogger.core.TripAnalyzer
  * Главный экран (Д1–Д9): вывод слева, график коррекции справа, внизу последняя
  * поездка, тренд и проверочный лог. Светлая тема днём.
  */
-class HomeView(ctx: Context, private val sc: Bt.Scale, private val onDetails: () -> Unit) : FrameLayout(ctx) {
+class HomeView(
+    ctx: Context,
+    private val sc: Bt.Scale,
+    private val onDetails: () -> Unit,
+    private val onSettings: () -> Unit,
+) : FrameLayout(ctx) {
     private var p = Bt.LIGHT
     private val leftCol = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
     private val chartTitle = ctx.label("Коррекция смеси за поездку", sc, p)
@@ -112,27 +119,29 @@ class HomeView(ctx: Context, private val sc: Bt.Scale, private val onDetails: ()
 
     fun bind(m: HomeModel, s: LoggerState.Snapshot) {
         val t = m.trip
-        val past = m.state == HomeState.WAIT || m.state == HomeState.NOCONN || (!m.live && t != null)
         leftCol.removeAllViews()
         when (m.state) {
             HomeState.VERSION -> version(t!!.top!!)
             HomeState.CALM -> calm(m)
             HomeState.DTC -> dtc(m)
-            HomeState.NODATA -> noData(m)
+            HomeState.COLLECTING -> collecting(m)
             HomeState.WAIT -> waiting(m, s)
-            HomeState.NOCONN -> noConnection(m)
+            HomeState.NO_CONNECTION -> noConnection(m)
+            HomeState.OFF -> off(m)
+            HomeState.NO_TRIPS -> noTrips()
         }
 
         chartTitle.text = when {
             t == null -> "КОРРЕКЦИЯ СМЕСИ"
             m.live -> "КОРРЕКЦИЯ СМЕСИ ЗА ПОЕЗДКУ"
-            else -> "КОРРЕКЦИЯ СМЕСИ · ПРОШЛАЯ ПОЕЗДКА ${t.start?.let { HomeModel.tripRange(t).substringBefore(" ·") } ?: ""}".trim()
+            else -> "КОРРЕКЦИЯ СМЕСИ · ПРОШЛАЯ ПОЕЗДКА ${HomeModel.tripRange(t)}"
         }
-        chart.set(t?.trace, p, sc, dimmed = m.state == HomeState.WAIT || m.state == HomeState.NOCONN)
+        chart.set(t?.trace, p, sc, dimmed = !m.live)
         chartCap.text = when {
-            t == null -> "Запишите первую поездку — график появится здесь."
+            t == null -> "Здесь появится график первой поездки."
+            !m.live -> "Это запись прошлой поездки, не текущее состояние."
             m.state == HomeState.CALM -> "Все режимы в пределах нормы."
-            m.state == HomeState.NODATA -> "Пока мало холостого хода в прогретом состоянии."
+            m.state == HomeState.COLLECTING -> "Подложкой отмечен прогретый холостой ход — его нужно не меньше 2 минут."
             t.top?.headline?.contains("холост") == true -> "Отклонение проявляется только на холостом ходу."
             else -> "Подложкой отмечен прогретый холостой ход."
         }
@@ -150,7 +159,6 @@ class HomeView(ctx: Context, private val sc: Bt.Scale, private val onDetails: ()
         testBlock.visibility = if (canTest) View.VISIBLE else View.GONE
         noTest.visibility = if (canTest) View.GONE else View.VISIBLE
         noTest.text = if (moving) "Проверочный лог доступен на стоянке" else "Проверочный лог — после запуска двигателя"
-        if (past) chartCap.alpha = 0.7f else chartCap.alpha = 1f
     }
 
     // ---- left column per state ----
@@ -162,10 +170,13 @@ class HomeView(ctx: Context, private val sc: Bt.Scale, private val onDetails: ()
 
     private fun gap(v: View, top: Int) = addTo(leftCol, v, dp(top))
 
+    /** Headline that never takes more than two lines: shrinks from h-xl down to h-m. */
+    private fun headline(s: String): View = FitText(context, s, sc.hxl, sc.hm, 2, p.t1)
+
     private fun version(f: Finding) {
         gap(tag("Есть версия"), 0)
-        gap(context.text(f.headline, sc.hxl, p.t1, 600, lineHeight = sc.hxl * 1.1f), 12)
-        f.urgency?.let { gap(context.text(it, sc.pl, p.t2, lineHeight = sc.pl * 1.35f), 12) }
+        gap(headline(f.headline), 12)
+        f.urgency?.let { gap(context.text(it, sc.pl * 0.85f, p.t2, lineHeight = sc.pl * 1.15f), 12) }
         gap(Confidence(context, f.confidence, sc, p), 14)
         if (f.why.isNotEmpty()) {
             val head = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
@@ -178,7 +189,7 @@ class HomeView(ctx: Context, private val sc: Bt.Scale, private val onDetails: ()
 
     private fun calm(m: HomeModel) {
         gap(tag("Всё спокойно", p.acc), 0)
-        gap(context.text("Отклонений не найдено", sc.hxl, p.t1, 600, lineHeight = sc.hxl * 1.1f), 12)
+        gap(headline("Отклонений не найдено"), 12)
         gap(context.text("Поездка разобрана по всем режимам — смесь, холостой и зарядка в норме.", sc.pl, p.t2, lineHeight = sc.pl * 1.35f), 12)
         val t = m.trip ?: return
         t.metrics[Metric.IDLE_TRIM_B1]?.let { gap(evidence("Коррекция на холостом", TripAnalyzer.pct(it), false, false, small = true), 14) }
@@ -214,19 +225,21 @@ class HomeView(ctx: Context, private val sc: Bt.Scale, private val onDetails: ()
         gap(link("Подробнее →") { onDetails() }, 8)
     }
 
-    private fun noData(m: HomeModel) {
-        val have = m.warmIdleSec.toInt()
+    private fun collecting(m: HomeModel) {
+        val t = m.trip
+        val min = t?.durationMin?.toInt() ?: 0
+        val idle = t?.warmIdleSec?.toInt() ?: 0
         val box = column(
             context, dp(10),
-            tag("Данных пока мало", p.t3),
-            context.text(if (m.trip == null) "Поездок ещё нет" else "Мало данных для вывода", sc.hl, p.t1, 600),
+            tag("Идёт диагностика", p.t3),
+            FitText(context, "Собираю данные для вывода", sc.hl, sc.hm, 2, p.t1),
             context.text(
-                if (m.trip == null) "Включите автозапись в настройках — первая поездка запишется сама."
-                else "Нужен прогретый холостой хотя бы 2 минуты. Сейчас набрано $have с.",
-                sc.pl, p.t2, lineHeight = sc.pl * 1.35f,
+                "Нужно не меньше ${HomeLogic.NEED_TRIP_MIN.toInt()} минут поездки и ${(HomeLogic.NEED_IDLE_SEC / 60).toInt()} минут " +
+                    "прогретого холостого хода. Сейчас: $min мин поездки, $idle с холостого.",
+                sc.pl * 0.85f, p.t2, lineHeight = sc.pl * 1.15f,
             ),
-            Progress(context, (m.warmIdleSec / HomeModel.NEED_IDLE_SEC).toFloat().coerceIn(0f, 1f), p.t3, p.s3),
-            context.text("Вывод появится сам на ближайшей стоянке.", sc.p, p.t2),
+            Progress(context, HomeLogic.progress(t).toFloat(), p.t3, p.s3),
+            context.text("Вывод появится сам. Можно ехать как обычно — постойте пару минут на прогретом моторе.", sc.p, p.t2),
         ).apply {
             setPadding(dp(20), dp(20), dp(20), dp(20))
             background = roundRect(p.s1, dp(14).toFloat(), dp(2), p.line2, dash = dp(5).toFloat())
@@ -234,9 +247,34 @@ class HomeView(ctx: Context, private val sc: Bt.Scale, private val onDetails: ()
         gap(box, 0)
     }
 
+    private fun off(m: HomeModel) {
+        val dot = View(context).apply { background = roundRect(p.l0, dp(9).toFloat()) }
+        dot.layoutParams = LinearLayout.LayoutParams(dp(sc.lamp), dp(sc.lamp))
+        gap(row(context, dp(8), Gravity.CENTER_VERTICAL, dot, context.label("Машина не подключена", sc, p)), 0)
+        gap(headline("Запись выключена"), 12)
+        gap(context.text("Включите автозапись — Бортач будет сам записывать и разбирать каждую поездку.", sc.pl * 0.85f, p.t2, lineHeight = sc.pl * 1.15f), 12)
+        gap(button("Включить автозапись") { onSettings() }, 16)
+        pastVersion(m)
+    }
+
+    private fun noTrips() {
+        gap(tag("Первый запуск"), 0)
+        gap(headline("Поездок ещё нет"), 12)
+        val steps = listOf(
+            "Вставьте адаптер ELM327 в разъём OBD под рулём",
+            "Сопрягите его в настройках Bluetooth (код 1234 или 0000)",
+            "Выберите адаптер и включите автозапись",
+        )
+        steps.forEachIndexed { i, st ->
+            gap(row(context, dp(14), Gravity.TOP, context.text("${i + 1}", sc.p, p.t3, 600, mono = true), context.text(st, sc.p, p.t1)), if (i == 0) 16 else 10)
+        }
+        gap(button("Настроить подключение") { onSettings() }, 20)
+        gap(context.text("Вывод о машине появится после первой поездки: нужно 5 минут езды и 2 минуты прогретого холостого.", sc.cap, p.t3), 14)
+    }
+
     private fun waiting(m: HomeModel, s: LoggerState.Snapshot) {
         gap(context.label("Автозапись", sc, p), 0)
-        gap(context.text("Жду запуска двигателя", sc.hxl, p.t1, 600, lineHeight = sc.hxl * 1.1f), 12)
+        gap(headline("Жду запуска двигателя"), 12)
         gap(context.text("Запись начнётся сама. Ничего нажимать не нужно.", sc.pl, p.t2, lineHeight = sc.pl * 1.35f), 12)
         gap(lampLine(s.link, "Планшет ↔ ЭБУ", s.linkText), 14)
         gap(lampLine(s.engine, "ЭБУ ↔ двигатель", s.engineText), 10)
@@ -247,13 +285,18 @@ class HomeView(ctx: Context, private val sc: Bt.Scale, private val onDetails: ()
         val dot = View(context).apply { background = roundRect(p.red, dp(9).toFloat()) }
         dot.layoutParams = LinearLayout.LayoutParams(dp(sc.lamp), dp(sc.lamp))
         gap(row(context, dp(8), Gravity.CENTER_VERTICAL, dot, context.label("Связь", sc, p)), 0)
-        gap(context.text("Нет связи с адаптером", sc.hxl, p.t1, 600, lineHeight = sc.hxl * 1.1f), 12)
+        gap(headline("Нет связи с адаптером"), 12)
         gap(context.text("Адаптер не отвечает по Bluetooth. Чаще всего выключено зажигание или адаптер вынут из разъёма.", sc.pl, p.t2, lineHeight = sc.pl * 1.35f), 12)
         pastVersion(m)
     }
 
     private fun pastVersion(m: HomeModel) {
-        val t = m.trip ?: return
+        val t = m.past
+        if (t == null) {
+            gap(divider(), 18)
+            gap(context.text("Прошлые поездки были слишком короткими для вывода.", sc.p, p.t3), 14)
+            return
+        }
         val f = t.top
         val box = column(
             context, dp(6),
@@ -286,8 +329,8 @@ class HomeView(ctx: Context, private val sc: Bt.Scale, private val onDetails: ()
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(sc.evPad), 0, dp(sc.evPad))
         }
-        addTo(box, context.text(label, if (small) sc.p else sc.evLabel, if (small) p.t2 else p.t1, if (emphasis) 600 else 400), 0, 1f)
-        addTo(box, context.text(value, if (small) sc.evValue * 0.75f else sc.evValue, if (deviating) p.amb else p.t1, 500, mono = true), dp(16))
+        addTo(box, context.text(label, if (small) sc.p else sc.evLabel * 0.9f, if (small) p.t2 else p.t1, if (emphasis) 600 else 400), 0, 1f)
+        addTo(box, context.text(value, if (small) sc.evValue * 0.75f else sc.evValue * 0.85f, if (deviating) p.amb else p.t1, 500, mono = true), dp(16))
         return column(context, 0, divider(), box)
     }
 
@@ -295,6 +338,15 @@ class HomeView(ctx: Context, private val sc: Bt.Scale, private val onDetails: ()
         setBackgroundColor(p.line)
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1))
     }
+
+    private fun button(title: String, onClick: () -> Unit): View =
+        context.text(title, sc.btnFont, p.accInk, 600).apply {
+            gravity = Gravity.CENTER
+            setPadding(dp(26), 0, dp(26), 0)
+            background = roundRect(p.acc, dp(12).toFloat())
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(sc.btnH))
+            setOnClickListener { onClick() }
+        }
 
     private fun link(text: String, onClick: () -> Unit): TextView =
         context.text(text, if (sc.phone) 16f else if (sc === Bt.TABLET) 20f else 16f, p.acc, 600).apply { setOnClickListener { onClick() } }
@@ -340,6 +392,40 @@ class HomeView(ctx: Context, private val sc: Bt.Scale, private val onDetails: ()
             canvas.drawRoundRect(0f, 0f, width.toFloat(), height.toFloat(), r, r, paint)
             paint.color = color
             canvas.drawRoundRect(0f, 0f, width * fraction, height.toFloat(), r, r, paint)
+        }
+    }
+
+    /** Text that shrinks (down to [minSp]) until it fits in [maxLines]. */
+    class FitText(ctx: Context, s: String, private val maxSp: Float, private val minSp: Float, private val lines: Int, color: Int) :
+        TextView(ctx) {
+        init {
+            text = s
+            setTextColor(color)
+            typeface = Bt.sans(ctx, 600)
+            includeFontPadding = false
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, maxSp)
+            setLineSpacing(0f, 1.08f)
+        }
+
+        private var fittedFor = -1
+
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            val width = MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight
+            if (width > 0 && width != fittedFor) {
+                fittedFor = width
+                val tp = android.text.TextPaint(paint)
+                val density = resources.displayMetrics.scaledDensity
+                var size = maxSp
+                while (size > minSp) {
+                    tp.textSize = size * density
+                    @Suppress("DEPRECATION")
+                    val l = android.text.StaticLayout(text, tp, width, android.text.Layout.Alignment.ALIGN_NORMAL, 1.08f, 0f, false)
+                    if (l.lineCount <= lines) break
+                    size -= 2f
+                }
+                setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, size.coerceAtLeast(minSp))
+            }
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
         }
     }
 }

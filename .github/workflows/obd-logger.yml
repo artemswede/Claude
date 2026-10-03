@@ -1,4 +1,4 @@
-name: OBD Logger APK
+name: Bortach APK
 
 on:
   push:
@@ -26,26 +26,40 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # Version = build time in Moscow, e.g. 20261003_2247 (app «Settings» and the file name show it).
+      - name: Version
+        run: echo "BORTACH_VERSION=$(TZ=Europe/Moscow date +%Y%m%d_%H%M)" >> "$GITHUB_ENV"
+
       - name: Unit tests and APK
         run: ./gradlew --no-daemon :obd-core:test :app:assembleDebug
 
-      - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk obd-logger.apk
+      - name: Name the APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk "Bortach-${BORTACH_VERSION}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: obd-logger-apk
-          path: obd-logger/obd-logger.apk
+          name: Bortach-${{ env.BORTACH_VERSION }}
+          path: obd-logger/Bortach-${{ env.BORTACH_VERSION }}.apk
 
-      # Stable download link for the phone: Releases → obd-logger-latest → obd-logger.apk
+      # One rolling release that always holds only the newest APK.
+      - name: Remove the previous APK from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view bortach-latest >/dev/null 2>&1; then
+            gh release view bortach-latest --json assets -q '.assets[].name' | while read -r a; do
+              gh release delete-asset bortach-latest "$a" -y
+            done
+          fi
+
       - name: Publish to rolling release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: obd-logger-latest
-          name: OBD Logger (последняя сборка)
+          tag_name: bortach-latest
+          name: Бортач ${{ env.BORTACH_VERSION }}
           prerelease: true
           overwrite_files: true
           body: |
-            Сборка ${{ github.run_number }} из ветки ${{ github.ref_name }} (${{ github.sha }}).
-            Скачайте obd-logger.apk на телефон и установите (разрешите установку из неизвестных источников).
-          files: obd-logger/obd-logger.apk
+            Бортач ${{ env.BORTACH_VERSION }} — сборка ${{ github.run_number }} (${{ github.sha }}).
+            Скачайте Bortach-${{ env.BORTACH_VERSION }}.apk и установите поверх прежней версии.
+          files: obd-logger/Bortach-${{ env.BORTACH_VERSION }}.apk

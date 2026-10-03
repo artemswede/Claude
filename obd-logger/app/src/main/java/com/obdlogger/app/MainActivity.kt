@@ -77,11 +77,14 @@ class MainActivity : Activity() {
         setContentView(shell.root)
         // Настройки: прежние элементы управления, светлая тема.
         val settings = layoutInflater.inflate(R.layout.controls, null)
+        (settings as android.widget.LinearLayout).addView(
+            text("Бортач ${BuildConfig.VERSION_NAME}", 13f, Bt.LIGHT.t3).apply { setPadding(0, dp(24), 0, dp(8)) },
+        )
         shell.containers.getValue(Shell.Page.SETTINGS).addView(ScrollView(this).apply {
             setPadding(dp(16), dp(8), dp(16), dp(16))
             addView(settings)
         })
-        home = HomeView(this, shell.sc) { shell.show(Shell.Page.TRIPS) }
+        home = HomeView(this, shell.sc, onDetails = { shell.show(Shell.Page.TRIPS) }, onSettings = { shell.show(Shell.Page.SETTINGS) })
         shell.containers.getValue(Shell.Page.OVERVIEW).addView(home)
         tripsText = text("Загрузка поездок…", if (shell.sc.phone) 11f else 14f, Bt.LIGHT.t1, 400, mono = true).apply {
             setPadding(dp(24), dp(20), dp(24), dp(20))
