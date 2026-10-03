@@ -49,7 +49,7 @@ class ElmConnection(
                 for (i in 0 until n) {
                     val c = (buf[i].toInt() and 0xFF).toChar()
                     if (c == '>') {
-                        val result = text.toString()
+                        val result = stripEcho(cmd, text.toString())
                         trace("$cmd -> ${oneLine(result)}")
                         return result
                     }
@@ -78,5 +78,14 @@ class ElmConnection(
 
     companion object {
         private const val POLL_INTERVAL_MS = 5L
+
+        /** Drops the adapter's echo of [cmd] (clones often keep echo on despite ATE0). */
+        fun stripEcho(cmd: String, reply: String): String {
+            val lines = reply.split('\r', '\n')
+            val first = lines.indexOfFirst { it.isNotBlank() }
+            if (first < 0) return reply
+            val norm = { s: String -> s.replace(" ", "").uppercase() }
+            return if (norm(lines[first]) == norm(cmd)) lines.drop(first + 1).joinToString("\r") else reply
+        }
     }
 }

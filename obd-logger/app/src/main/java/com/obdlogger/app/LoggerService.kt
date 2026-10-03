@@ -19,6 +19,7 @@ import com.obdlogger.core.DataLogger
 import com.obdlogger.core.DtcSnapshot
 import com.obdlogger.core.ElmConnection
 import com.obdlogger.core.ElmIo
+import com.obdlogger.core.ElmTimeoutException
 import com.obdlogger.core.ObdSession
 import com.obdlogger.core.Pids
 import com.obdlogger.core.SessionReport
@@ -144,6 +145,7 @@ class LoggerService : Service() {
                     recording = true
                     status("Запись")
                     updateNotification(if (address == null) "Демо-запись" else "Идёт запись")
+                    var silentCycles = 0
                     while (!stopRequested) {
                         val marker = LoggerState.peekMarker()
                         val r = activeLogger.cycle(elm, marker)
@@ -164,7 +166,26 @@ class LoggerService : Service() {
                                 values = activeLogger.latest.entries.map { e -> e.key to e.value },
                             )
                         }
-                        if (!r.wroteRow) Thread.sleep(1000)
+                        if (r.wroteRow) {
+                            silentCycles = 0
+                        } else if (++silentCycles >= SILENT_CYCLES_BEFORE_REINIT) {
+                            // ECU went quiet (engine stalled or restarted): a K-line session must be
+                            // re-initialised, the adapter will not do it on its own.
+                            trace.write("ecu silent for $silentCycles cycles: closing protocol and reconnecting")
+                            try {
+                                elm.command("ATPC")
+                            } catch (_: ElmTimeoutException) {
+                            }
+                            while (!stopRequested && !session.connectEcu()) {
+                                status("ЭБУ не отвечает (${session.lastError}). Жду запуска двигателя или зажигания…")
+                                Thread.sleep(3000)
+                            }
+                            trace.write("ecu back: ${session.protocolName}")
+                            activeLogger.onReconnect()
+                            silentCycles = 0
+                        } else {
+                            Thread.sleep(1000)
+                        }
                     }
                 } catch (e: IOException) {
                     recording = false
@@ -284,6 +305,7 @@ class LoggerService : Service() {
         const val EXTRA_VEHICLE = "vehicle"
         const val EXTRA_DEMO = "demo"
         const val EXTRA_EXTENDED = "extended"
+        private const val SILENT_CYCLES_BEFORE_REINIT = 3
         /** Demo drive runs 5× faster: the 12-minute scenario (warm-up, city, highway) in ~2.5 minutes. */
         private const val DEMO_TIME_SCALE = 5.0
         private const val CHANNEL_ID = "recording"

@@ -18,7 +18,7 @@ class DemoSessionTest {
         var now = 1_790_000_000_000L // fixed start so the sample is reproducible
         val clock = { now.also { now += 60 } } // ~120 ms per request, like K-line
         val elm = SimulatedElm(clock)
-        val session = ObdSession(elm)
+        val session = ObdSession(elm, resetDelayMs = 0)
         val adapter = session.initAdapter()
         assertTrue(session.connectEcu())
         val info = session.readVehicleInfo()

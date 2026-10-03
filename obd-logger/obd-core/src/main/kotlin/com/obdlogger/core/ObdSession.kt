@@ -43,7 +43,7 @@ data class VehicleInfo(
 )
 
 /** Adapter setup and one-off vehicle queries on top of [ElmIo]. */
-class ObdSession(private val elm: ElmIo) {
+class ObdSession(private val elm: ElmIo, private val resetDelayMs: Long = 1_000) {
     var protocolNumber = 0
         private set
     var protocolName = ""
@@ -73,8 +73,18 @@ class ObdSession(private val elm: ElmIo) {
         } catch (_: ElmTimeoutException) {
             // some clones answer ATZ without a prompt; the next commands tell if it is alive
         }
+        // The reset banner can arrive after the prompt; let it pass so it is not taken as the ATE0 reply.
+        if (resetDelayMs > 0) Thread.sleep(resetDelayMs)
+        for (attempt in 1..3) {
+            val ok = try {
+                elm.command("ATE0").contains("OK")
+            } catch (_: ElmTimeoutException) {
+                false
+            }
+            if (ok) break
+        }
         // Clones reject some of these with "?"; none of them is essential.
-        for (cmd in listOf("ATE0", "ATL0", "ATS0", "ATH0", "ATAT1", "ATSP0")) {
+        for (cmd in listOf("ATL0", "ATS0", "ATH0", "ATAT1", "ATSP0")) {
             try {
                 elm.command(cmd)
             } catch (_: ElmTimeoutException) {
@@ -106,8 +116,8 @@ class ObdSession(private val elm: ElmIo) {
             lastError = ElmResponse.error(raw)
             return false
         }
-        protocolNumber = query("ATDPN")?.removePrefix("A")?.toIntOrNull(16) ?: 0
-        protocolName = query("ATDP")?.removePrefix("AUTO, ") ?: "?"
+        protocolNumber = query("ATDPN")?.let { ElmResponse.lines(it).lastOrNull() }?.removePrefix("A")?.toIntOrNull(16) ?: 0
+        protocolName = query("ATDP")?.let { ElmResponse.lines(it).lastOrNull() }?.removePrefix("AUTO, ") ?: "?"
         singleResponse = query("01001")?.let { ElmResponse.pidData(it, 0x00) } != null
         lastError = null
         return true

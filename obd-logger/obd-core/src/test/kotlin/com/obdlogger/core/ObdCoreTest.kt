@@ -81,7 +81,7 @@ class ObdCoreTest {
     @Test
     fun sessionDiscoversKLineCar() {
         val elm = FakeElm(kline)
-        val session = ObdSession(elm)
+        val session = ObdSession(elm, resetDelayMs = 0)
         assertEquals("ELM327 v2.1", session.initAdapter().id)
         assertTrue(session.connectEcu())
         assertEquals(5, session.protocolNumber)
@@ -99,9 +99,26 @@ class ObdCoreTest {
         assertNull(info.dtcs.permanent)
     }
 
+    /** Real log: the clone answered ATZ late, so ATE0 was lost and every reply carried the echo. */
+    @Test
+    fun echoingCloneOnIso9141() {
+        assertEquals("A3", ElmConnection.stripEcho("ATDPN", "ATDPN\rA3\r\r").trim())
+        assertEquals("4100BFBFB991", ElmConnection.stripEcho("01001", "01001\r4100BFBFB991\r").trim())
+        assertEquals("NO DATA", ElmConnection.stripEcho("0902", "NO DATA").trim())
+
+        val echoing = kline.mapValues { (cmd, reply) -> "$cmd\r$reply" } +
+            ("ATDPN" to "ATDPN\rA3\r") + ("ATDP" to "ATDP\rAUTO, ISO 9141-2\r")
+        val session = ObdSession(FakeElm(echoing), resetDelayMs = 0)
+        session.initAdapter()
+        assertTrue(session.connectEcu())
+        assertEquals(3, session.protocolNumber)
+        assertEquals("ISO 9141-2", session.protocolName)
+        assertEquals("686AF1", session.defaultHeader)
+    }
+
     @Test
     fun ecuNotAnsweringIsReported() {
-        val session = ObdSession(FakeElm(kline + ("0100" to "SEARCHING...\rUNABLE TO CONNECT\r")))
+        val session = ObdSession(FakeElm(kline + ("0100" to "SEARCHING...\rUNABLE TO CONNECT\r")), resetDelayMs = 0)
         session.initAdapter()
         assertTrue(!session.connectEcu())
         assertEquals("UNABLE TO CONNECT", session.lastError)
@@ -134,7 +151,7 @@ class ObdCoreTest {
         assertEquals(1726.0, logger.stats.getValue("rpm").mean)
 
         val report = SessionReport("Toyota Avensis 2005", AdapterInfo("ELM327 v2.1", "12.6V"),
-            ObdSession(FakeElm(kline)).run { initAdapter(); connectEcu(); readVehicleInfo() })
+            ObdSession(FakeElm(kline), resetDelayMs = 0).run { initAdapter(); connectEcu(); readVehicleInfo() })
             .render(logger, null, now)
         assertTrue("P0171, P0133" in report)
         assertTrue("rpm: 1726 / 1726 / 1726 (6)" in report)
