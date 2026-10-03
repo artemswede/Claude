@@ -25,7 +25,7 @@ import com.obdlogger.core.TripAnalyzer
  */
 class HomeView(ctx: Context, private val sc: Bt.Scale, private val onDetails: () -> Unit) : FrameLayout(ctx) {
     private var p = Bt.LIGHT
-    private val left = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+    private val leftCol = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
     private val chartTitle = ctx.label("Коррекция смеси за поездку", sc, p)
     private val chartNorm = ctx.text("норма ±10 %", sc.cap, p.t3)
     private val chart = TrimChartView(ctx)
@@ -51,7 +51,7 @@ class HomeView(ctx: Context, private val sc: Bt.Scale, private val onDetails: ()
     private val testCap = ctx.text("4 минуты: ХХ → 2500 об/мин → ХХ", sc.cap, p.t3)
     private val testBlock = column(ctx, dp(4), testButton, testCap).apply { gravity = Gravity.END }
     private val noTest = ctx.text("", if (sc.phone) 15f else 19f, p.t2).apply { gravity = Gravity.END }
-    private val bottom = LinearLayout(ctx)
+    private val bottomBar = LinearLayout(ctx)
 
     init {
         setBackgroundColor(p.bg)
@@ -64,13 +64,13 @@ class HomeView(ctx: Context, private val sc: Bt.Scale, private val onDetails: ()
         addTo(chartCol, chartCap, dp(8))
 
         // Bottom panel: last trip · trend · check log.
-        bottom.orientation = if (sc.phone) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
-        bottom.gravity = Gravity.CENTER_VERTICAL
-        bottom.setPadding(dp(sc.pad), dp(14), dp(sc.pad), dp(14))
-        bottom.background = roundRect(p.s1, 0f).apply {
+        bottomBar.orientation = if (sc.phone) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+        bottomBar.gravity = Gravity.CENTER_VERTICAL
+        bottomBar.setPadding(dp(sc.pad), dp(14), dp(sc.pad), dp(14))
+        bottomBar.background = roundRect(p.s1, 0f).apply {
             cornerRadii = floatArrayOf(dp(20).toFloat(), dp(20).toFloat(), dp(20).toFloat(), dp(20).toFloat(), 0f, 0f, 0f, 0f)
         }
-        bottom.elevation = dp(6).toFloat()
+        bottomBar.elevation = dp(6).toFloat()
         val c1 = column(ctx, dp(4), ctx.label("Последняя поездка", sc, p), lastTrip)
         val c2 = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         c2.addView(spark, LinearLayout.LayoutParams(dp(104), dp(40)))
@@ -80,32 +80,32 @@ class HomeView(ctx: Context, private val sc: Bt.Scale, private val onDetails: ()
         c3.addView(noTest, FrameLayout.LayoutParams(dp(300), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.END or Gravity.CENTER_VERTICAL))
         testButton.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(sc.btnBigH))
         if (sc.phone) {
-            addTo(bottom, c1)
-            addTo(bottom, c2, dp(12))
-            addTo(bottom, c3, dp(12))
+            addTo(bottomBar, c1)
+            addTo(bottomBar, c2, dp(12))
+            addTo(bottomBar, c3, dp(12))
         } else {
-            addTo(bottom, c1, 0, 1f)
-            addTo(bottom, c2, dp(sc.gap), 1.4f)
-            addTo(bottom, c3, dp(sc.gap))
+            addTo(bottomBar, c1, 0, 1f)
+            addTo(bottomBar, c2, dp(sc.gap), 1.4f)
+            addTo(bottomBar, c3, dp(sc.gap))
         }
 
         if (sc.phone) {
             val content = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16)) }
-            addTo(content, left)
+            addTo(content, leftCol)
             addTo(content, chartCol, dp(20))
-            addTo(content, bottom, dp(20))
+            addTo(content, bottomBar, dp(20))
             addView(ScrollView(ctx).apply { addView(content) })
         } else {
             val top = LinearLayout(ctx).apply {
                 orientation = LinearLayout.HORIZONTAL
                 setPadding(dp(sc.pad), dp(28), dp(sc.pad), dp(18))
             }
-            top.addView(ScrollView(ctx).apply { addView(left); isVerticalScrollBarEnabled = false },
+            top.addView(ScrollView(ctx).apply { addView(leftCol); isVerticalScrollBarEnabled = false },
                 LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 0.42f))
             top.addView(chartCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 0.58f).apply { leftMargin = dp(sc.gap) })
             val page = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
             page.addView(top, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-            page.addView(bottom, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(sc.botH)))
+            page.addView(bottomBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(sc.botH)))
             addView(page)
         }
     }
@@ -113,7 +113,7 @@ class HomeView(ctx: Context, private val sc: Bt.Scale, private val onDetails: ()
     fun bind(m: HomeModel, s: LoggerState.Snapshot) {
         val t = m.trip
         val past = m.state == HomeState.WAIT || m.state == HomeState.NOCONN || (!m.live && t != null)
-        left.removeAllViews()
+        leftCol.removeAllViews()
         when (m.state) {
             HomeState.VERSION -> version(t!!.top!!)
             HomeState.CALM -> calm(m)
@@ -160,7 +160,7 @@ class HomeView(ctx: Context, private val sc: Bt.Scale, private val onDetails: ()
         return row(context, dp(8), Gravity.CENTER_VERTICAL, ic, context.label(text, sc, p, color))
     }
 
-    private fun gap(v: View, top: Int) = addTo(left, v, dp(top))
+    private fun gap(v: View, top: Int) = addTo(leftCol, v, dp(top))
 
     private fun version(f: Finding) {
         gap(tag("Есть версия"), 0)
