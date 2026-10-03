@@ -12,14 +12,17 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.drawable.Icon
+import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import com.obdlogger.core.DataLogger
 import com.obdlogger.core.DtcSnapshot
 import com.obdlogger.core.ElmConnection
+import com.obdlogger.core.ElmIo
 import com.obdlogger.core.ObdSession
 import com.obdlogger.core.Pids
 import com.obdlogger.core.SessionReport
+import com.obdlogger.core.SimulatedElm
 import java.io.IOException
 import java.io.Writer
 
@@ -48,7 +51,9 @@ class LoggerService : Service() {
     private fun start(intent: Intent) {
         startForeground(NOTIFICATION_ID, notification("Подключение…"), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
         if (worker?.isAlive == true) return
-        val address = intent.getStringExtra(EXTRA_ADDRESS) ?: return stopSelf()
+        val demo = intent.getBooleanExtra(EXTRA_DEMO, false)
+        val address = intent.getStringExtra(EXTRA_ADDRESS)
+        if (!demo && address == null) return stopSelf()
         val vehicle = intent.getStringExtra(EXTRA_VEHICLE).orEmpty()
         wakeLock = (getSystemService(POWER_SERVICE) as PowerManager)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "obdlogger:session")
@@ -56,51 +61,66 @@ class LoggerService : Service() {
         stopRequested = false
         LoggerState.resetMarkers()
         LoggerState.update { LoggerState.Snapshot(running = true, status = "Подключение к адаптеру…") }
-        worker = Thread({ runSession(address, vehicle) }, "obd-session").also { it.start() }
+        worker = Thread({ runSession(if (demo) null else address, vehicle) }, "obd-session").also { it.start() }
     }
 
     private fun requestStop() {
         if (worker?.isAlive != true) return stopSelf()
         stopRequested = true
-        LoggerState.update { it.copy(status = "Остановка, чтение кодов ошибок…") }
+        LoggerState.update { it.copy(status = "Остановка…") }
         // While connecting there is nothing to finish gracefully; unblock connect().
         if (!recording) closeSocket()
     }
 
+    /** Bluetooth adapter, or the simulated car when [address] is null (demo mode). */
     @SuppressLint("MissingPermission")
-    private fun runSession(address: String, vehicle: String) {
+    private fun openLink(address: String?, trace: ElmTraceLog): ElmIo {
+        if (address == null) {
+            trace.write("demo mode: simulated car, no Bluetooth")
+            return SimulatedElm(timeScale = DEMO_TIME_SCALE, latencyMs = 60)
+        }
         val device = getSystemService(BluetoothManager::class.java).adapter.getRemoteDevice(address)
+        status("Подключение к ${device.name ?: address}…")
+        trace.write("device: ${device.name} ($address), bond state ${device.bondState}")
+        val s = BluetoothElm.connect(device, trace::write, { stopRequested }) { socket = it }
+        return ElmConnection(s.inputStream, s.outputStream, trace::write)
+    }
+
+    private fun runSession(address: String?, vehicle: String) {
         val files = SessionFiles.create(this)
         val trace = ElmTraceLog(files.elmLog)
+        trace.write("session start; app ${BuildConfig.VERSION_NAME}; Android ${Build.VERSION.RELEASE} (${Build.MANUFACTURER} ${Build.MODEL})")
         var csv: Writer? = null
         var logger: DataLogger? = null
         var report: SessionReport? = null
         var liveSession: ObdSession? = null
         var finalDtcs: DtcSnapshot? = null
+        var failure: String? = null
 
         try {
             while (!stopRequested) {
                 try {
-                    status("Подключение к ${device.name ?: address}…")
-                    val s = BluetoothElm.connect(device) { socket = it }
+                    val elm = openLink(address, trace)
                     if (stopRequested) break
-                    val elm = ElmConnection(s.inputStream, s.outputStream, trace::write)
                     val session = ObdSession(elm)
                     status("Инициализация ELM327…")
                     val adapterInfo = session.initAdapter()
                     trace.write("adapter: $adapterInfo")
                     status("Поиск протокола (на K-line до 20 с)…")
                     while (!stopRequested && !session.connectEcu()) {
-                        status("ЭБУ не отвечает (${session.lastError}). Включите зажигание или заведите двигатель.")
+                        failure = "ЭБУ не отвечает (${session.lastError})"
+                        status("$failure. Включите зажигание или заведите двигатель.")
                         Thread.sleep(3000)
                     }
                     if (stopRequested) break
+                    failure = null
                     trace.write("protocol: ${session.protocolName} (#${session.protocolNumber}), single response: ${session.singleResponse}")
 
                     // After a reconnect the same CSV continues.
                     val activeLogger = logger ?: run {
                         status("Чтение VIN, поддерживаемых датчиков и ошибок…")
                         val info = session.readVehicleInfo()
+                        trace.write("vehicle: vin=${info.vin}, pids=${info.supportedPids.joinToString(" ") { "%02X".format(it) }}")
                         val items = Pids.pollItems(info.supportedPids, session.singleResponse)
                         val writer = files.csv.bufferedWriter().also { csv = it }
                         val created = DataLogger(items, writer).also { it.writeHeader() }
@@ -115,14 +135,18 @@ class LoggerService : Service() {
                     liveSession = session
                     recording = true
                     status("Запись")
-                    updateNotification("Идёт запись")
+                    updateNotification(if (address == null) "Демо-запись" else "Идёт запись")
                     while (!stopRequested) {
                         val marker = LoggerState.peekMarker()
                         val r = activeLogger.cycle(elm, marker)
                         if (r.wroteRow) LoggerState.consumeMarker(marker)
                         LoggerState.update {
                             it.copy(
-                                status = if (r.wroteRow) "Запись" else "ЭБУ не отвечает (${r.error}) — двигатель заглушен?",
+                                status = when {
+                                    stopRequested -> "Остановка…"
+                                    r.wroteRow -> if (address == null) "Демо-запись (симуляция, без машины)" else "Запись"
+                                    else -> "ЭБУ не отвечает (${r.error}) — двигатель заглушен?"
+                                },
                                 rows = activeLogger.rows,
                                 elapsedSec = (System.currentTimeMillis() - activeLogger.startMs) / 1000,
                                 cycleMs = r.durationMs,
@@ -135,15 +159,17 @@ class LoggerService : Service() {
                     recording = false
                     liveSession = null
                     closeSocket()
-                    if (stopRequested) break
                     trace.write("link error: $e")
-                    status("Связь с адаптером потеряна: ${e.message}. Повтор через 3 с…")
+                    failure = e.message
+                    if (stopRequested) break
+                    status("Нет связи с адаптером: ${e.message}. Повтор через 3 с…")
                     updateNotification("Переподключение…")
                     Thread.sleep(3000)
                 }
             }
-            finalDtcs = liveSession?.let {
-                try {
+            liveSession?.let {
+                status("Остановка, чтение кодов ошибок…")
+                finalDtcs = try {
                     it.readDtcs()
                 } catch (e: IOException) {
                     null
@@ -153,7 +179,7 @@ class LoggerService : Service() {
             // stop
         } catch (e: Exception) {
             trace.write("fatal: $e")
-            status("Ошибка: ${e.message}")
+            failure = e.toString()
         } finally {
             recording = false
             closeSocket()
@@ -165,16 +191,21 @@ class LoggerService : Service() {
             if (currentLogger != null) {
                 report?.let { files.info.writeText(it.render(currentLogger, finalDtcs, System.currentTimeMillis())) }
             }
+            trace.write("session end; rows=${currentLogger?.rows ?: 0}")
             trace.close()
-            val exported = files.existing().mapNotNull { SessionFiles.exportToDownloads(this, it) }
+            val toExport = files.existing()
+            val exported = toExport.mapNotNull { SessionFiles.exportToDownloads(this, it) }
             val rows = currentLogger?.rows ?: 0
+            val folder = "Загрузки/${SessionFiles.DOWNLOAD_FOLDER}"
             LoggerState.update {
                 it.copy(
                     running = false,
-                    status = if (rows > 0) {
-                        "Сохранено строк: $rows → Загрузки/${SessionFiles.DOWNLOAD_FOLDER}/${files.csv.name}"
-                    } else {
-                        "Данные не записаны. Журнал обмена с адаптером: Загрузки/${SessionFiles.DOWNLOAD_FOLDER}/${files.elmLog.name}"
+                    status = when {
+                        exported.size < toExport.size ->
+                            "Не удалось сохранить ${toExport.size - exported.size} из ${toExport.size} файлов в $folder"
+                        rows > 0 -> "Сохранено строк: $rows → $folder/${files.csv.name}"
+                        else -> "Данные не записаны" + (failure?.let { f -> ": $f" } ?: "") +
+                            ".\nЖурнал подключения: $folder/${files.elmLog.name}"
                     },
                     dtcInfo = finalDtcs?.let { d -> "В конце поездки:\n" + dtcSummary(d) } ?: it.dtcInfo,
                     exported = exported,
@@ -240,6 +271,9 @@ class LoggerService : Service() {
         const val ACTION_MARK = "com.obdlogger.MARK"
         const val EXTRA_ADDRESS = "address"
         const val EXTRA_VEHICLE = "vehicle"
+        const val EXTRA_DEMO = "demo"
+        /** Demo drive runs 5× faster: the 12-minute scenario (warm-up, city, highway) in ~2.5 minutes. */
+        private const val DEMO_TIME_SCALE = 5.0
         private const val CHANNEL_ID = "recording"
         private const val NOTIFICATION_ID = 1
 

@@ -37,6 +37,14 @@
         </LinearLayout>
 
         <TextView
+            android:id="@+id/deviceHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#C05621"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
@@ -58,6 +66,12 @@
             android:layout_marginTop="8dp"
             android:text="Начать запись"
             android:textSize="18sp" />
+
+        <Button
+            android:id="@+id/demo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Демо-запись без машины (симуляция)" />
 
         <Button
             android:id="@+id/mark"

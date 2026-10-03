@@ -12,6 +12,8 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
+import android.view.View
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
@@ -23,6 +25,8 @@ class MainActivity : Activity() {
     private lateinit var devicesView: Spinner
     private lateinit var vehicleView: EditText
     private lateinit var startStop: Button
+    private lateinit var demo: Button
+    private lateinit var deviceHint: TextView
     private lateinit var mark: Button
     private lateinit var share: Button
     private lateinit var statusView: TextView
@@ -41,6 +45,8 @@ class MainActivity : Activity() {
         devicesView = findViewById(R.id.devices)
         vehicleView = findViewById(R.id.vehicle)
         startStop = findViewById(R.id.startStop)
+        demo = findViewById(R.id.demo)
+        deviceHint = findViewById(R.id.deviceHint)
         mark = findViewById(R.id.mark)
         share = findViewById(R.id.share)
         statusView = findViewById(R.id.status)
@@ -51,6 +57,11 @@ class MainActivity : Activity() {
         vehicleView.setText(prefs.getString(PREF_VEHICLE, "Toyota Avensis 2005"))
         findViewById<Button>(R.id.refresh).setOnClickListener { loadDevices() }
         startStop.setOnClickListener { if (LoggerState.snapshot.running) stopRecording() else startRecording() }
+        demo.setOnClickListener { startDemo() }
+        devicesView.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) = updateDeviceHint()
+            override fun onNothingSelected(parent: AdapterView<*>?) = updateDeviceHint()
+        }
         mark.setOnClickListener {
             val name = LoggerState.requestMarker()
             Toast.makeText(this, "Метка $name — запомните, что происходило", Toast.LENGTH_SHORT).show()
@@ -102,10 +113,7 @@ class MainActivity : Activity() {
             }
         }
         // Adapters usually call themselves OBDII / OBD2 / ELM327 / V-LINK; show them first.
-        devices = adapter!!.bondedDevices.sortedBy { d ->
-            val name = d.name.orEmpty().uppercase()
-            if (listOf("OBD", "ELM", "LINK", "VGATE", "ICAR").any { it in name }) 0 else 1
-        }
+        devices = adapter!!.bondedDevices.sortedBy { d -> if (looksLikeObd(d)) 0 else 1 }
         devicesView.adapter = ArrayAdapter(
             this, android.R.layout.simple_spinner_dropdown_item,
             devices.map { "${it.name ?: "?"}  (${it.address})" },
@@ -113,6 +121,21 @@ class MainActivity : Activity() {
         val last = prefs.getString(PREF_DEVICE, null)
         devices.indexOfFirst { it.address == last }.takeIf { it >= 0 }?.let { devicesView.setSelection(it) }
         if (devices.isEmpty()) showStatus("Нет сопряжённых устройств. Сопрягите адаптер в настройках Bluetooth (PIN 1234 или 0000).")
+        updateDeviceHint()
+    }
+
+    // Adapters usually call themselves OBDII / OBD2 / ELM327 / V-LINK.
+    @SuppressLint("MissingPermission")
+    private fun looksLikeObd(d: BluetoothDevice): Boolean {
+        val name = d.name.orEmpty().uppercase()
+        return listOf("OBD", "ELM", "LINK", "VGATE", "ICAR", "KONNWEI", "SCAN").any { it in name }
+    }
+
+    private fun updateDeviceHint() {
+        val d = devices.getOrNull(devicesView.selectedItemPosition)
+        deviceHint.visibility = if (d != null && !looksLikeObd(d)) View.VISIBLE else View.GONE
+        deviceHint.text = "Это устройство не похоже на OBD-адаптер (обычно они называются OBDII, OBD2, ELM327 или V-LINK). " +
+            "Если в списке нет адаптера: вставьте его в разъём, включите зажигание и сопрягите в настройках Bluetooth."
     }
 
     private fun startRecording() {
@@ -125,6 +148,14 @@ class MainActivity : Activity() {
             LoggerService.intent(this, LoggerService.ACTION_START)
                 .putExtra(LoggerService.EXTRA_ADDRESS, device.address)
                 .putExtra(LoggerService.EXTRA_VEHICLE, vehicle),
+        )
+    }
+
+    private fun startDemo() {
+        startForegroundService(
+            LoggerService.intent(this, LoggerService.ACTION_START)
+                .putExtra(LoggerService.EXTRA_DEMO, true)
+                .putExtra(LoggerService.EXTRA_VEHICLE, "ДЕМО: симуляция, не реальный автомобиль"),
         )
     }
 
@@ -151,9 +182,12 @@ class MainActivity : Activity() {
         Thread {
             val files = SessionFiles.dir(this).listFiles().orEmpty().filter { it.length() > 0 }.sortedBy { it.name }
             val ok = files.count { SessionFiles.exportToDownloads(this, it) != null }
-            runOnUiThread {
-                Toast.makeText(this, "Скопировано файлов: $ok в Загрузки/${SessionFiles.DOWNLOAD_FOLDER}", Toast.LENGTH_LONG).show()
+            val text = when {
+                files.isEmpty() -> "Сохранённых записей пока нет"
+                ok < files.size -> "Скопировано $ok из ${files.size} файлов в Загрузки/${SessionFiles.DOWNLOAD_FOLDER}"
+                else -> "Скопировано файлов: $ok в Загрузки/${SessionFiles.DOWNLOAD_FOLDER}"
             }
+            runOnUiThread { Toast.makeText(this, text, Toast.LENGTH_LONG).show() }
         }.start()
     }
 
@@ -164,6 +198,7 @@ class MainActivity : Activity() {
     private fun render(s: LoggerState.Snapshot) {
         statusView.text = s.status
         startStop.text = if (s.running) "Остановить запись" else "Начать запись"
+        demo.isEnabled = !s.running
         mark.isEnabled = s.running
         mark.text = if (s.markers > 0) "Метка (поставлено: ${s.markers})" else "Метка (что-то почувствовал)"
         share.isEnabled = !s.running && s.exported.isNotEmpty()

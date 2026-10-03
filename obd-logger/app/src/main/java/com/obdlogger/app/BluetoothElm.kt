@@ -15,24 +15,33 @@ object BluetoothElm {
      * channel-1 reflection variants are the usual workarounds.
      */
     @SuppressLint("MissingPermission")
-    fun connect(device: BluetoothDevice, onSocket: (BluetoothSocket) -> Unit): BluetoothSocket {
-        val attempts = listOf<() -> BluetoothSocket>(
-            { device.createRfcommSocketToServiceRecord(SPP_UUID) },
-            { device.createInsecureRfcommSocketToServiceRecord(SPP_UUID) },
-            {
+    fun connect(
+        device: BluetoothDevice,
+        log: (String) -> Unit,
+        cancelled: () -> Boolean,
+        onSocket: (BluetoothSocket) -> Unit,
+    ): BluetoothSocket {
+        val attempts = listOf<Pair<String, () -> BluetoothSocket>>(
+            "secure SPP" to { device.createRfcommSocketToServiceRecord(SPP_UUID) },
+            "insecure SPP" to { device.createInsecureRfcommSocketToServiceRecord(SPP_UUID) },
+            "channel 1" to {
                 device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
                     .invoke(device, 1) as BluetoothSocket
             },
         )
         var last: Exception? = null
-        for (create in attempts) {
+        for ((name, create) in attempts) {
+            if (cancelled()) throw IOException("Подключение отменено")
             var socket: BluetoothSocket? = null
             try {
+                log("bluetooth: connecting ($name)")
                 socket = create()
                 onSocket(socket)
                 socket.connect()
+                log("bluetooth: connected ($name)")
                 return socket
             } catch (e: Exception) {
+                log("bluetooth: $name failed: $e")
                 last = e
                 try {
                     socket?.close()
