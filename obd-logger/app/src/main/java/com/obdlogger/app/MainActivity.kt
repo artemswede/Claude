@@ -3,6 +3,7 @@ package com.obdlogger.app
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
@@ -15,47 +16,31 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
-import android.view.View
 import android.view.WindowManager
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
-import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.HorizontalScrollView
 import android.widget.ScrollView
-import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import com.obdlogger.app.ui.Bt
 import com.obdlogger.app.ui.HomeModel
 import com.obdlogger.app.ui.HomeView
+import com.obdlogger.app.ui.SettingsView
 import com.obdlogger.app.ui.Shell
 import com.obdlogger.app.ui.dp
 import com.obdlogger.app.ui.text
 
-class MainActivity : Activity() {
-    private lateinit var devicesView: Spinner
-    private lateinit var vehicleView: EditText
-    private lateinit var startStop: Button
-    private lateinit var demo: Button
-    private lateinit var deviceHint: TextView
-    private lateinit var mark: Button
-    private lateinit var share: Button
-    private lateinit var statusView: TextView
-    private lateinit var progressView: TextView
-    private lateinit var dtcView: TextView
-    private lateinit var extended: CheckBox
-    private lateinit var auto: CheckBox
-    private lateinit var autoSetup: View
+class MainActivity : Activity(), SettingsView.Host {
     private lateinit var shell: Shell
     private lateinit var home: HomeView
+    private lateinit var settings: SettingsView
     private lateinit var tripsText: TextView
     private lateinit var monitor: MonitorPanel
     private val handler = Handler(Looper.getMainLooper())
     private var ticks = 0
     @Volatile private var homeLoading = false
     private var tripsShownFor = -1
+    private var settingsShownFor: LoggerState.Snapshot? = null
     private val ticker = object : Runnable {
         override fun run() {
             if (shell.page == Shell.Page.RECORD) monitor.refresh()
@@ -75,17 +60,12 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         shell = Shell(this)
         setContentView(shell.root)
-        // Настройки: прежние элементы управления, светлая тема.
-        val settings = layoutInflater.inflate(R.layout.controls, null)
-        (settings as android.widget.LinearLayout).addView(
-            text("Бортач ${BuildConfig.VERSION_NAME}", 13f, Bt.LIGHT.t3).apply { setPadding(0, dp(24), 0, dp(8)) },
-        )
-        shell.containers.getValue(Shell.Page.SETTINGS).addView(ScrollView(this).apply {
-            setPadding(dp(16), dp(8), dp(16), dp(16))
-            addView(settings)
-        })
+
         home = HomeView(this, shell.sc, onDetails = { shell.show(Shell.Page.TRIPS) }, onSettings = { shell.show(Shell.Page.SETTINGS) })
         shell.containers.getValue(Shell.Page.OVERVIEW).addView(home)
+
+        monitor = MonitorPanel(this, shell.containers.getValue(Shell.Page.RECORD))
+
         tripsText = text("Загрузка поездок…", if (shell.sc.phone) 11f else 14f, Bt.LIGHT.t1, 400, mono = true).apply {
             setPadding(dp(24), dp(20), dp(24), dp(20))
             setTextIsSelectable(true)
@@ -93,50 +73,22 @@ class MainActivity : Activity() {
         shell.containers.getValue(Shell.Page.TRIPS).addView(ScrollView(this).apply {
             addView(HorizontalScrollView(this@MainActivity).apply { addView(tripsText) })
         })
+
+        settings = SettingsView(this, shell.sc)
+        shell.containers.getValue(Shell.Page.SETTINGS).addView(settings)
+
         shell.onPage = { pg ->
             when (pg) {
                 Shell.Page.OVERVIEW -> refreshHome()
                 Shell.Page.TRIPS -> refreshTrips(force = true)
+                Shell.Page.SETTINGS -> refreshSettings(force = true)
                 else -> Unit
             }
         }
-        devicesView = findViewById(R.id.devices)
-        vehicleView = findViewById(R.id.vehicle)
-        startStop = findViewById(R.id.startStop)
-        demo = findViewById(R.id.demo)
-        deviceHint = findViewById(R.id.deviceHint)
-        mark = findViewById(R.id.mark)
-        share = findViewById(R.id.share)
-        statusView = findViewById(R.id.status)
-        progressView = findViewById(R.id.progress)
-        dtcView = findViewById(R.id.dtc)
-        extended = findViewById(R.id.extended)
-        auto = findViewById(R.id.auto)
-        autoSetup = findViewById(R.id.autoSetup)
-        extended.isChecked = Prefs.extended(this)
-        auto.isChecked = Prefs.auto(this)
-        monitor = MonitorPanel(this, shell.containers.getValue(Shell.Page.RECORD))
-
-        vehicleView.setText(Prefs.vehicle(this))
-        findViewById<Button>(R.id.refresh).setOnClickListener { loadDevices() }
-        startStop.setOnClickListener { if (LoggerState.snapshot.running) stopRecording() else startRecording() }
-        demo.setOnClickListener { startDemo() }
-        auto.setOnCheckedChangeListener { _, checked -> setAuto(checked) }
-        findViewById<Button>(R.id.battery).setOnClickListener { askBatteryExemption() }
-        findViewById<Button>(R.id.overlay).setOnClickListener { askOverlay() }
-        devicesView.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) = updateDeviceHint()
-            override fun onNothingSelected(parent: AdapterView<*>?) = updateDeviceHint()
-        }
-        mark.setOnClickListener {
-            val name = LoggerState.requestMarker()
-            Toast.makeText(this, "Метка $name — запомните, что происходило", Toast.LENGTH_SHORT).show()
-        }
-        share.setOnClickListener { shareLast() }
-        findViewById<Button>(R.id.exportAll).setOnClickListener { exportAll() }
 
         requestNeededPermissions()
         loadDevices()
+        Thread { SessionFiles.cleanup(this, Prefs.keepDays(this)) }.start()
         // Auto mode is on but the service is not running (app was updated, killed or the tablet rebooted).
         if (Prefs.auto(this) && !LoggerState.snapshot.running && Prefs.device(this) != null && hasBluetoothPermission()) {
             startAuto()
@@ -156,10 +108,19 @@ class MainActivity : Activity() {
         super.onStop()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Coming back from the battery / overlay system screens.
+        refreshSettings(force = true)
+    }
+
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         loadDevices()
+        refreshSettings(force = true)
     }
+
+    // ---- permissions and adapter ----
 
     private fun requestNeededPermissions() {
         val needed = buildList {
@@ -175,26 +136,22 @@ class MainActivity : Activity() {
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
             checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
 
+    /** Paired devices, OBD-looking ones first; null with a reason when Bluetooth is not usable. */
     @SuppressLint("MissingPermission")
-    private fun loadDevices() {
+    private fun loadDevices(): String? {
         val adapter = getSystemService(BluetoothManager::class.java)?.adapter
-        when {
-            adapter == null -> return showStatus("На устройстве нет Bluetooth")
-            !hasBluetoothPermission() -> return showStatus("Нужно разрешение «Устройства поблизости» для Bluetooth")
-            !adapter.isEnabled -> {
-                startActivity(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
-                return showStatus("Включите Bluetooth и нажмите «Обновить»")
-            }
+        val problem = when {
+            adapter == null -> "На устройстве нет Bluetooth"
+            !hasBluetoothPermission() -> "Нужно разрешение «Устройства поблизости» для Bluetooth"
+            !adapter.isEnabled -> "Bluetooth выключен"
+            else -> null
+        }
+        if (problem != null) {
+            devices = emptyList()
+            return problem
         }
         devices = adapter!!.bondedDevices.sortedBy { d -> if (looksLikeObd(d)) 0 else 1 }
-        devicesView.adapter = ArrayAdapter(
-            this, android.R.layout.simple_spinner_dropdown_item,
-            devices.map { "${it.name ?: "?"}  (${it.address})" },
-        )
-        val last = Prefs.device(this)
-        devices.indexOfFirst { it.address == last }.takeIf { it >= 0 }?.let { devicesView.setSelection(it) }
-        if (devices.isEmpty()) showStatus("Нет сопряжённых устройств. Сопрягите адаптер в настройках Bluetooth (PIN 1234 или 0000).")
-        updateDeviceHint()
+        return null
     }
 
     // Adapters usually call themselves OBDII / OBD2 / ELM327 / V-LINK.
@@ -204,85 +161,115 @@ class MainActivity : Activity() {
         return listOf("OBD", "ELM", "LINK", "VGATE", "ICAR", "KONNWEI", "SCAN").any { it in name }
     }
 
-    private fun updateDeviceHint() {
-        val d = devices.getOrNull(devicesView.selectedItemPosition)
-        deviceHint.visibility = if (d != null && !looksLikeObd(d)) View.VISIBLE else View.GONE
-        deviceHint.text = "Это устройство не похоже на OBD-адаптер (обычно они называются OBDII, OBD2, ELM327 или V-LINK). " +
-            "Если в списке нет адаптера: вставьте его в разъём, включите зажигание и сопрягите в настройках Bluetooth."
-    }
-
-    /** Saves the chosen adapter and car; false if no adapter is selected. */
-    private fun saveChoice(): Boolean {
-        val device = devices.getOrNull(devicesView.selectedItemPosition)
-        if (device == null) {
-            showStatus("Выберите адаптер")
-            return false
+    @SuppressLint("MissingPermission")
+    override fun pickAdapter() {
+        val problem = loadDevices()
+        if (problem != null) {
+            if (problem == "Bluetooth выключен") startActivity(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+            else if (!hasBluetoothPermission()) requestNeededPermissions()
+            Toast.makeText(this, problem, Toast.LENGTH_LONG).show()
+            return
         }
-        prefs.edit()
-            .putString(Prefs.DEVICE, device.address)
-            .putString(Prefs.VEHICLE, vehicleView.text.toString().trim())
-            .putBoolean(Prefs.EXTENDED, extended.isChecked)
-            .apply()
-        return true
+        val names = devices.map { d -> "${d.name ?: "?"}  (${d.address})" + if (looksLikeObd(d)) "" else " — не похоже на OBD-адаптер" }
+        AlertDialog.Builder(this)
+            .setTitle(if (devices.isEmpty()) "Нет сопряжённых устройств" else "Адаптер ELM327")
+            .apply {
+                if (devices.isEmpty()) {
+                    setMessage("Вставьте адаптер в разъём OBD, включите зажигание и сопрягите его в настройках Bluetooth (код 1234 или 0000).")
+                } else {
+                    setItems(names.toTypedArray()) { _, i ->
+                        prefs.edit().putString(Prefs.DEVICE, devices[i].address).apply()
+                        refreshSettings(force = true)
+                    }
+                }
+            }
+            .setNeutralButton("Настройки Bluetooth") { _, _ -> startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
+            .setNegativeButton("Отмена", null)
+            .show()
     }
 
-    private fun startRecording() {
-        if (!hasBluetoothPermission()) return requestNeededPermissions()
-        if (!saveChoice()) return
-        if (auto.isChecked) return startAuto()
-        Compat.startForegroundService(
-            this,
-            LoggerService.intent(this, LoggerService.ACTION_START)
-                .putExtra(LoggerService.EXTRA_ADDRESS, Prefs.device(this))
-                .putExtra(LoggerService.EXTRA_VEHICLE, Prefs.vehicle(this))
-                .putExtra(LoggerService.EXTRA_EXTENDED, extended.isChecked),
-        )
-    }
+    // ---- SettingsView.Host ----
 
-    private fun startAuto() {
-        Compat.startForegroundService(this, LoggerService.intent(this, LoggerService.ACTION_AUTO))
-    }
+    override fun autoOn() = Prefs.auto(this)
 
-    private fun setAuto(on: Boolean) {
+    override fun setAuto(on: Boolean) {
         if (on) {
             if (!hasBluetoothPermission()) {
-                auto.isChecked = false
-                return requestNeededPermissions()
+                requestNeededPermissions()
+                refreshSettings(force = true)
+                return
             }
-            if (!saveChoice()) {
-                auto.isChecked = false
+            if (Prefs.device(this) == null) {
+                Toast.makeText(this, "Сначала выберите адаптер", Toast.LENGTH_LONG).show()
+                refreshSettings(force = true)
+                pickAdapter()
                 return
             }
             prefs.edit().putBoolean(Prefs.AUTO, true).apply()
             if (!LoggerState.snapshot.running) startAuto()
-            Toast.makeText(
-                this,
-                "Автозапись включена. Чтобы она не выключалась в фоне, нажмите «Не ограничивать в фоне» и «Открывать при старте».",
-                Toast.LENGTH_LONG,
-            ).show()
         } else {
             prefs.edit().putBoolean(Prefs.AUTO, false).apply()
             if (LoggerState.snapshot.auto) stopRecording()
         }
+        refreshSettings(force = true)
     }
 
-    private fun startDemo() {
-        Compat.startForegroundService(
-            this,
-            LoggerService.intent(this, LoggerService.ACTION_START)
-                .putExtra(LoggerService.EXTRA_DEMO, true)
-                .putExtra(LoggerService.EXTRA_VEHICLE, "ДЕМО: симуляция, не реальный автомобиль"),
-        )
+    override fun bootOn() = Prefs.boot(this)
+    override fun setBoot(on: Boolean) = prefs.edit().putBoolean(Prefs.BOOT, on).apply()
+    override fun extendedOn() = Prefs.extended(this)
+    override fun setExtended(on: Boolean) = prefs.edit().putBoolean(Prefs.EXTENDED, on).apply()
+    override fun marksOn() = Prefs.marks(this)
+    override fun setMarks(on: Boolean) = prefs.edit().putBoolean(Prefs.MARKS, on).apply()
+    override fun traceOn() = Prefs.trace(this)
+    override fun setTrace(on: Boolean) = prefs.edit().putBoolean(Prefs.TRACE, on).apply()
+    override fun keepDays() = Prefs.keepDays(this)
+
+    override fun setKeepDays(days: Int) {
+        prefs.edit().putInt(Prefs.KEEP_DAYS, days).apply()
+        Thread { SessionFiles.cleanup(this, days) }.start()
     }
 
-    private fun stopRecording() {
-        // «Стоп» turns everything off, including auto mode.
-        if (auto.isChecked) auto.isChecked = false
-        startService(LoggerService.intent(this, LoggerService.ACTION_STOP))
+    @SuppressLint("MissingPermission")
+    override fun adapterText(): String {
+        val addr = Prefs.device(this) ?: return "не выбран — нажмите, чтобы выбрать"
+        val d = devices.firstOrNull { it.address == addr }
+        val proto = LoggerState.snapshot.protocol.takeIf { it.isNotBlank() }
+        return listOfNotNull(d?.name ?: addr, proto).joinToString(" · ")
+    }
+
+    override fun carText() = Prefs.vehicle(this)
+
+    override fun editCar() {
+        val input = EditText(this).apply {
+            setText(Prefs.vehicle(this@MainActivity))
+            hint = "Марка, модель, год, двигатель, пробег"
+            setSelection(text.length)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Профиль машины")
+            .setMessage("Попадёт в разбор и в отчёт для специалиста.")
+            .setView(input)
+            .setPositiveButton("Сохранить") { _, _ ->
+                prefs.edit().putString(Prefs.VEHICLE, input.text.toString().trim()).apply()
+                refreshSettings(force = true)
+                shell.render(LoggerState.snapshot)
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    override fun batteryText(): String {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        val huawei = Build.MANUFACTURER.equals("HUAWEI", true) || Build.MANUFACTURER.equals("HONOR", true)
+        return when {
+            !pm.isIgnoringBatteryOptimizations(packageName) -> "ограничено — система может остановить запись в фоне. Нажмите, чтобы снять"
+            huawei -> "снято. На Huawei ещё: Батарея → Запуск приложений → Бортач → «Управлять вручную»"
+            else -> "снято — запись не остановится при выключенном экране"
+        }
     }
 
     @SuppressLint("BatteryLife")
-    private fun askBatteryExemption() {
+    override fun askBattery() {
         val pm = getSystemService(POWER_SERVICE) as PowerManager
         if (!pm.isIgnoringBatteryOptimizations(packageName)) {
             try {
@@ -290,36 +277,39 @@ class MainActivity : Activity() {
             } catch (e: Exception) {
                 startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
             }
-        }
-        if (Build.MANUFACTURER.equals("HUAWEI", ignoreCase = true) || Build.MANUFACTURER.equals("HONOR", ignoreCase = true)) {
-            Toast.makeText(
-                this,
-                "Huawei: Настройки → Батарея → Запуск приложений → OBD Логгер → «Управлять вручную», включить все три переключателя.",
-                Toast.LENGTH_LONG,
-            ).show()
+        } else {
+            Toast.makeText(this, batteryText(), Toast.LENGTH_LONG).show()
         }
     }
 
-    private fun askOverlay() {
+    override fun overlayText() =
+        if (Settings.canDrawOverlays(this)) "разрешено — Бортач откроется сам, когда начнётся поездка"
+        else "не разрешено — запись идёт в фоне, приложение открывается вручную"
+
+    override fun askOverlay() {
         if (Settings.canDrawOverlays(this)) {
-            Toast.makeText(this, "Уже разрешено: приложение откроется само, когда начнётся поездка", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, overlayText(), Toast.LENGTH_SHORT).show()
             return
         }
         startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
     }
 
-    private fun shareLast() {
+    override fun storageText() = SessionFiles.storageSummary(this)
+
+    override fun canShareLast() = !LoggerState.snapshot.recording && LoggerState.snapshot.exported.isNotEmpty()
+
+    override fun shareLast() {
         val uris = ArrayList<Uri>(LoggerState.snapshot.exported)
         if (uris.isEmpty()) return
         val send = Intent(Intent.ACTION_SEND_MULTIPLE)
             .setType("text/*")
             .putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        startActivity(Intent.createChooser(send, "Отправить логи"))
+        startActivity(Intent.createChooser(send, "Отправить записи"))
     }
 
     /** Re-exports every session kept in app storage, e.g. after the app was killed mid-recording. */
-    private fun exportAll() {
+    override fun exportAll() {
         if (LoggerState.snapshot.recording) {
             Toast.makeText(this, "Сначала дождитесь конца записи", Toast.LENGTH_SHORT).show()
             return
@@ -335,6 +325,62 @@ class MainActivity : Activity() {
             runOnUiThread { Toast.makeText(this, text, Toast.LENGTH_LONG).show() }
         }.start()
     }
+
+    override fun manualText(): String {
+        val s = LoggerState.snapshot
+        return when {
+            s.auto -> "идёт автозапись — остановить всё"
+            s.running -> "идёт запись — нажмите, чтобы остановить"
+            else -> "начать запись сейчас, не дожидаясь автозаписи"
+        }
+    }
+
+    override fun toggleManual() {
+        if (LoggerState.snapshot.running) stopRecording() else startRecording()
+    }
+
+    override fun demo() {
+        if (LoggerState.snapshot.running) {
+            Toast.makeText(this, "Сначала остановите запись", Toast.LENGTH_SHORT).show()
+            return
+        }
+        Compat.startForegroundService(
+            this,
+            LoggerService.intent(this, LoggerService.ACTION_START)
+                .putExtra(LoggerService.EXTRA_DEMO, true)
+                .putExtra(LoggerService.EXTRA_VEHICLE, "ДЕМО: симуляция, не реальный автомобиль"),
+        )
+        shell.show(Shell.Page.OVERVIEW)
+    }
+
+    override fun version(): String = BuildConfig.VERSION_NAME
+
+    // ---- recording ----
+
+    private fun startRecording() {
+        if (!hasBluetoothPermission()) return requestNeededPermissions()
+        val device = Prefs.device(this) ?: return pickAdapter()
+        if (Prefs.auto(this)) return startAuto()
+        Compat.startForegroundService(
+            this,
+            LoggerService.intent(this, LoggerService.ACTION_START)
+                .putExtra(LoggerService.EXTRA_ADDRESS, device)
+                .putExtra(LoggerService.EXTRA_VEHICLE, Prefs.vehicle(this))
+                .putExtra(LoggerService.EXTRA_EXTENDED, Prefs.extended(this)),
+        )
+    }
+
+    private fun startAuto() {
+        Compat.startForegroundService(this, LoggerService.intent(this, LoggerService.ACTION_AUTO))
+    }
+
+    private fun stopRecording() {
+        // Stopping by hand also turns auto mode off, otherwise it would start again at once.
+        if (Prefs.auto(this)) prefs.edit().putBoolean(Prefs.AUTO, false).apply()
+        startService(LoggerService.intent(this, LoggerService.ACTION_STOP))
+    }
+
+    // ---- screens ----
 
     /** Analyses trips off the main thread and updates the main screen. */
     private fun refreshHome() {
@@ -368,31 +414,22 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    private fun showStatus(text: String) {
-        statusView.text = text
+    private fun refreshSettings(force: Boolean = false) {
+        if (!::settings.isInitialized) return
+        val s = LoggerState.snapshot
+        val prev = settingsShownFor
+        // Rebuild only when something shown there changed (it holds switches the user may be touching).
+        if (!force && prev != null && prev.running == s.running && prev.auto == s.auto && prev.protocol == s.protocol &&
+            prev.exported == s.exported && prev.status == s.status
+        ) return
+        settingsShownFor = s
+        if (shell.page == Shell.Page.SETTINGS || force) settings.bind(this, s.status.takeIf { s.running }.orEmpty())
     }
 
     private fun render(s: LoggerState.Snapshot) {
         shell.render(s)
         if (shell.page == Shell.Page.TRIPS) refreshTrips()
-        statusView.text = s.status
-        startStop.text = when {
-            s.auto -> "Остановить автозапись"
-            s.running -> "Остановить запись"
-            else -> "Начать запись"
-        }
-        demo.isEnabled = !s.running
-        mark.isEnabled = s.recording
-        mark.text = if (s.markers > 0) "Метка (поставлено: ${s.markers})" else "Метка (что-то почувствовал)"
-        share.isEnabled = !s.recording && s.exported.isNotEmpty()
-        devicesView.isEnabled = !s.running
-        vehicleView.isEnabled = !s.running
-        extended.isEnabled = !s.running
-        autoSetup.visibility = if (auto.isChecked) View.VISIBLE else View.GONE
-        progressView.text = if (s.recording || s.rows > 0) {
-            "Строк: ${s.rows}   Время: %d:%02d   Цикл: %.1f с".format(s.elapsedSec / 60, s.elapsedSec % 60, s.cycleMs / 1000.0)
-        } else ""
-        dtcView.text = s.dtcInfo
+        if (shell.page == Shell.Page.SETTINGS) refreshSettings()
         if (s.recording) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         } else {

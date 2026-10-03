@@ -107,6 +107,23 @@ class SessionFiles(dir: File, baseName: String) {
             }
         }
 
+        /** Deletes recordings older than [days] (0 = keep everything). Returns how many files were removed. */
+        fun cleanup(ctx: Context, days: Int): Int {
+            if (days <= 0) return 0
+            val cutoff = System.currentTimeMillis() - days * 24L * 3600 * 1000
+            return dir(ctx).listFiles().orEmpty().count { it.lastModified() < cutoff && it.delete() }
+        }
+
+        /** «46 поездок · 112 МБ · свободно 9.4 ГБ» */
+        fun storageSummary(ctx: Context): String {
+            val d = dir(ctx)
+            val files = d.listFiles().orEmpty()
+            val trips = files.count { it.name.startsWith("obd_") && it.name.endsWith(".csv") }
+            val mb = files.sumOf { it.length() } / 1_000_000.0
+            val free = d.usableSpace / 1_000_000_000.0
+            return "$trips поездок · ${"%.1f".format(mb)} МБ · свободно ${"%.1f".format(free)} ГБ"
+        }
+
         /** Analysis of the latest trip compared with up to [count] - 1 previous ones. */
         fun compareRecent(ctx: Context, count: Int = 6): String {
             val trips = tripCsvs(ctx).takeLast(count).mapNotNull(::analyze).filter { it.rows >= 10 }
@@ -115,26 +132,27 @@ class SessionFiles(dir: File, baseName: String) {
     }
 }
 
-/** Raw ELM327 traffic for troubleshooting clone adapters; capped in size. */
-class ElmTraceLog(file: File) {
-    private val writer: BufferedWriter = file.bufferedWriter()
+/** Raw ELM327 traffic for troubleshooting clone adapters; capped in size. Off: nothing is written. */
+class ElmTraceLog(file: File, enabled: Boolean = true) {
+    private val writer: BufferedWriter? = if (enabled) file.bufferedWriter() else null
     private val time = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
     private var written = 0L
     private var closed = false
 
     @Synchronized
     fun write(line: String) {
+        val w = writer ?: return
         if (closed || written > MAX_BYTES) return
         val text = "${time.format(Date())} $line\n"
         written += text.length
-        writer.write(text)
-        if (written > MAX_BYTES) writer.write("... журнал обрезан (лимит ${MAX_BYTES / 1_000_000} МБ)\n")
-        writer.flush()
+        w.write(text)
+        if (written > MAX_BYTES) w.write("... журнал обрезан (лимит ${MAX_BYTES / 1_000_000} МБ)\n")
+        w.flush()
     }
 
     @Synchronized
     fun close() {
-        if (!closed) writer.close()
+        if (!closed) writer?.close()
         closed = true
     }
 

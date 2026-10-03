@@ -299,7 +299,7 @@ class LoggerService : Service() {
 
     private fun startTrip(s: ObdSession, adapterInfo: AdapterInfo, vehicle: String, extendedScan: Boolean, demo: Boolean, auto: Boolean): Trip {
         val files = SessionFiles.create(this, demo)
-        val t = Trip(files, ElmTraceLog(files.elmLog), demo)
+        val t = Trip(files, ElmTraceLog(files.elmLog, Prefs.trace(this)), demo)
         traceTarget = t.trace
         trace("trip start; app ${BuildConfig.VERSION_NAME}; Android ${Build.VERSION.RELEASE} (${Build.MANUFACTURER} ${Build.MODEL}); auto=$auto")
         trace("adapter: $adapterInfo; protocol: ${s.protocolName} (#${s.protocolNumber})")
@@ -534,7 +534,7 @@ class LoggerService : Service() {
             .setContentText(text)
             .setContentIntent(open)
             .setOngoing(true)
-            .addAction(action("Метка", ACTION_MARK, 1))
+            .apply { if (Prefs.marks(this@LoggerService)) addAction(action("Метка", ACTION_MARK, 1)) }
             .addAction(action("Стоп", ACTION_STOP, 2))
             .build()
     }
