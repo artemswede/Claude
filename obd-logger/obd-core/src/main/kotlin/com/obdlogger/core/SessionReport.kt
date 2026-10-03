@@ -23,6 +23,7 @@ class SessionReport(
         appendLine("Протокол OBD: ${info.protocol} (#${info.protocolNumber})")
         appendLine("VIN: ${info.vin ?: "ЭБУ не сообщает"}")
         appendLine("Стандарт OBD: ${info.obdStandard ?: "?"}")
+        appendLine("Калибровка ЭБУ (CALID): ${info.calibrationId ?: "ЭБУ не сообщает"}")
         appendLine()
         appendLine("=== Коды неисправностей ===")
         appendDtcs("В начале сессии", info.dtcs)
@@ -33,6 +34,12 @@ class SessionReport(
         appendLine("Параметры опрашиваются по очереди, поэтому значения в одной строке сняты с разницей до длительности цикла.")
         appendLine("«Медленные» параметры (температуры, LTFT, уровень топлива, напряжение) опрашиваются раз в 5 циклов; в остальных строках их ячейки пустые.")
         appendLine("Пустая ячейка = нет данных (не опрашивался или ЭБУ не ответил), а не ноль.")
+        if (logger.columns.any { it.group != null }) {
+            appendLine("Столбцы pid01_XX_bNN и m21_*_XX_bNN — сырые байты ответов ЭБУ, которые приложение не умеет расшифровать")
+            appendLine("(стандартные PID без формулы и скрытые блоки Toyota режима 21). Каждый байт — целое 0–255.")
+            appendLine("Значение часто получается как байт × коэффициент + смещение или из пары байтов (старший×256 + младший);")
+            appendLine("сопоставляй их изменения с известными параметрами (обороты, температура, скорость), чтобы угадать смысл.")
+        }
         if (logger.markers.isNotEmpty()) {
             appendLine("Метки водителя (столбец marker): " + logger.markers.joinToString("; ") { "${it.first} в ${it.second}" })
         }
@@ -43,7 +50,14 @@ class SessionReport(
         appendLine("=== Столбцы CSV ===")
         appendLine("time — локальное время начала цикла опроса")
         appendLine("t_s — секунды от начала записи")
+        var lastGroup: String? = null
         for (c in logger.columns) {
+            if (c.group != null) {
+                if (c.group != lastGroup) appendLine(c.group)
+                lastGroup = c.group
+                continue
+            }
+            lastGroup = null
             val unit = if (c.unit.isNotEmpty()) ", ${c.unit}" else ""
             appendLine("${c.name} — ${c.description}$unit")
         }

@@ -3,8 +3,11 @@ package com.obdlogger.core
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-/** One CSV column. [name] already carries the unit so the CSV is readable on its own. */
-data class Column(val name: String, val unit: String, val description: String)
+/**
+ * One CSV column. [name] already carries the unit so the CSV is readable on its own.
+ * Columns of one undecoded response share a [group] and are described once in the report.
+ */
+data class Column(val name: String, val unit: String, val description: String, val group: String? = null)
 
 /** Something requested from the adapter once per poll cycle; may produce several columns. */
 class PollItem(
@@ -14,6 +17,8 @@ class PollItem(
     val slow: Boolean,
     /** True for ECU data; false for values the adapter measures itself (ATRV). */
     val fromEcu: Boolean,
+    /** ELM header (ATSH) to address a specific ECU; null = protocol default (functional). */
+    val header: String? = null,
     private val parser: (String) -> List<String?>,
 ) {
     fun parse(raw: String): List<String?> = parser(raw)
@@ -136,8 +141,41 @@ object Pids {
         fromEcu = false,
     ) { raw -> listOf(Regex("(\\d+(?:\\.\\d+)?)\\s*V", RegexOption.IGNORE_CASE).find(raw)?.groupValues?.get(1)) }
 
-    /** Poll list for the PIDs the car reported as supported. */
-    fun pollItems(supported: Set<Int>, singleResponse: Boolean): List<PollItem> =
+    private val decoded = ALL.map { it.pid }.toSet()
+
+    /** Supported mode 01 PIDs this app has no formula for (bitmap PIDs 00/20/40… excluded). */
+    fun undecoded(supported: Set<Int>): List<Int> = supported.filter { it % 0x20 != 0 && it !in decoded }
+
+    /**
+     * Raw bytes of a reply as separate 0–255 columns, for data we cannot decode yet.
+     * [prefix] are the reply's leading bytes that identify it (e.g. 61 01 for request 21 01).
+     */
+    fun rawItem(
+        request: String, prefix: List<Int>, length: Int, name: String, description: String,
+        header: String? = null, slow: Boolean = false,
+    ): PollItem {
+        val group = "${name}_b00…b%02d".format(length - 1)
+        val columns = List(length) { i ->
+            Column("${name}_b%02d".format(i), "байт", "$description: байт $i (0–255)", group = "$group — $description, $length байт (0–255 каждый, расшифровка неизвестна)")
+        }
+        return PollItem(request, columns, slow, fromEcu = true, header = header) { raw ->
+            val msg = ElmResponse.messages(raw).firstOrNull { m ->
+                m.size >= prefix.size && prefix.indices.all { m.u(it) == prefix[it] }
+            }
+            List(length) { i -> msg?.takeIf { prefix.size + i < it.size }?.u(prefix.size + i)?.toString() }
+        }
+    }
+
+    /**
+     * Poll list: adapter voltage, decoded mode 01 PIDs, raw bytes of supported but
+     * undecoded mode 01 PIDs ([rawPids]: PID → data length) and Toyota mode 21 blocks.
+     */
+    fun pollItems(
+        supported: Set<Int>,
+        singleResponse: Boolean,
+        rawPids: Map<Int, Int> = emptyMap(),
+        extended: List<ExtendedBlock> = emptyList(),
+    ): List<PollItem> =
         listOf(adapterVoltage) + ALL.filter { it.pid in supported }.map { def ->
             val request = "01%02X".format(def.pid) + if (singleResponse) "1" else ""
             PollItem(request, def.columns, def.slow, fromEcu = true) { raw ->
@@ -148,6 +186,12 @@ object Pids {
                     def.decode(IntArray(data.size) { data.u(it) }).map(Values::format)
                 }
             }
+        } + rawPids.filterValues { it > 0 }.toSortedMap().map { (pid, length) ->
+            rawItem("01%02X".format(pid), listOf(0x41, pid), length, "pid01_%02X".format(pid),
+                "Стандартный PID 01 %02X без формулы в приложении".format(pid), slow = true)
+        } + extended.map { b ->
+            rawItem("21%02X".format(b.id), listOf(0x61, b.id), b.length, "m21_${b.ecu}_%02X".format(b.id),
+                "Скрытый блок Toyota 21 %02X (${b.ecuName})".format(b.id), header = b.header)
         }
 
     fun describe(pid: Int): String =

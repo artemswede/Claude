@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Адаптер ELM327 (сначала сопрягите его в настройках Bluetooth, PIN 1234 или 0000)"
+        android:textSize="14sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <Spinner
+            android:id="@+id/devices"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:minHeight="48dp" />
+
+        <Button
+            android:id="@+id/refresh"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Обновить" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/deviceHint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#C05621"
+        android:textSize="13sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Автомобиль (попадёт в отчёт для анализа)"
+        android:textSize="14sp" />
+
+    <EditText
+        android:id="@+id/vehicle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Марка, модель, год, двигатель, пробег"
+        android:inputType="textCapSentences"
+        android:minHeight="48dp" />
+
+    <CheckBox
+        android:id="@+id/extended"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:checked="true"
+        android:text="Искать скрытые параметры Toyota (режим 21; старт дольше на ~1 мин)" />
+
+    <Button
+        android:id="@+id/startStop"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:layout_marginTop="8dp"
+        android:text="Начать запись"
+        android:textSize="18sp" />
+
+    <Button
+        android:id="@+id/demo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Демо-запись без машины (симуляция)" />
+
+    <Button
+        android:id="@+id/mark"
+        android:layout_width="match_parent"
+        android:layout_height="72dp"
+        android:enabled="false"
+        android:text="Метка (что-то почувствовал)"
+        android:textSize="18sp" />
+
+    <TextView
+        android:id="@+id/status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/progress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="14sp" />
+
+    <TextView
+        android:id="@+id/dtc"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textSize="14sp" />
+
+
+    <Button
+        android:id="@+id/share"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:enabled="false"
+        android:text="Поделиться файлами последней записи" />
+
+    <Button
+        android:id="@+id/exportAll"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Скопировать все записи в Загрузки" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Файлы сохраняются в Загрузки/OBD-Logger: .csv — данные, _info.txt — ошибки, описание столбцов и готовый запрос для нейросети, _elm.log — журнал обмена с адаптером. Отдайте нейросети .csv и _info.txt."
+        android:textSize="12sp" />
+</LinearLayout>

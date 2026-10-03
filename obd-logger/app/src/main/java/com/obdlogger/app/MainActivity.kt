@@ -11,11 +11,14 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.WindowManager
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.Spinner
 import android.widget.TextView
@@ -32,7 +35,15 @@ class MainActivity : Activity() {
     private lateinit var statusView: TextView
     private lateinit var progressView: TextView
     private lateinit var dtcView: TextView
-    private lateinit var valuesView: TextView
+    private lateinit var extended: CheckBox
+    private lateinit var monitor: MonitorPanel
+    private val handler = Handler(Looper.getMainLooper())
+    private val ticker = object : Runnable {
+        override fun run() {
+            monitor.refresh()
+            handler.postDelayed(this, 1000)
+        }
+    }
     private var devices: List<BluetoothDevice> = emptyList()
 
     private val listener: (LoggerState.Snapshot) -> Unit = { render(it) }
@@ -52,7 +63,9 @@ class MainActivity : Activity() {
         statusView = findViewById(R.id.status)
         progressView = findViewById(R.id.progress)
         dtcView = findViewById(R.id.dtc)
-        valuesView = findViewById(R.id.values)
+        extended = findViewById(R.id.extended)
+        extended.isChecked = prefs.getBoolean(PREF_EXTENDED, true)
+        monitor = MonitorPanel(this, findViewById(R.id.monitor))
 
         vehicleView.setText(prefs.getString(PREF_VEHICLE, "Toyota Avensis 2005"))
         findViewById<Button>(R.id.refresh).setOnClickListener { loadDevices() }
@@ -77,10 +90,12 @@ class MainActivity : Activity() {
         super.onStart()
         LoggerState.addListener(listener)
         render(LoggerState.snapshot)
+        handler.post(ticker)
     }
 
     override fun onStop() {
         LoggerState.removeListener(listener)
+        handler.removeCallbacks(ticker)
         super.onStop()
     }
 
@@ -143,11 +158,13 @@ class MainActivity : Activity() {
         val device = devices.getOrNull(devicesView.selectedItemPosition)
             ?: return showStatus("Выберите адаптер")
         val vehicle = vehicleView.text.toString().trim()
-        prefs.edit().putString(PREF_DEVICE, device.address).putString(PREF_VEHICLE, vehicle).apply()
+        prefs.edit().putString(PREF_DEVICE, device.address).putString(PREF_VEHICLE, vehicle)
+            .putBoolean(PREF_EXTENDED, extended.isChecked).apply()
         startForegroundService(
             LoggerService.intent(this, LoggerService.ACTION_START)
                 .putExtra(LoggerService.EXTRA_ADDRESS, device.address)
-                .putExtra(LoggerService.EXTRA_VEHICLE, vehicle),
+                .putExtra(LoggerService.EXTRA_VEHICLE, vehicle)
+                .putExtra(LoggerService.EXTRA_EXTENDED, extended.isChecked),
         )
     }
 
@@ -208,7 +225,7 @@ class MainActivity : Activity() {
             "Строк: ${s.rows}   Время: %d:%02d   Цикл: %.1f с".format(s.elapsedSec / 60, s.elapsedSec % 60, s.cycleMs / 1000.0)
         } else ""
         dtcView.text = s.dtcInfo
-        valuesView.text = s.values.joinToString("\n") { (k, v) -> "%-24s %s".format(k, v) }
+        extended.isEnabled = !s.running
         if (s.running) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         } else {
@@ -219,5 +236,6 @@ class MainActivity : Activity() {
     companion object {
         private const val PREF_DEVICE = "device"
         private const val PREF_VEHICLE = "vehicle"
+        private const val PREF_EXTENDED = "extended"
     }
 }

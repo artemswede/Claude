@@ -25,11 +25,17 @@ class DemoSessionTest {
         assertEquals("DEMOSIMULATED0001", info.vin)
         assertEquals(listOf("P0171"), info.dtcs.stored)
 
+        val rawPids = session.discoverRawPids(info.supportedPids)
+        assertEquals(mapOf(0x01 to 4, 0x12 to 1, 0x13 to 1, 0x1C to 1), rawPids)
+        val extended = session.discoverExtended()
+        assertEquals(listOf(0x01 to 9, 0x03 to 3), extended.map { it.id to it.length })
+        assertTrue(extended.all { it.ecu == "fn" && it.header == null })
+
         val dir = File("build/demo-sample").apply { mkdirs() }
         val csvFile = File(dir, "obd_demo.csv")
         val logger = csvFile.bufferedWriter().use { w ->
-            val logger = DataLogger(Pids.pollItems(info.supportedPids, session.singleResponse), w, clock = clock,
-                zone = ZoneId.of("Europe/Moscow"))
+            val logger = DataLogger(Pids.pollItems(info.supportedPids, session.singleResponse, rawPids, extended), w,
+                clock = clock, zone = ZoneId.of("Europe/Moscow"), defaultHeader = session.defaultHeader)
             logger.writeHeader()
             var cycle = 0
             while (now - logger.startMs < 12 * 60_000) {
@@ -54,5 +60,11 @@ class DemoSessionTest {
         assertTrue(logger.stats.getValue("coolant_c").max > 85)
         assertTrue(logger.stats.getValue("speed_kmh").max >= 85)
         assertTrue("P0171" in report && "M1 в " in report)
+        assertTrue(listOf("pid01_12_b00", "m21_fn_01_b00", "m21_fn_01_b08", "m21_fn_03_b02").all { it in header })
+        assertTrue("m21_fn_01_b00…b08 — Скрытый блок Toyota 21 01" in report)
+        // raw bytes are filled: coolant byte of 21 01 tracks the decoded coolant
+        val i = header.indexOf("m21_fn_01_b02")
+        val lastCoolantByte = lines.last().split(",")[i].toInt()
+        assertTrue(lastCoolantByte in 128..132, "coolant byte $lastCoolantByte")
     }
 }

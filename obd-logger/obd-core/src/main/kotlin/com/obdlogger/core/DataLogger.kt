@@ -46,7 +46,10 @@ class DataLogger(
     private val slowEvery: Int = 5,
     private val clock: () -> Long = System::currentTimeMillis,
     zone: ZoneId = ZoneId.systemDefault(),
+    /** Protocol default header; items with their own header are switched to and back. */
+    private val defaultHeader: String? = null,
 ) {
+    private var currentHeader = defaultHeader
     private val timeFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").withZone(zone)
     val columns: List<Column> = items.flatMap { it.columns }
     val startMs = clock()
@@ -61,8 +64,16 @@ class DataLogger(
     /** Last known value per column. */
     val latest = LinkedHashMap<String, String>()
     val markers = mutableListOf<Pair<String, String>>()
+    /** Values of the last written row, aligned with [columns]. */
+    var lastRow: List<String?> = emptyList()
+        private set
 
     val avgCycleMs get() = if (rows == 0) 0L else totalCycleMs / rows
+
+    /** The adapter was reset (reconnect): its header is the default again. */
+    fun onReconnect() {
+        currentHeader = defaultHeader
+    }
 
     fun formatTime(ms: Long): String = timeFormat.format(Instant.ofEpochMilli(ms))
 
@@ -86,6 +97,11 @@ class DataLogger(
                 continue
             }
             val raw = try {
+                val header = item.header ?: defaultHeader
+                if (header != null && header != currentHeader) {
+                    elm.command("ATSH$header")
+                    currentHeader = header
+                }
                 elm.command(item.request).also { consecutiveTimeouts = 0 }
             } catch (e: ElmTimeoutException) {
                 if (++consecutiveTimeouts >= MAX_CONSECUTIVE_TIMEOUTS) throw IOException("Адаптер перестал отвечать", e)
@@ -106,6 +122,7 @@ class DataLogger(
         out.write("\n")
         out.flush()
         rows++
+        lastRow = values
         totalCycleMs += duration
         lastRowMs = t
         if (marker != null) markers.add(marker to formatTime(t))

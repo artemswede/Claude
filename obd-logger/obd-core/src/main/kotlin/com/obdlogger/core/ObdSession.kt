@@ -15,6 +15,22 @@ data class DtcSnapshot(
     val permanent: List<String>?,
 )
 
+/** A manufacturer mode 21 data block (Toyota "readDataByLocalIdentifier") that answered. */
+data class ExtendedBlock(
+    /** Short ECU tag for column names: fn (functional/default address), ecm, tcm. */
+    val ecu: String,
+    /** ATSH header to reach the ECU; null = protocol default. */
+    val header: String?,
+    val id: Int,
+    val length: Int,
+) {
+    val ecuName get() = when (ecu) {
+        "ecm" -> "ЭБУ двигателя"
+        "tcm" -> "ЭБУ АКПП"
+        else -> "ответ на общий адрес"
+    }
+}
+
 data class VehicleInfo(
     val protocol: String,
     val protocolNumber: Int,
@@ -22,6 +38,8 @@ data class VehicleInfo(
     val vin: String?,
     val obdStandard: String?,
     val dtcs: DtcSnapshot,
+    /** Mode 09 04: ECU software calibration ID. */
+    val calibrationId: String? = null,
 )
 
 /** Adapter setup and one-off vehicle queries on top of [ElmIo]. */
@@ -38,6 +56,16 @@ class ObdSession(private val elm: ElmIo) {
         private set
 
     val isCan get() = protocolNumber in 6..9
+
+    /** The ELM's own default (functional) header for the detected protocol; null if not switchable. */
+    val defaultHeader: String?
+        get() = when (protocolNumber) {
+            3 -> "686AF1"
+            4, 5 -> "C133F1"
+            6, 8 -> "7DF"
+            7, 9 -> "18DB33F1"
+            else -> null
+        }
 
     fun initAdapter(): AdapterInfo {
         try {
@@ -133,7 +161,70 @@ class ObdSession(private val elm: ElmIo) {
             vin = query("0902", 5_000)?.let(::parseVin),
             obdStandard = obd,
             dtcs = readDtcs(),
+            calibrationId = query("0904", 5_000)?.let(::parseCalibrationId),
         )
+    }
+
+    /** Data length of each supported mode 01 PID the app cannot decode, so it is logged raw. */
+    fun discoverRawPids(supported: Set<Int>): Map<Int, Int> =
+        Pids.undecoded(supported).associateWith { pid ->
+            query("01%02X".format(pid), 3_000)?.let { ElmResponse.pidData(it, pid)?.size } ?: 0
+        }.filterValues { it > 0 }
+
+    /**
+     * Finds Toyota mode 21 data blocks by asking every local identifier 01..FF,
+     * first at the default address, then at the engine (and on CAN the gearbox)
+     * ECU's physical address. Restores the default header afterwards.
+     */
+    fun discoverExtended(progress: (String) -> Unit = {}): List<ExtendedBlock> {
+        val default = defaultHeader ?: return emptyList()
+        val targets = buildList {
+            add("fn" to default)
+            when (protocolNumber) {
+                4, 5 -> add("ecm" to "8110F1")
+                6, 8 -> {
+                    add("ecm" to "7E0")
+                    add("tcm" to "7E1")
+                }
+                7, 9 -> {
+                    add("ecm" to "18DA10F1")
+                    add("tcm" to "18DA18F1")
+                }
+            }
+        }
+        val found = mutableListOf<ExtendedBlock>()
+        try {
+            for ((ecu, header) in targets) {
+                // The engine ECU usually is what answered at the default address.
+                if (ecu == "ecm" && found.any { it.ecu == "fn" }) continue
+                if (query("ATSH$header")?.contains("OK") != true) continue
+                progress("Проверка режима 21 ($ecu)…")
+                if (!speaksMode21()) continue
+                var timeouts = 0
+                for (id in 0x01..0xFF) {
+                    if (id % 16 == 1) progress("Поиск скрытых параметров Toyota ($ecu): 21 %02X из FF, найдено ${found.size}".format(id))
+                    val raw = try {
+                        elm.command("21%02X".format(id), 1_500).also { timeouts = 0 }
+                    } catch (_: ElmTimeoutException) {
+                        if (++timeouts >= 5) break
+                        continue
+                    }
+                    val msg = ElmResponse.messages(raw).firstOrNull { it.size > 2 && it.u(0) == 0x61 && it.u(1) == id } ?: continue
+                    found.add(ExtendedBlock(ecu, header.takeIf { ecu != "fn" }, id, msg.size - 2))
+                }
+            }
+        } finally {
+            query("ATSH$default")
+        }
+        return found
+    }
+
+    /** True if the ECU answers mode 21 at all (data, or a "not this ID" negative reply). */
+    private fun speaksMode21(): Boolean = listOf(0x01, 0x81, 0x03).any { id ->
+        val raw = query("21%02X".format(id), 1_500) ?: return@any false
+        ElmResponse.messages(raw).any {
+            it.u(0) == 0x61 || (it.size >= 3 && it.u(0) == 0x7F && it.u(1) == 0x21 && it.u(2) != 0x11)
+        }
     }
 
     private fun dtcs(mode: String, responseMode: Int): List<String>? {
@@ -157,6 +248,14 @@ class ObdSession(private val elm: ElmIo) {
             val bytes = if (msgs.size > 1) msgs.sortedBy { it.u(2) }.flatMap { it.drop(3) } else msgs[0].drop(3)
             val text = bytes.map { it.toInt() and 0xFF }.filter { it in 0x21..0x7E }.map { it.toChar() }.joinToString("")
             return text.takeLast(17).ifEmpty { null }
+        }
+
+        fun parseCalibrationId(raw: String): String? {
+            val msgs = ElmResponse.messages(raw).filter { it.size > 3 && it.u(0) == 0x49 && it.u(1) == 0x04 }
+            if (msgs.isEmpty()) return null
+            val bytes = if (msgs.size > 1) msgs.sortedBy { it.u(2) }.flatMap { it.drop(3) } else msgs[0].drop(3)
+            return bytes.map { it.toInt() and 0xFF }.filter { it in 0x21..0x7E }.map { it.toChar() }
+                .joinToString("").ifEmpty { null }
         }
 
         fun obdStandardName(code: Int): String = when (code) {

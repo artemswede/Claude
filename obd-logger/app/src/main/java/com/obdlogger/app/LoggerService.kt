@@ -61,7 +61,8 @@ class LoggerService : Service() {
         stopRequested = false
         LoggerState.resetMarkers()
         LoggerState.update { LoggerState.Snapshot(running = true, status = "Подключение к адаптеру…") }
-        worker = Thread({ runSession(if (demo) null else address, vehicle) }, "obd-session").also { it.start() }
+        val extendedScan = intent.getBooleanExtra(EXTRA_EXTENDED, true)
+        worker = Thread({ runSession(if (demo) null else address, vehicle, extendedScan) }, "obd-session").also { it.start() }
     }
 
     private fun requestStop() {
@@ -86,7 +87,7 @@ class LoggerService : Service() {
         return ElmConnection(s.inputStream, s.outputStream, trace::write)
     }
 
-    private fun runSession(address: String?, vehicle: String) {
+    private fun runSession(address: String?, vehicle: String, extendedScan: Boolean) {
         val files = SessionFiles.create(this)
         val trace = ElmTraceLog(files.elmLog)
         trace.write("session start; app ${BuildConfig.VERSION_NAME}; Android ${Build.VERSION.RELEASE} (${Build.MANUFACTURER} ${Build.MODEL})")
@@ -121,9 +122,15 @@ class LoggerService : Service() {
                         status("Чтение VIN, поддерживаемых датчиков и ошибок…")
                         val info = session.readVehicleInfo()
                         trace.write("vehicle: vin=${info.vin}, pids=${info.supportedPids.joinToString(" ") { "%02X".format(it) }}")
-                        val items = Pids.pollItems(info.supportedPids, session.singleResponse)
+                        status("Поиск датчиков без формулы…")
+                        val rawPids = session.discoverRawPids(info.supportedPids)
+                        trace.write("raw mode 01 pids: ${rawPids.map { (p, n) -> "%02X:%d".format(p, n) }}")
+                        val extended = if (extendedScan) session.discoverExtended { status(it) } else emptyList()
+                        trace.write("mode 21 blocks: ${extended.map { "${it.ecu}:%02X:%d".format(it.id, it.length) }}")
+                        val items = Pids.pollItems(info.supportedPids, session.singleResponse, rawPids, extended)
                         val writer = files.csv.bufferedWriter().also { csv = it }
-                        val created = DataLogger(items, writer).also { it.writeHeader() }
+                        val created = DataLogger(items, writer, defaultHeader = session.defaultHeader).also { it.writeHeader() }
+                        LiveData.store.reset(created.columns.map { it.name })
                         report = SessionReport(vehicle, adapterInfo, info).also {
                             files.info.writeText(it.render(created, null, null))
                         }
@@ -131,6 +138,7 @@ class LoggerService : Service() {
                         created
                     }
                     logger = activeLogger
+                    activeLogger.onReconnect()
 
                     liveSession = session
                     recording = true
@@ -139,7 +147,10 @@ class LoggerService : Service() {
                     while (!stopRequested) {
                         val marker = LoggerState.peekMarker()
                         val r = activeLogger.cycle(elm, marker)
-                        if (r.wroteRow) LoggerState.consumeMarker(marker)
+                        if (r.wroteRow) {
+                            LoggerState.consumeMarker(marker)
+                            LiveData.store.add(activeLogger.lastRowMs, activeLogger.lastRow)
+                        }
                         LoggerState.update {
                             it.copy(
                                 status = when {
@@ -272,6 +283,7 @@ class LoggerService : Service() {
         const val EXTRA_ADDRESS = "address"
         const val EXTRA_VEHICLE = "vehicle"
         const val EXTRA_DEMO = "demo"
+        const val EXTRA_EXTENDED = "extended"
         /** Demo drive runs 5× faster: the 12-minute scenario (warm-up, city, highway) in ~2.5 minutes. */
         private const val DEMO_TIME_SCALE = 5.0
         private const val CHANNEL_ID = "recording"

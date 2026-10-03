@@ -36,6 +36,7 @@ class SimulatedElm(
             c == "0A" -> "NO DATA"
             c == "0902" -> vinFrames()
             c.startsWith("01") && c.length >= 4 -> pid(c.substring(2, 4).toInt(16))
+            c.startsWith("21") && c.length == 4 -> toyota(c.substring(2, 4).toInt(16))
             else -> "?"
         }
         return "$reply\r\r"
@@ -102,7 +103,7 @@ class SimulatedElm(
     }
 
     private val supported: Set<Int> = setOf(
-        0x01, 0x03, 0x04, 0x05, 0x06, 0x07, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x13, 0x14, 0x15,
+        0x01, 0x03, 0x04, 0x05, 0x06, 0x07, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15,
         0x1C, 0x1F, 0x20, 0x21, 0x2E, 0x2F, 0x30, 0x31, 0x33,
     )
 
@@ -128,6 +129,7 @@ class SimulatedElm(
             0x0F -> reply(p, (st.iat + 40).roundToInt())
             0x10 -> (st.maf * 100).roundToInt().let { reply(p, it shr 8, it) }
             0x11 -> reply(p, pct(st.throttle))
+            0x12 -> reply(p, 0x04) // secondary air status: no formula in the app → logged raw
             0x13 -> reply(p, 0x03)
             0x14 -> reply(p, volts(frontO2(st)), trim(0.0))
             0x15 -> reply(p, volts(if (st.coolant < 40) 0.1 else 0.66 + noise(0.02)), 0xFF)
@@ -140,6 +142,36 @@ class SimulatedElm(
             0x31 -> reply(p, 0x05, 0xF0)
             0x33 -> reply(p, 100)
             else -> "NO DATA"
+        }
+    }
+
+    /**
+     * Toyota mode 21 blocks with made-up layouts, so the demo shows raw columns:
+     * 21 01 — rpm/4 (2 bytes), coolant+40, VVT angle+64, misfire counters x4, idle valve %;
+     * 21 03 — gearbox oil temperature+40, gear, lock-up flag. Other IDs: negative reply.
+     */
+    private fun toyota(id: Int): String {
+        val st = state()
+        return when (id) {
+            0x01 -> {
+                val r = (st.rpm * 4).roundToInt()
+                val vvt = if (st.speed > 1) 20.0 + noise(1.0) else 0.0
+                val misfire3 = if (st.coolant < 40) (st.s / 10).toInt() % 6 else 0
+                "61 01 " + listOf(r shr 8, r and 0xFF, (st.coolant + 40).roundToInt(), (vvt + 64).roundToInt(),
+                    0, 0, misfire3, 0, pct(if (st.speed < 1) 30.0 else 0.0)).joinToString(" ") { "%02X".format(it and 0xFF) }
+            }
+            0x03 -> {
+                val gear = when {
+                    st.speed < 1 -> 0
+                    st.speed < 20 -> 1
+                    st.speed < 35 -> 2
+                    st.speed < 55 -> 3
+                    else -> 4
+                }
+                "61 03 " + listOf((st.coolant * 0.8 + 40).roundToInt(), gear, if (st.speed > 60) 1 else 0)
+                    .joinToString(" ") { "%02X".format(it and 0xFF) }
+            }
+            else -> "7F 21 12"
         }
     }
 
