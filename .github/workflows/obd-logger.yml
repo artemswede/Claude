@@ -33,6 +33,14 @@ jobs:
       - name: Unit tests and APK
         run: ./gradlew --no-daemon :obd-core:test :app:assembleDebug
 
+      # Every screen rendered on sample trips (Robolectric); published for review.
+      - name: Screenshots
+        id: screens
+        continue-on-error: true
+        run: |
+          ./gradlew --no-daemon :app:testDebugUnitTest
+          cd app/build/screens && zip -qr "../../../screens-${BORTACH_VERSION}.zip" .
+
       - name: Name the APK
         run: cp app/build/outputs/apk/debug/app-debug.apk "Bortach-${BORTACH_VERSION}.apk"
 
@@ -63,3 +71,18 @@ jobs:
             Бортач ${{ env.BORTACH_VERSION }} — сборка ${{ github.run_number }} (${{ github.sha }}).
             Скачайте Bortach-${{ env.BORTACH_VERSION }}.apk и установите поверх прежней версии.
           files: obd-logger/Bortach-${{ env.BORTACH_VERSION }}.apk
+
+      - name: Publish screenshots
+        if: steps.screens.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view bortach-screens >/dev/null 2>&1; then
+            gh release view bortach-screens --json assets -q '.assets[].name' | while read -r a; do
+              gh release delete-asset bortach-screens "$a" -y
+            done
+            gh release upload bortach-screens "screens-${BORTACH_VERSION}.zip"
+          else
+            gh release create bortach-screens "screens-${BORTACH_VERSION}.zip" --prerelease \
+              --title "Бортач: скриншоты экранов" --notes "Все экраны на тестовых поездках, для проверки вёрстки." --target "$GITHUB_SHA"
+          fi

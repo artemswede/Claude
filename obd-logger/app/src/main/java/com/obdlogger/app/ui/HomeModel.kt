@@ -38,6 +38,11 @@ class HomeModel(
             val saved = SessionFiles.tripCsvs(ctx).takeLast(8).mapNotNull { SessionFiles.analyze(it) }.filter { it.rows >= 10 }
             val current = s.currentCsv?.let(::File)?.takeIf { s.recording && it.exists() }
                 ?.let { f -> runCatching { TripAnalyzer.analyze(f.nameWithoutExtension, f.readText()) }.getOrNull() }
+            return from(saved, current, s)
+        }
+
+        /** Pure part of [build]: decides the state from already analysed trips. */
+        fun from(saved: List<TripSummary>, current: TripSummary?, s: LoggerState.Snapshot): HomeModel {
             val live = current != null
             val trip = current ?: saved.lastOrNull()
 

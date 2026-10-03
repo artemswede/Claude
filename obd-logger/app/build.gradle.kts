@@ -35,6 +35,14 @@ android {
         buildConfig = true
     }
 
+    // Screenshot tests (Robolectric, native graphics) need the real resources and assets.
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            all { it.systemProperty("screens.dir", layout.buildDirectory.dir("screens").get().asFile.absolutePath) }
+        }
+    }
+
     compileOptions {
         // java.time (trip analysis, CSV timestamps) on Android 7.
         isCoreLibraryDesugaringEnabled = true
@@ -50,4 +58,6 @@ kotlin {
 dependencies {
     implementation(project(":obd-core"))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.3")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }
