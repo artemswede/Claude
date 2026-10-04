@@ -185,7 +185,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
                 "Запись", "Система остановила запись",
                 "В ${java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.ROOT).format(java.util.Date(killed))} Android закрыл Бортач в фоне. " +
                     "Записанное до этого момента сохранено в «Поездках». Чтобы это не повторялось, снимите ограничение батареи.",
-                "Не ограничивать в фоне", { askBattery(); clearKilled() },
+                "Снять ограничение", { askBattery(); clearKilled() },
                 dismiss = { clearKilled() },
             )
             wantsCar && Prefs.device(this) != null && !hasBluetoothPermission() -> HomeView.Problem(

@@ -140,7 +140,7 @@ class HomeView(
         val box = column(context, dp(12), icon,
             context.label(pr.label, sc, p),
             context.text(pr.title, if (sc.phone) 24f else sc.hl, p.t1, 700),
-            context.text(pr.text, if (sc.phone) 16f else sc.pl, p.t2, lineHeight = if (sc.phone) 22f else sc.pl * 1.35f))
+            context.text(pr.text, if (sc.phone) 16f else sc.pl, p.t2, lineHeight = if (sc.phone) 21f else sc.pl * 1.25f))
         val actions = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         addTo(actions, button(pr.action) { pr.onAction() })
         pr.dismiss?.let { d -> addTo(actions, context.text("Понятно", sc.btnFont, p.acc, 600).apply { setPadding(dp(16), dp(12), dp(16), dp(12)); setOnClickListener { d() } }, dp(12)) }
@@ -408,7 +408,10 @@ class HomeView(
     private fun button(title: String, onClick: () -> Unit): View =
         context.text(title, sc.btnFont, p.accInk, 600).apply {
             gravity = Gravity.CENTER
-            setPadding(dp(26), 0, dp(26), 0)
+            maxLines = 1
+            setPadding(dp(28), 0, dp(28), 0)
+            // Measured text can be a hair narrower than drawn; never clip the label.
+            minWidth = (paint.measureText(title) * 1.08f).toInt() + dp(56)
             background = roundRect(p.acc, dp(12).toFloat())
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(sc.btnH))
             setOnClickListener { onClick() }
