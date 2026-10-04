@@ -49,6 +49,8 @@ class SessionFiles(dir: File, baseName: String) {
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) exportMediaStore(ctx, file, mime) else exportLegacy(ctx, file, mime)
         }
 
+        /** Android 10+ only (called behind a version check). */
+        @android.annotation.TargetApi(Build.VERSION_CODES.Q)
         private fun exportMediaStore(ctx: Context, file: File, mime: String): Exported {
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, file.name)
