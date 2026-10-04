@@ -110,7 +110,7 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             attnPage = 0
             refresh()
         })
-        addTo(head, View(context), 0, 1f)
+        addTo(head, spacer(context))
         attnCount.setOnClickListener { attnPage = 1 - attnPage; refresh() }
         addTo(head, attnCount)
         attn.addView(head)

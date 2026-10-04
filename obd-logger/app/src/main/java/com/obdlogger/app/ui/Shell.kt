@@ -69,7 +69,7 @@ class Shell(private val activity: Activity) {
             addTo(bar, sep, ctx.dp(18))
             addTo(bar, car, ctx.dp(18))
         }
-        addTo(bar, View(ctx), 0, 1f)
+        addTo(bar, spacer(ctx))
         dtcChip.setPadding(ctx.dp(12), ctx.dp(4), ctx.dp(12), ctx.dp(4))
         addTo(bar, dtcChip, ctx.dp(12))
         addTo(bar, rec, ctx.dp(16))

@@ -6,7 +6,17 @@ import android.graphics.Canvas
 import android.view.View
 import com.obdlogger.app.ui.HomeModel
 import com.obdlogger.app.ui.HomeView
+import com.obdlogger.app.ui.PlanView
 import com.obdlogger.app.ui.RecordView
+import com.obdlogger.app.ui.TripActions
+import com.obdlogger.app.ui.TripDetailView
+import com.obdlogger.app.ui.TripItem
+import com.obdlogger.app.ui.TripsModel
+import com.obdlogger.app.ui.TripsView
+import com.obdlogger.app.ui.VersionActions
+import com.obdlogger.app.ui.VersionView
+import com.obdlogger.core.Hypotheses
+import com.obdlogger.core.TripDetail
 import com.obdlogger.core.SeriesStore
 import com.obdlogger.app.ui.SettingsView
 import com.obdlogger.app.ui.Shell
@@ -76,6 +86,14 @@ object Samples {
         }
     }
 
+    val realItems: List<TripItem> by lazy {
+        dir.listFiles().orEmpty().filter { it.name.endsWith(".csv") }.sortedBy { it.name }.mapNotNull { f ->
+            real.firstOrNull { it.name == f.nameWithoutExtension }?.let { TripItem(f, it, null) }
+        }
+    }
+
+    fun detail(item: TripItem) = TripDetail(TripAnalyzer.table(item.csv.readText())!!, item.summary)
+
     fun sim(profile: CarProfile, minutes: Double = 20.0) = SimDrive.drive(profile, minutes)
 
     fun simSummary(profile: CarProfile, minutes: Double = 20.0): TripSummary {
@@ -118,6 +136,15 @@ class Scenes(private val a: Activity) {
         }
     }
 
+    private fun versionTrip() = Samples.realItems.last { it.summary.top != null }
+
+    private fun hypothesis() = Hypotheses.of(versionTrip().summary.top!!, Samples.real)
+
+    private fun trip(tab: Int) = shell(Shell.Page.TRIPS, waiting) { sh ->
+        val item = versionTrip()
+        TripDetailView(a, sh.sc, item, NoActions).apply { bind(Samples.detail(item)); showTab(tab) }
+    }
+
     private fun record(tab: Int, s: LoggerState.Snapshot) = shell(Shell.Page.RECORD, s) { sh ->
         RecordView(a, sh.sc).apply { bind(liveStore, s); showTab(tab) }
     }
@@ -137,9 +164,31 @@ class Scenes(private val a: Activity) {
             "G3_attention" to { record(1, recording) },
             "G2_charts" to { record(2, recording) },
             "N2_stale" to { record(0, off) },
+            "V1_journal" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc) {}.apply { bind(TripsModel.from(Samples.realItems)) } } },
+            "V1a_empty" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc) {}.apply { bind(TripsModel.from(emptyList())) } } },
+            "V3_compare" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc) {}.apply { bind(TripsModel.from(Samples.realItems)); showTab(1) } } },
+            "V3a_compare_few" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc) {}.apply { bind(TripsModel.from(Samples.realItems.take(1))); showTab(1) } } },
+            "V2_trip" to { trip(0) },
+            "V2_stats" to { trip(1) },
+            "V2_rating" to { trip(2) },
+            "V2_charts" to { trip(3) },
+            "K2_version" to { shell(Shell.Page.OVERVIEW, waiting) { sh -> VersionView(a, sh.sc, hypothesis(), "Обзор", NoActions) } },
+            "K3_plan" to { shell(Shell.Page.OVERVIEW, waiting) { sh -> PlanView(a, sh.sc, hypothesis(), "Toyota Avensis 2005 · 2.0 D-4 (1AZ-FSE)", NoActions) } },
             "N1_settings" to { shell(Shell.Page.SETTINGS, off) { sh -> SettingsView(a, sh.sc).apply { bind(FakeHost, "") } } },
         )
     }
+}
+
+object NoActions : TripActions, VersionActions {
+    override fun back() = Unit
+    override fun share(files: List<java.io.File>, title: String) = Unit
+    override fun printReport(item: TripItem) = Unit
+    override fun openVersion(f: com.obdlogger.core.Finding, item: TripItem?) = Unit
+    override fun openPlan(h: com.obdlogger.core.Hypothesis) = Unit
+    override fun startCheck() = Unit
+    override fun openCompare() = Unit
+    override fun printPlan(h: com.obdlogger.core.Hypothesis) = Unit
+    override fun sharePlan(h: com.obdlogger.core.Hypothesis) = Unit
 }
 
 object FakeHost : SettingsView.Host {

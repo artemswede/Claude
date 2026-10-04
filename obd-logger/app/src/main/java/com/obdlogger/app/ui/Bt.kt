@@ -171,6 +171,9 @@ fun row(ctx: Context, gap: Int = 0, gravity: Int = Gravity.CENTER_VERTICAL, vara
         }
     }
 
+/** Flexible gap in a horizontal row; zero height so it never stretches the row. */
+fun spacer(ctx: Context): View = View(ctx).apply { layoutParams = LinearLayout.LayoutParams(0, 0, 1f) }
+
 fun column(ctx: Context, gap: Int = 0, vararg children: View): LinearLayout =
     LinearLayout(ctx).apply {
         orientation = LinearLayout.VERTICAL

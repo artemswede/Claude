@@ -7,7 +7,6 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.text.TextPaint
-import android.text.TextUtils
 import android.view.View
 import com.obdlogger.core.AttentionItem
 import com.obdlogger.core.LiveMode
@@ -31,10 +30,11 @@ object Num {
     fun fmt(code: String, v: Double): String {
         if (v.isNaN()) return "—"
         val a = abs(v)
+        val volts = SensorNames.unit(code) == "В"
         val s = when {
             a >= 100 -> Math.round(v).toString()
-            a >= 10 -> String.format(Locale.ROOT, "%.1f", v)
-            else -> String.format(Locale.ROOT, "%.2f", v).let { if (code == "maf_gs" || code.startsWith("trim")) String.format(Locale.ROOT, "%.1f", v) else it }
+            volts && a < 10 -> String.format(Locale.ROOT, "%.2f", v)
+            else -> String.format(Locale.ROOT, "%.1f", v)
         }.replace("-", "−")
         return if (signed(code) && v > 0) "+$s" else s
     }
@@ -62,7 +62,12 @@ internal fun View.paint(sizeSp: Float, color: Int, weight: Int = 400, mono: Bool
 @Suppress("DEPRECATION")
 internal fun android.util.DisplayMetrics.scaledDensityCompat(): Float = scaledDensity
 
-internal fun ellipsize(s: String, p: TextPaint, w: Float): String = TextUtils.ellipsize(s, p, w.coerceAtLeast(0f), TextUtils.TruncateAt.END).toString()
+internal fun ellipsize(s: String, p: Paint, w: Float): String {
+    if (p.measureText(s) <= w) return s
+    var end = s.length
+    while (end > 1 && p.measureText(s, 0, end) + p.measureText("…") > w) end--
+    return s.substring(0, end).trimEnd() + "…"
+}
 
 /**
  * Tile of the record panel (Г1): name, CSV code, big value with unit, norm status
@@ -94,7 +99,8 @@ class TileView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
         times = s.first
         values = s.second
         value = store.last(code)
-        ageSec = store.lastTimeOf(code)?.let { (nowMs - it) / 1000 } ?: 0
+        // Age against the newest row: a slow or silent sensor shows how old its value is.
+        ageSec = store.lastTimeOf(code)?.let { (end - it) / 1000 } ?: 0
         contentDescription = SensorNames.label(code)
         invalidate()
     }
@@ -157,8 +163,13 @@ class TileView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
         val sparkH = h * 0.12f
         val sparkTop = h - pad - sparkH
         val noteY = sparkTop - 10 * d
+        if (staleAt != null) {
+            c.drawText("последнее значение", pad, noteY, note)
+            val tp = paint(0f, p.t3, 400, mono = true).apply { textSize = note.textSize }
+            c.drawText(Num.clockFull(staleAt!!), pad, noteY + note.textSize * 1.5f, tp)
+            return
+        }
         val text = when {
-            staleAt != null -> "последнее значение · ${Num.clockFull(staleAt!!)}"
             ageSec > 15 -> "${ageSec} с назад"
             front -> if (out) "не переключается" else "переключается"
             norm != null && out -> "${norm.word(state)} · ${mode.ru}"

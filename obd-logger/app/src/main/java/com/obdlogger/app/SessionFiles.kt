@@ -35,6 +35,7 @@ class SessionFiles(dir: File, baseName: String) {
     companion object {
         const val DOWNLOAD_FOLDER = "OBD-Logger"
         private const val DEMO_PREFIX = "demo_"
+        const val CHECK_PREFIX = "check_"
 
         fun dir(ctx: Context) = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "sessions").apply { mkdirs() }
 
@@ -98,8 +99,20 @@ class SessionFiles(dir: File, baseName: String) {
                 .filter { it.name.startsWith("obd_") && it.name.endsWith(".csv") && it.length() > 0 }
                 .sortedBy { it.name }
 
+        /** Check logs (проверочный лог), oldest first. */
+        fun checkCsvs(ctx: Context): List<File> =
+            dir(ctx).listFiles().orEmpty()
+                .filter { it.name.startsWith(CHECK_PREFIX) && it.name.endsWith(".csv") && it.length() > 0 }
+                .sortedBy { it.name }
+
+        fun infoOf(csv: File) = File(csv.parentFile, csv.name.removeSuffix(".csv") + "_info.txt")
+        fun elmOf(csv: File) = File(csv.parentFile, csv.name.removeSuffix(".csv") + "_elm.log")
+
+        /** New check-log files next to the trips. */
+        fun createCheck(ctx: Context) = SessionFiles(dir(ctx), CHECK_PREFIX + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()))
+
         fun analyze(csv: File): TripSummary? {
-            val info = File(csv.parentFile, csv.name.removeSuffix(".csv") + "_info.txt")
+            val info = infoOf(csv)
             return try {
                 TripAnalyzer.analyze(csv.nameWithoutExtension, csv.readText(), if (info.exists()) info.readText() else null)
             } catch (e: Exception) {

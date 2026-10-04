@@ -18,24 +18,40 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.view.WindowManager
 import android.widget.EditText
-import android.widget.HorizontalScrollView
-import android.widget.ScrollView
-import android.widget.TextView
 import android.widget.Toast
-import com.obdlogger.app.ui.Bt
+import android.print.PrintAttributes
+import android.print.PrintManager
+import android.view.View
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import com.obdlogger.app.ui.HomeModel
 import com.obdlogger.app.ui.HomeView
+import com.obdlogger.app.ui.PlanView
 import com.obdlogger.app.ui.RecordView
+import com.obdlogger.app.ui.Reports
 import com.obdlogger.app.ui.SettingsView
 import com.obdlogger.app.ui.Shell
-import com.obdlogger.app.ui.dp
-import com.obdlogger.app.ui.text
+import com.obdlogger.app.ui.TripActions
+import com.obdlogger.app.ui.TripCache
+import com.obdlogger.app.ui.TripDetailView
+import com.obdlogger.app.ui.TripItem
+import com.obdlogger.app.ui.TripsModel
+import com.obdlogger.app.ui.TripsView
+import com.obdlogger.app.ui.VersionActions
+import com.obdlogger.app.ui.VersionView
+import com.obdlogger.core.Finding
+import com.obdlogger.core.Hypotheses
+import com.obdlogger.core.Hypothesis
+import java.io.File
 
-class MainActivity : Activity(), SettingsView.Host {
+class MainActivity : Activity(), SettingsView.Host, TripActions, VersionActions {
     private lateinit var shell: Shell
     private lateinit var home: HomeView
     private lateinit var settings: SettingsView
-    private lateinit var tripsText: TextView
+    private lateinit var trips: TripsView
+    @Volatile private var tripsModel: TripsModel? = null
+    /** Pages opened on top of a section (trip, version, plan); «назад» closes the top one. */
+    private val stack = HashMap<Shell.Page, ArrayList<View>>()
     private lateinit var record: RecordView
     @Volatile private var storeLoading = false
     private val handler = Handler(Looper.getMainLooper())
@@ -63,19 +79,14 @@ class MainActivity : Activity(), SettingsView.Host {
         shell = Shell(this)
         setContentView(shell.root)
 
-        home = HomeView(this, shell.sc, onDetails = { shell.show(Shell.Page.TRIPS) }, onSettings = { shell.show(Shell.Page.SETTINGS) })
+        home = HomeView(this, shell.sc, onDetails = { openHomeVersion() }, onSettings = { shell.show(Shell.Page.SETTINGS) })
         shell.containers.getValue(Shell.Page.OVERVIEW).addView(home)
 
         record = RecordView(this, shell.sc)
         shell.containers.getValue(Shell.Page.RECORD).addView(record)
 
-        tripsText = text("Загрузка поездок…", if (shell.sc.phone) 11f else 14f, Bt.LIGHT.t1, 400, mono = true).apply {
-            setPadding(dp(24), dp(20), dp(24), dp(20))
-            setTextIsSelectable(true)
-        }
-        shell.containers.getValue(Shell.Page.TRIPS).addView(ScrollView(this).apply {
-            addView(HorizontalScrollView(this@MainActivity).apply { addView(tripsText) })
-        })
+        trips = TripsView(this, shell.sc) { openTrip(it) }
+        shell.containers.getValue(Shell.Page.TRIPS).addView(trips)
 
         settings = SettingsView(this, shell.sc)
         shell.containers.getValue(Shell.Page.SETTINGS).addView(settings)
@@ -421,13 +432,135 @@ class MainActivity : Activity(), SettingsView.Host {
         if (!force && saved == tripsShownFor) return
         tripsShownFor = saved
         Thread {
-            val text = try {
-                SessionFiles.compareRecent(this)
+            val m = try {
+                TripsModel.build(this)
             } catch (e: Exception) {
-                "Не удалось разобрать поездки: ${e.message}"
+                null
             }
-            runOnUiThread { tripsText.text = text }
+            runOnUiThread { if (m != null) { tripsModel = m; trips.bind(m) } }
         }.start()
+    }
+
+    // ---- pages on top of a section ----
+
+    private fun push(page: Shell.Page, v: View) {
+        val box = shell.containers.getValue(page)
+        val list = stack.getOrPut(page) { ArrayList() }
+        (list.lastOrNull() ?: box.getChildAt(0))?.visibility = View.GONE
+        list += v
+        box.addView(v)
+        if (shell.page != page) shell.show(page)
+    }
+
+    private fun pop(): Boolean {
+        val list = stack[shell.page] ?: return false
+        val top = list.removeLastOrNull() ?: return false
+        val box = shell.containers.getValue(shell.page)
+        box.removeView(top)
+        (list.lastOrNull() ?: box.getChildAt(0))?.visibility = View.VISIBLE
+        return true
+    }
+
+    @Deprecated("Activity back handling for API 24+")
+    override fun onBackPressed() {
+        if (!pop()) {
+            @Suppress("DEPRECATION")
+            super.onBackPressed()
+        }
+    }
+
+    private fun openTrip(item: TripItem) {
+        val v = TripDetailView(this, shell.sc, item, this)
+        push(Shell.Page.TRIPS, v)
+        Thread {
+            val d = TripCache.detail(item)
+            runOnUiThread { v.bind(d) }
+        }.start()
+    }
+
+    /** «Подробнее» on the main screen: the version card of the trip shown there. */
+    private fun openHomeVersion() {
+        Thread {
+            val m = tripsModel ?: TripsModel.build(this).also { tripsModel = it }
+            val model = HomeModel.build(this, LoggerState.snapshot)
+            val f = model.trip?.top ?: model.past?.top
+            runOnUiThread {
+                if (f == null) shell.show(Shell.Page.TRIPS)
+                else push(Shell.Page.OVERVIEW, VersionView(this, shell.sc, Hypotheses.of(f, m.trips.map { it.summary } + listOfNotNull(model.trip.takeIf { model.live })), "Обзор", this))
+            }
+        }.start()
+    }
+
+    // ---- TripActions / VersionActions ----
+
+    override fun back() {
+        pop()
+    }
+
+    override fun share(files: List<File>, title: String) {
+        if (files.isEmpty()) return
+        val uris = ArrayList(files.map { ShareProvider.uri(this, it) })
+        val send = Intent(if (uris.size == 1) Intent.ACTION_SEND else Intent.ACTION_SEND_MULTIPLE)
+            .setType("text/*")
+            .putExtra(Intent.EXTRA_SUBJECT, title)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        if (uris.size == 1) send.putExtra(Intent.EXTRA_STREAM, uris[0]) else send.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+        startActivity(Intent.createChooser(send, title))
+    }
+
+    override fun printReport(item: TripItem) {
+        val f = item.summary.top
+        val h = f?.let { Hypotheses.of(it, tripsModel?.trips?.map { t -> t.summary }.orEmpty()) }
+        print("Бортач — поездка ${HomeModel.tripRange(item.summary)}", Reports.tripHtml(item, h, Prefs.vehicle(this), BuildConfig.VERSION_NAME))
+    }
+
+    override fun openVersion(f: Finding, item: TripItem?) {
+        val all = tripsModel?.trips?.map { it.summary }.orEmpty()
+        val upTo = item?.summary?.start?.let { st -> all.filter { (it.start ?: st) <= st } } ?: all
+        push(shell.page, VersionView(this, shell.sc, Hypotheses.of(f, upTo.ifEmpty { listOfNotNull(item?.summary) }), if (shell.page == Shell.Page.TRIPS) "Поездка" else "Обзор", this))
+    }
+
+    override fun openPlan(h: Hypothesis) = push(shell.page, PlanView(this, shell.sc, h, Prefs.vehicle(this), this))
+
+    override fun startCheck() {
+        Toast.makeText(this, "Проверочный лог запускается на главном экране, когда мотор прогрет и машина стоит.", Toast.LENGTH_LONG).show()
+        while (pop()) Unit
+        shell.show(Shell.Page.OVERVIEW)
+    }
+
+    override fun openCompare() {
+        shell.show(Shell.Page.TRIPS)
+        while (pop()) Unit
+        trips.showTab(1)
+    }
+
+    override fun printPlan(h: Hypothesis) = print("Бортач — план проверки", Reports.planHtml(h, Prefs.vehicle(this), BuildConfig.VERSION_NAME))
+
+    override fun sharePlan(h: Hypothesis) {
+        val f = File(SessionFiles.dir(this), "plan_${h.finding.kind.ifEmpty { "version" }}.html")
+        f.writeText(Reports.planHtml(h, Prefs.vehicle(this), BuildConfig.VERSION_NAME))
+        val send = Intent(Intent.ACTION_SEND)
+            .setType("text/html")
+            .putExtra(Intent.EXTRA_TEXT, Reports.planText(h, Prefs.vehicle(this)))
+            .putExtra(Intent.EXTRA_STREAM, ShareProvider.uri(this, f))
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        startActivity(Intent.createChooser(send, "План для мастера"))
+    }
+
+    /** Print / save as PDF through the system print dialog. */
+    private var printView: WebView? = null
+
+    private fun print(title: String, html: String) {
+        val wv = WebView(this)
+        printView = wv
+        wv.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView, url: String?) {
+                val pm = getSystemService(PRINT_SERVICE) as PrintManager
+                pm.print(title, view.createPrintDocumentAdapter(title), PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build())
+                printView = null
+            }
+        }
+        wv.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
     }
 
     private fun refreshSettings(force: Boolean = false) {
