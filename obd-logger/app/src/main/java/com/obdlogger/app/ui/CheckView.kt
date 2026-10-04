@@ -65,7 +65,7 @@ class CheckView(ctx: Context, private val sc: Bt.Scale, private val actions: Che
     private fun prepKey(s: LoggerState.Snapshot) = "${s.recording}:${value(s, "rpm")?.toInt()?.div(100)}:${value(s, "speed_kmh")?.toInt()}:${value(s, "coolant_c")?.toInt()}"
 
     private fun header(title: String): View {
-        val back = context.text("← Обзор", if (sc.phone) 16f else 19f, p.t1, 500).apply { setOnClickListener { actions.back() } }
+        val back = context.text("← Обзор", if (sc.phone) 16f else 19f, p.t1, 500).apply { setOnClickListener { actions.back() } }.tap()
         return column(context, dp(10), back, context.text(title, if (sc.phone) 26f else 36f, p.t1, 700))
     }
 
@@ -104,7 +104,7 @@ class CheckView(ctx: Context, private val sc: Bt.Scale, private val actions: Che
             val on = step.n == st.step.n
             val c = column(context, dp(6),
                 HomeView.Progress(context, st.progress[i].toFloat(), p.acc, p.s3),
-                context.text("${step.n} ${step.title.replace("Держите ", "")} ${step.durationSec / 60}:00", if (sc.phone) 12f else 15f, if (on) p.t1 else p.t2, if (on) 600 else 400, maxLines = 1))
+                context.text("${step.n} ${step.title.replace("Держите ", "")} ${step.durationSec / 60}:00", if (sc.phone) 12f else 15f, if (on) p.t1 else p.t2, if (on) 600 else 400, maxLines = 2))
             steps.addView(c, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, step.durationSec.toFloat()).apply { if (i > 0) leftMargin = dp(6) })
         }
         addTo(page, steps)

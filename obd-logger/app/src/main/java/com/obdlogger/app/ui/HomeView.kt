@@ -143,9 +143,9 @@ class HomeView(
             context.text(pr.text, if (sc.phone) 16f else sc.pl, p.t2, lineHeight = if (sc.phone) 21f else sc.pl * 1.25f))
         val actions = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         addTo(actions, button(pr.action) { pr.onAction() })
-        pr.dismiss?.let { d -> addTo(actions, context.text("Понятно", sc.btnFont, p.acc, 600).apply { setPadding(dp(16), dp(12), dp(16), dp(12)); setOnClickListener { d() } }, dp(12)) }
+        pr.dismiss?.let { d -> addTo(actions, context.text("Понятно", sc.btnFont, p.acc, 600).apply { setPadding(dp(16), dp(12), dp(16), dp(12)); setOnClickListener { d() } }.tap(), dp(12)) }
         pr.hint?.let { addTo(actions, context.text(it, sc.cap, p.t2).apply { maxWidth = dp(300) }, dp(16)) }
-        addTo(box, actions, dp(8))
+        addTo(box, actions, dp(18))
         val cardView = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             background = roundRect(p.s1, dp(18).toFloat())
@@ -429,7 +429,7 @@ class HomeView(
         }
 
     private fun link(text: String, onClick: () -> Unit): TextView =
-        context.text(text, if (sc.phone) 16f else if (sc === Bt.TABLET) 20f else 16f, p.acc, 600).apply { setOnClickListener { onClick() } }
+        context.text(text, if (sc.phone) 16f else if (sc === Bt.TABLET) 20f else 16f, p.acc, 600).apply { setOnClickListener { onClick() } }.tap()
 
     /** Trend over trips: three dots on a norm band. */
     class Sparkline(ctx: Context) : View(ctx) {

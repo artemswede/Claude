@@ -90,7 +90,7 @@ class Segment(ctx: Context, private val sc: Bt.Scale, private val p: Bt.Palette,
                 setOnClickListener { select(i) }
             }
             items += tv
-            addView(tv, LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(if (sc.phone) 38 else 44)))
+            addView(tv, LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(if (sc.phone) 44 else 48)))
         }
         style()
     }
@@ -112,7 +112,7 @@ class Segment(ctx: Context, private val sc: Bt.Scale, private val p: Bt.Palette,
 }
 
 /** Status chip: «за нормой», «норма», «мало данных». */
-fun Context.chip(text: String, fg: Int, bg: Int, sizeSp: Float = 15f): TextView = text(text, sizeSp, fg, 600).apply {
+fun Context.chip(text: String, fg: Int, bg: Int, sizeSp: Float = 15f): TextView = text(text, sizeSp.coerceAtLeast(13f), fg, 600).apply {
     setPadding(dp(12), dp(5), dp(12), dp(5))
     background = roundRect(bg, dp(999).toFloat())
 }

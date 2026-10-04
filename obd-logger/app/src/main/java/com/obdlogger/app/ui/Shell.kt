@@ -84,7 +84,8 @@ class Shell(private val activity: Activity) {
         addTo(bar, rec, ctx.dp(16))
         lampPill.orientation = LinearLayout.HORIZONTAL
         lampPill.gravity = Gravity.CENTER_VERTICAL
-        lampPill.setPadding(ctx.dp(12), ctx.dp(8), ctx.dp(12), ctx.dp(8))
+        lampPill.setPadding(ctx.dp(14), ctx.dp(14), ctx.dp(14), ctx.dp(14))
+        lampPill.minimumHeight = ctx.dp(44)
         for ((i, l) in listOf(lamp1, lamp2).withIndex()) {
             lampPill.addView(l, LinearLayout.LayoutParams(ctx.dp(sc.lamp), ctx.dp(sc.lamp)).apply { if (i > 0) leftMargin = ctx.dp(10) })
         }
@@ -181,6 +182,9 @@ class Shell(private val activity: Activity) {
         val name = Prefs.vehicle(ctx)
         val unnamed = name.isBlank() && Prefs.currentCar(ctx) != null
         car.text = if (unnamed) "Новая машина · указать название" else name
+        val showCar = !sc.phone && car.text.isNotEmpty()
+        car.visibility = if (showCar) View.VISIBLE else View.GONE
+        sep.visibility = car.visibility
         car.setTextColor(if (unnamed) p.acc else p.t2)
         car.setOnClickListener { onCar() }
         lamp1.background = roundRect(lampColor(s.link), ctx.dp(sc.lamp).toFloat())

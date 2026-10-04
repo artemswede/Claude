@@ -139,6 +139,7 @@ class TripsView(
         val name = com.obdlogger.app.Prefs.carName(context, car.key)?.takeIf { it.isNotBlank() } ?: car.name
         val many = m.cars.size > 1
         val t = context.text(if (many) "Машина: $name · другая ▾" else "Машина: $name", if (sc.phone) 14f else 16f, if (many) p.acc else p.t2, 600)
+        if (many) t.tap()
         if (many) t.setOnClickListener {
             val names = m.cars.map { c -> com.obdlogger.app.Prefs.carName(context, c.key)?.takeIf { it.isNotBlank() } ?: c.name }
             android.app.AlertDialog.Builder(context)
@@ -268,7 +269,7 @@ class TripsView(
         for (r in t.rows) {
             val name = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
             name.addView(context.text(r.title, if (sc.phone) 15f else 19f, p.t1, 600, maxLines = 2))
-            if (r.code.isNotEmpty()) addTo(name, context.text(r.code, if (sc.phone) 11f else 13f, p.t3, 400, mono = true), dp(2))
+            if (r.code.isNotEmpty()) addTo(name, context.text(r.code, if (sc.phone) 12f else 13f, p.t3, 400, mono = true), dp(2))
             val last = r.values.lastOrNull()
             val cells = r.values.mapIndexed { i, v ->
                 context.text(v?.let { x -> fmtMetric(r.unit, x) } ?: "—", if (sc.phone) 14f else 18f, p.t1, if (i == r.values.lastIndex && last != null) 600 else 400, mono = true).apply { gravity = Gravity.END }

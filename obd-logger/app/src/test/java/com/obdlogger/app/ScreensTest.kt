@@ -298,4 +298,6 @@ object FakeHost : SettingsView.Host {
     override fun manualText() = "начать запись сейчас, не дожидаясь автозаписи"
     override fun toggleManual() = Unit
     override fun version() = "20261003_2259"
+    override fun readiness() = listOf("Адаптер выбран" to true, "Автозапись поездок включена" to true, "Запуск при включении планшета" to true,
+        "Разрешения Bluetooth и уведомлений" to true, "Система не ограничивает Бортач в фоне" to false, "Открываться при запуске мотора (необязательно)" to false)
 }

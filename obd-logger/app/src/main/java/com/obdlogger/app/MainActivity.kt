@@ -443,6 +443,15 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
 
     override fun version(): String = BuildConfig.VERSION_NAME
 
+    override fun readiness(): List<Pair<String, Boolean>> = listOf(
+        "Адаптер выбран" to (Prefs.device(this) != null),
+        "Автозапись поездок включена" to Prefs.auto(this),
+        "Запуск при включении планшета" to Prefs.boot(this),
+        "Разрешения Bluetooth и уведомлений" to permissionsGranted(),
+        "Система не ограничивает Бортач в фоне" to batteryFree(),
+        "Открываться при запуске мотора (необязательно)" to overlayAllowed(),
+    )
+
     // ---- recording ----
 
     private fun startRecording() {

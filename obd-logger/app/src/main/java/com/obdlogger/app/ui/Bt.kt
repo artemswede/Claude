@@ -74,9 +74,9 @@ object Bt {
         endLbl = 14f, axis = 12f, botH = 96, pad = 22, gap = 24, tileValue = 44f, phone = false,
     )
     val PHONE = Scale(
-        lbl = 12f, hxl = 28f, hl = 24f, hm = 20f, hs = 17f, pl = 17f, p = 15f, cap = 13f, code = 11f, conf = 14f,
-        evLabel = 15f, evValue = 18f, evPad = 10, sbarH = 44, sbarFont = 13f, brandFont = 15f, lamp = 12,
-        railW = 0, riH = 64, riFont = 11f, riIcon = 24, btnH = 52, btnFont = 16f, btnBigH = 56, btnBigFont = 17f,
+        lbl = 12f, hxl = 28f, hl = 24f, hm = 20f, hs = 17f, pl = 17f, p = 15f, cap = 13f, code = 12f, conf = 14f,
+        evLabel = 15f, evValue = 18f, evPad = 10, sbarH = 48, sbarFont = 13f, brandFont = 15f, lamp = 14,
+        railW = 0, riH = 64, riFont = 12f, riIcon = 24, btnH = 52, btnFont = 16f, btnBigH = 56, btnBigFont = 17f,
         endLbl = 14f, axis = 12f, botH = 0, pad = 16, gap = 16, tileValue = 44f, phone = true,
     )
 
@@ -170,6 +170,15 @@ fun row(ctx: Context, gap: Int = 0, gravity: Int = Gravity.CENTER_VERTICAL, vara
             addView(v, lp)
         }
     }
+
+/** At least 48 dp tall to hit with a finger in a moving car; text stays vertically centred. */
+fun <T : View> T.tap(): T = apply {
+    minimumHeight = dp(48)
+    if (this is TextView) {
+        minHeight = dp(48)
+        gravity = (gravity and Gravity.HORIZONTAL_GRAVITY_MASK) or Gravity.CENTER_VERTICAL
+    }
+}
 
 /** Flexible gap in a horizontal row; zero height so it never stretches the row. */
 fun spacer(ctx: Context): View = View(ctx).apply { layoutParams = LinearLayout.LayoutParams(0, 0, 1f) }

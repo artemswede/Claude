@@ -57,7 +57,7 @@ class SetupView(ctx: Context, private val sc: Bt.Scale, private val host: Host) 
         addTo(bar, ctx.text("Первый запуск", sc.sbarFont, p.t2), dp(18))
         addTo(bar, spacer(ctx))
         addTo(bar, stepText)
-        addTo(bar, ctx.text("Пропустить", if (sc.phone) 13f else 17f, p.acc, 600).apply { setOnClickListener { host.finishSetup() } }, dp(18))
+        addTo(bar, ctx.text("Пропустить", if (sc.phone) 13f else 17f, p.acc, 600).apply { setOnClickListener { host.finishSetup() } }.tap(), dp(18))
         root.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(sc.sbarH)))
         root.addView(hline(ctx, p.line))
         val body = LinearLayout(ctx).apply { orientation = if (sc.phone) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL }
@@ -204,7 +204,7 @@ class SetupView(ctx: Context, private val sc: Bt.Scale, private val host: Host) 
     private fun bottom(page: LinearLayout, extra: View?, canNext: Boolean, last: Boolean = false) {
         addTo(page, View(context), 0, 1f)
         val r = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        if (step > 0) addTo(r, context.text("Назад", 18f, p.acc, 600).apply { setPadding(dp(8), dp(12), dp(16), dp(12)); setOnClickListener { show(step - 1) } })
+        if (step > 0) addTo(r, context.text("Назад", 18f, p.acc, 600).apply { setPadding(dp(8), dp(12), dp(16), dp(12)); setOnClickListener { show(step - 1) } }.tap())
         extra?.let { addTo(r, it, dp(8)) }
         addTo(r, spacer(context))
         val next = context.button(if (last) "Готово" else "Дальше", sc, p) {

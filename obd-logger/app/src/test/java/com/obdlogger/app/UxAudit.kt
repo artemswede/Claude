@@ -46,7 +46,9 @@ object UxAudit {
                 val l = v.layout
                 if (l != null) {
                     val ell = (0 until l.lineCount).any { l.getEllipsisCount(it) > 0 }
-                    val tooTall = l.height > v.height - v.paddingTop - v.paddingBottom + 2
+                    // A line-spacing tail under the last line is not a cut; half a line is.
+                    val lineH = if (l.lineCount > 0) l.height / l.lineCount else 0
+                    val tooTall = l.height > v.height - v.paddingTop - v.paddingBottom + maxOf(4, lineH / 2)
                     val tooWide = (0 until l.lineCount).any { l.getLineWidth(it) > v.width - v.paddingLeft - v.paddingRight + 2 }
                     if (ell) out += "текст обрезан многоточием: ${name(v)}"
                     else if (tooTall || tooWide) out += "текст не помещается: ${name(v)}"

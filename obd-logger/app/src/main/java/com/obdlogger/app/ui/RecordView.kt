@@ -112,6 +112,7 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         })
         addTo(head, spacer(context))
         attnCount.setOnClickListener { attnPage = 1 - attnPage; refresh() }
+        attnCount.tap()
         addTo(head, attnCount)
         attn.addView(head)
         val cols = if (sc.phone) 2 else 3

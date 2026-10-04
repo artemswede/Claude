@@ -47,6 +47,7 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
             setPadding(dp(sc.pad), 0, dp(16), 0)
             gravity = Gravity.CENTER_VERTICAL
             setOnClickListener { actions.back() }
+            tap()
         }
         val head = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         head.addView(back, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(48)))
@@ -149,6 +150,7 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
         f?.let {
             val conf = Confidence(context, it.confidence, sc, p, " · подробнее →")
             conf.setOnClickListener { _ -> actions.openVersion(it, item) }
+            conf.tap()
             addTo(col, conf, dp(4))
             col.setOnClickListener { _ -> actions.openVersion(it, item) }
         }
@@ -272,7 +274,7 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
             r.addView(context.text("${i + 1}", 17f, p.t2, 400, mono = true), LinearLayout.LayoutParams(dp(40), ViewGroup.LayoutParams.WRAP_CONTENT))
             r.addView(column(context, dp(2),
                 context.text(SensorNames.label(x.code), if (sc.phone) 15f else 19f, p.t1, 600, maxLines = 1),
-                context.text("${SensorNames.source(x.code)} · ${x.note}", if (sc.phone) 12f else 14f, p.t2, maxLines = 1)),
+                context.text("${SensorNames.source(x.code)} · ${x.note}", if (sc.phone) 12f else 14f, p.t2, maxLines = 2)),
                 LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             val bar = HomeView.Progress(context, ((sc0 ?: 0.0) / maxScore).toFloat().coerceIn(0f, 1f),
                 if ((sc0 ?: 0.0) > 30 && sort == AttentionSort.DEVIATION) p.amb else p.t2, p.s3)

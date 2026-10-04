@@ -44,6 +44,8 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         fun manualText(): String
         fun toggleManual()
         fun version(): String
+        /** What automatic start and recording need, and whether it is in place. */
+        fun readiness(): List<Pair<String, Boolean>>
     }
 
     private val p = Bt.LIGHT
@@ -74,6 +76,8 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             })
         }
 
+        readinessCard(h.readiness())
+
         section("Запись")
         toggle("Автозапись поездок", "завели мотор — запись, заглушили — сохранено; перезапуск до 2 мин — та же поездка", h.autoOn()) { h.setAuto(it) }
         chevron("Адаптер", h.adapterText()) { h.pickAdapter() }
@@ -97,6 +101,23 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
 
         section("О приложении")
         addTo(list, context.text("Бортач ${h.version()}", sc.p, p.t3).apply { setPadding(0, dp(14), 0, 0) })
+    }
+
+    /** «Автозапуск готов» or the list of what is missing, each with a tick or a cross. */
+    private fun readinessCard(items: List<Pair<String, Boolean>>) {
+        val ok = items.filter { !it.first.contains("необязательно") }.all { it.second }
+        val box = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        addTo(box, context.text(if (ok) "Автозапуск и автозапись готовы" else "Автозапуск настроен не до конца", sc.hs, if (ok) p.acc else p.amb, 700))
+        addTo(box, context.text(if (ok) "Включили планшет или завели мотор — Бортач сам подключится и запишет поездку. Если питание пропадёт вместе с машиной, записанное сохранится и разберётся при следующем запуске."
+            else "Ниже — чего не хватает. Нажмите на нужную строку настроек.", sc.cap, p.t2), dp(6))
+        for ((title, done) in items) {
+            addTo(box, row(context, dp(10), Gravity.CENTER_VERTICAL,
+                context.text(if (done) "✓" else "✗", sc.p, if (done) p.acc else p.amb, 700),
+                context.text(title, sc.p, p.t1)), dp(8))
+        }
+        box.setPadding(dp(18), dp(16), dp(18), dp(16))
+        box.background = roundRect(p.s1, dp(14).toFloat(), dp(1), if (ok) p.acc else p.amb)
+        addTo(list, box, dp(8))
     }
 
     // ---- rows ----

@@ -42,7 +42,7 @@ class VersionView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothe
     init {
         setBackgroundColor(p.bg)
         val page = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(sc.pad), dp(16), dp(sc.pad), dp(32)) }
-        addTo(page, ctx.text("← $backTitle", if (sc.phone) 16f else 19f, p.t1, 500).apply { setOnClickListener { actions.back() } })
+        addTo(page, ctx.text("← $backTitle", if (sc.phone) 16f else 19f, p.t1, 500).apply { setOnClickListener { actions.back() } }.tap())
         val f = h.finding
         val seen = h.seenIn
         val span = if (seen.size >= 2) "${seen.size} ${if (seen.size in 2..4) "поездки" else "поездок"} · ${Hypotheses.date(seen.first().first)}–${Hypotheses.date(seen.last().first)}" else null
@@ -124,7 +124,7 @@ class VersionView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothe
                 addTo(rcol, r)
                 addTo(rcol, hline(ctx, p.line))
             }
-            addTo(rcol, ctx.text("Сравнить поездки →", if (sc.phone) 16f else 18f, p.acc, 600).apply { setOnClickListener { actions.openCompare() } }, dp(12))
+            addTo(rcol, ctx.text("Сравнить поездки →", if (sc.phone) 16f else 18f, p.acc, 600).apply { setOnClickListener { actions.openCompare() } }.tap(), dp(12))
         }
 
         if (sc.phone) {
@@ -150,7 +150,7 @@ class PlanView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothesis
     init {
         setBackgroundColor(p.bg)
         val page = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(sc.pad), dp(16), dp(sc.pad), dp(32)) }
-        addTo(page, ctx.text("← Версия", if (sc.phone) 16f else 19f, p.t1, 500).apply { setOnClickListener { actions.back() } })
+        addTo(page, ctx.text("← Версия", if (sc.phone) 16f else 19f, p.t1, 500).apply { setOnClickListener { actions.back() } }.tap())
         val head = LinearLayout(ctx).apply { orientation = if (sc.phone) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL; gravity = Gravity.BOTTOM }
         val f = h.finding
         val n = h.seenIn.size
