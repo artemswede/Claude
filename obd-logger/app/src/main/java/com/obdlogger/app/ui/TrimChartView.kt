@@ -146,9 +146,11 @@ class TrimChartView(ctx: Context) : View(ctx) {
         canvas.drawPath(line, stroke)
 
         if (norm != null) {
+            // A norm that exists only for warm idle (rpm) is not broken by driving at 3000 rpm.
+            val idleOnly = Norms.of(code, LiveMode.DRIVE) == null
             for (above in listOf(true, false)) {
                 val edge = if (above) norm.hi else norm.lo
-                fun out(i: Int) = if (above) v[i] > edge else v[i] < edge
+                fun out(i: Int) = (!idleOnly || t.modes.getOrNull(i) == DriveMode.WARM_IDLE) && (if (above) v[i] > edge else v[i] < edge)
                 var k = 0
                 while (k < pts.size) {
                     if (!out(pts[k])) { k++; continue }
@@ -184,7 +186,8 @@ class TrimChartView(ctx: Context) : View(ctx) {
         val lx = plot.right + dp(10)
         canvas.drawText(ellipsize(SensorNames.label(code), text, width - lx), lx, ly - dp(2), text)
         text.typeface = Bt.mono(context, 500)
-        text.color = if (norm != null && (lv > norm.hi || lv < norm.lo)) p.amb else p.t1
+        val lastIdleOk = Norms.of(code, LiveMode.DRIVE) != null || t.modes.getOrNull(pts.last()) == DriveMode.WARM_IDLE
+        text.color = if (norm != null && lastIdleOk && (lv > norm.hi || lv < norm.lo)) p.amb else p.t1
         val unit = SensorNames.unit(code).let { if (it.isEmpty()) "" else " $it" }
         canvas.drawText(Num.fmt(code, lv) + unit, lx, ly + text.textSize, text)
     }
