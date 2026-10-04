@@ -6,6 +6,8 @@ import android.graphics.Canvas
 import android.view.View
 import com.obdlogger.app.ui.HomeModel
 import com.obdlogger.app.ui.HomeView
+import com.obdlogger.app.ui.RecordView
+import com.obdlogger.core.SeriesStore
 import com.obdlogger.app.ui.SettingsView
 import com.obdlogger.app.ui.Shell
 import com.obdlogger.core.CarProfile
@@ -108,6 +110,18 @@ class Scenes(private val a: Activity) {
         HomeView(a, sh.sc, {}, {}).apply { bind(HomeModel.from(saved, current, s), s) }
     }
 
+    private val liveStore by lazy {
+        val t = Samples.sim(CarProfile.LEAN_IDLE, 13.3)
+        SeriesStore().apply {
+            reset(t.columns)
+            t.rows.forEach { (ms, v) -> add(ms, v) }
+        }
+    }
+
+    private fun record(tab: Int, s: LoggerState.Snapshot) = shell(Shell.Page.RECORD, s) { sh ->
+        RecordView(a, sh.sc).apply { bind(liveStore, s); showTab(tab) }
+    }
+
     fun list(): List<Pair<String, () -> View>> {
         val real = Samples.real
         return listOf(
@@ -119,6 +133,10 @@ class Scenes(private val a: Activity) {
             "D6_noconn" to { home(waiting.copy(link = Lamp.FAIL, linkText = "нет связи с адаптером"), real, null) },
             "D_off" to { home(off, real, null) },
             "D_notrips" to { home(LoggerState.Snapshot(), emptyList(), null) },
+            "G1_panel" to { record(0, recording) },
+            "G3_attention" to { record(1, recording) },
+            "G2_charts" to { record(2, recording) },
+            "N2_stale" to { record(0, off) },
             "N1_settings" to { shell(Shell.Page.SETTINGS, off) { sh -> SettingsView(a, sh.sc).apply { bind(FakeHost, "") } } },
         )
     }

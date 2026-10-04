@@ -13,6 +13,9 @@ object Prefs {
     const val MARKS = "marks"
     const val TRACE = "trace"
     const val KEEP_DAYS = "keep_days"
+    const val TILES = "tiles"
+    const val SETUP_DONE = "setup_done"
+    const val KILLED_AT = "killed_at"
 
     fun of(ctx: Context): SharedPreferences = ctx.getSharedPreferences("settings", Context.MODE_PRIVATE)
     fun device(ctx: Context): String? = of(ctx).getString(DEVICE, null)
@@ -27,4 +30,11 @@ object Prefs {
     fun trace(ctx: Context): Boolean = of(ctx).getBoolean(TRACE, true)
     /** Keep recordings this many days; 0 = forever. */
     fun keepDays(ctx: Context): Int = of(ctx).getInt(KEEP_DAYS, 90)
+    /** Sensors on the record panel tiles, in order; empty = default set. */
+    fun tiles(ctx: Context): List<String> = of(ctx).getString(TILES, null)?.split(",")?.filter { it.isNotBlank() }.orEmpty()
+    fun setTiles(ctx: Context, codes: List<String>) = of(ctx).edit().putString(TILES, codes.joinToString(",")).apply()
+    /** The first-run wizard was finished (or skipped). */
+    fun setupDone(ctx: Context): Boolean = of(ctx).getBoolean(SETUP_DONE, false)
+    /** When the system last killed the service mid-recording; 0 = never / acknowledged. */
+    fun killedAt(ctx: Context): Long = of(ctx).getLong(KILLED_AT, 0)
 }

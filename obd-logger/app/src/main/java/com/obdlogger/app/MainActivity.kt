@@ -25,6 +25,7 @@ import android.widget.Toast
 import com.obdlogger.app.ui.Bt
 import com.obdlogger.app.ui.HomeModel
 import com.obdlogger.app.ui.HomeView
+import com.obdlogger.app.ui.RecordView
 import com.obdlogger.app.ui.SettingsView
 import com.obdlogger.app.ui.Shell
 import com.obdlogger.app.ui.dp
@@ -35,7 +36,8 @@ class MainActivity : Activity(), SettingsView.Host {
     private lateinit var home: HomeView
     private lateinit var settings: SettingsView
     private lateinit var tripsText: TextView
-    private lateinit var monitor: MonitorPanel
+    private lateinit var record: RecordView
+    @Volatile private var storeLoading = false
     private val handler = Handler(Looper.getMainLooper())
     private var ticks = 0
     @Volatile private var homeLoading = false
@@ -43,7 +45,7 @@ class MainActivity : Activity(), SettingsView.Host {
     private var settingsShownFor: LoggerState.Snapshot? = null
     private val ticker = object : Runnable {
         override fun run() {
-            if (shell.page == Shell.Page.RECORD) monitor.refresh()
+            if (shell.page == Shell.Page.RECORD) refreshRecord()
             // The main screen re-analyses the trip every 5 s while visible.
             if (shell.page == Shell.Page.OVERVIEW && ticks % 5 == 0) refreshHome()
             ticks++
@@ -64,7 +66,8 @@ class MainActivity : Activity(), SettingsView.Host {
         home = HomeView(this, shell.sc, onDetails = { shell.show(Shell.Page.TRIPS) }, onSettings = { shell.show(Shell.Page.SETTINGS) })
         shell.containers.getValue(Shell.Page.OVERVIEW).addView(home)
 
-        monitor = MonitorPanel(this, shell.containers.getValue(Shell.Page.RECORD))
+        record = RecordView(this, shell.sc)
+        shell.containers.getValue(Shell.Page.RECORD).addView(record)
 
         tripsText = text("Загрузка поездок…", if (shell.sc.phone) 11f else 14f, Bt.LIGHT.t1, 400, mono = true).apply {
             setPadding(dp(24), dp(20), dp(24), dp(20))
@@ -398,6 +401,19 @@ class MainActivity : Activity(), SettingsView.Host {
                 if (model != null) home.bind(model, LoggerState.snapshot)
             }
         }.start()
+    }
+
+    /** Live data of the record page; after a restart of the app the last trip is loaded instead. */
+    private fun refreshRecord() {
+        val s = LoggerState.snapshot
+        if (!s.recording && LiveData.store.size() == 0 && !storeLoading) {
+            storeLoading = true
+            Thread {
+                SessionFiles.tripCsvs(this).lastOrNull()?.let { SessionFiles.loadInto(it, LiveData.store) }
+                runOnUiThread { record.bind(LiveData.store, LoggerState.snapshot) }
+            }.start()
+        }
+        record.bind(LiveData.store, s)
     }
 
     private fun refreshTrips(force: Boolean = false) {

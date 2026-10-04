@@ -107,6 +107,21 @@ class SessionFiles(dir: File, baseName: String) {
             }
         }
 
+        /** Fills [store] from a saved CSV (the record page after the app was restarted). */
+        fun loadInto(csv: File, store: com.obdlogger.core.SeriesStore) {
+            val t = try {
+                TripAnalyzer.table(csv.readText())
+            } catch (e: Exception) {
+                null
+            } ?: return
+            val cols = t.header.filter { it != "time" && it != "t_s" && it != "marker" }
+            val idx = cols.map { t.header.indexOf(it) }
+            val first = t.start ?: return
+            val base = first.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+            store.reset(cols)
+            t.rows.forEachIndexed { i, r -> store.add(base + t.ms[i], idx.map { r.getOrNull(it)?.ifEmpty { null } }) }
+        }
+
         /** Deletes recordings older than [days] (0 = keep everything). Returns how many files were removed. */
         fun cleanup(ctx: Context, days: Int): Int {
             if (days <= 0) return 0
