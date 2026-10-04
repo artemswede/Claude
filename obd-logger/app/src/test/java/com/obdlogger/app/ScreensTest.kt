@@ -187,6 +187,16 @@ class Scenes(private val a: Activity) {
             "D2_calm" to { home(recording, real, Samples.simSummary(CarProfile.HEALTHY)) },
             "D3_dtc" to { home(recording, real, Samples.simSummary(CarProfile.CAN_DTC)) },
             "D4_collecting" to { home(recording, real, Samples.simSummary(CarProfile.LEAN_IDLE, 3.0)) },
+            "D7_night" to {
+                val shell = Shell(a)
+                shell.nightHome = true
+                shell.containers.getValue(Shell.Page.OVERVIEW).addView(HomeView(a, shell.sc, {}, {}, p = Bt.DARK).apply {
+                    bind(HomeModel.from(real.dropLast(1), real.last(), recording), recording)
+                })
+                shell.show(Shell.Page.OVERVIEW)
+                shell.render(recording)
+                shell.root
+            },
             "D5_wait" to { home(waiting, real, null) },
             "D6_noconn" to { home(waiting.copy(link = Lamp.FAIL, linkText = "нет связи с адаптером"), real, null) },
             "D_off" to { home(off, real, null) },
@@ -282,6 +292,5 @@ object FakeHost : SettingsView.Host {
     override fun shareLast() = Unit
     override fun manualText() = "начать запись сейчас, не дожидаясь автозаписи"
     override fun toggleManual() = Unit
-    override fun demo() = Unit
     override fun version() = "20261003_2259"
 }

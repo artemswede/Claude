@@ -11,7 +11,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 
 /**
- * Настройки (Н1): разделы «Запись», «Фон и запуск», «Файлы», «Вручную и демо»,
+ * Настройки (Н1): разделы «Запись», «Фон и запуск», «Файлы», «Вручную»,
  * «О приложении». Строка = заголовок + пояснение + переключатель / сегмент / стрелка.
  */
 class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
@@ -43,7 +43,6 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         fun shareLast()
         fun manualText(): String
         fun toggleManual()
-        fun demo()
         fun version(): String
     }
 
@@ -93,9 +92,8 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         chevron("Скопировать все записи в Загрузки", "если приложение закрывали во время записи") { h.exportAll() }
         if (h.canShareLast()) chevron("Поделиться последней записью", "CSV, разбор и журнал — в мессенджер или почту") { h.shareLast() }
 
-        section("Вручную и демо")
+        section("Вручную")
         chevron("Запись вручную", h.manualText()) { h.toggleManual() }
-        chevron("Демо без машины", "симуляция Avensis с подсосом воздуха — проверить экраны и выгрузку") { h.demo() }
 
         section("О приложении")
         addTo(list, context.text("Бортач ${h.version()}", sc.p, p.t3).apply { setPadding(0, dp(14), 0, 0) })

@@ -35,6 +35,13 @@ class Shell(private val activity: Activity) {
     var page = Page.OVERVIEW
         private set
     var onPage: (Page) -> Unit = {}
+    /** Д7: the main screen is dark at night while a trip is recorded. */
+    var nightHome = false
+        set(value) {
+            if (field == value) return
+            field = value
+            if (page == Page.OVERVIEW) applyTheme(if (value) Bt.DARK else Bt.LIGHT)
+        }
 
     val root = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
     private val bar = LinearLayout(ctx)
@@ -124,7 +131,7 @@ class Shell(private val activity: Activity) {
     fun show(pg: Page) {
         page = pg
         containers.forEach { (k, v) -> v.visibility = if (k == pg) View.VISIBLE else View.GONE }
-        applyTheme(if (pg == Page.RECORD) Bt.DARK else Bt.LIGHT)
+        applyTheme(if (pg == Page.RECORD || (pg == Page.OVERVIEW && nightHome)) Bt.DARK else Bt.LIGHT)
         onPage(pg)
     }
 

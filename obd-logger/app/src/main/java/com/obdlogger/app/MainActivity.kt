@@ -24,6 +24,7 @@ import android.print.PrintManager
 import android.view.View
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.obdlogger.app.ui.Bt
 import com.obdlogger.app.ui.CheckActions
 import com.obdlogger.app.ui.CheckView
 import com.obdlogger.app.ui.HomeModel
@@ -85,7 +86,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         shell = Shell(this)
         setContentView(shell.root)
 
-        home = HomeView(this, shell.sc, onDetails = { openHomeVersion() }, onSettings = { shell.show(Shell.Page.SETTINGS) }, onCheck = { openCheck() })
+        home = makeHome(false)
         shell.containers.getValue(Shell.Page.OVERVIEW).addView(home)
 
         record = RecordView(this, shell.sc)
@@ -437,20 +438,6 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         if (LoggerState.snapshot.running) stopRecording() else startRecording()
     }
 
-    override fun demo() {
-        if (LoggerState.snapshot.running) {
-            Toast.makeText(this, "Сначала остановите запись", Toast.LENGTH_SHORT).show()
-            return
-        }
-        Compat.startForegroundService(
-            this,
-            LoggerService.intent(this, LoggerService.ACTION_START)
-                .putExtra(LoggerService.EXTRA_DEMO, true)
-                .putExtra(LoggerService.EXTRA_VEHICLE, "ДЕМО: симуляция, не реальный автомобиль"),
-        )
-        shell.show(Shell.Page.OVERVIEW)
-    }
-
     override fun version(): String = BuildConfig.VERSION_NAME
 
     // ---- recording ----
@@ -482,6 +469,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
 
     /** Analyses trips off the main thread and updates the main screen. */
     private fun refreshHome() {
+        updateNight()
         if (homeLoading) return
         homeLoading = true
         val snap = LoggerState.snapshot
@@ -553,6 +541,36 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
             @Suppress("DEPRECATION")
             super.onBackPressed()
         }
+    }
+
+    private fun makeHome(night: Boolean) = HomeView(this, shell.sc, onDetails = { openHomeVersion() }, onSettings = { shell.show(Shell.Page.SETTINGS) },
+        onCheck = { openCheck() }, onOpenLast = { openLastTrip() }, p = if (night) Bt.DARK else Bt.LIGHT)
+
+    /** Д7: dark main screen from 21:00 to 7:00 while driving, so it does not glare. */
+    private fun updateNight() {
+        val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        val night = LoggerState.snapshot.recording && (h >= 21 || h < 7)
+        if (night == shell.nightHome) return
+        val box = shell.containers.getValue(Shell.Page.OVERVIEW)
+        val idx = box.indexOfChild(home)
+        val fresh = makeHome(night)
+        fresh.visibility = home.visibility
+        box.removeView(home)
+        box.addView(fresh, idx.coerceAtLeast(0))
+        home = fresh
+        shell.nightHome = night
+        refreshHome()
+    }
+
+    private fun openLastTrip() {
+        Thread {
+            val m = TripsModel.build(this).also { tripsModel = it }
+            runOnUiThread {
+                shell.show(Shell.Page.TRIPS)
+                trips.bind(m)
+                m.trips.firstOrNull()?.let { openTrip(it) }
+            }
+        }.start()
     }
 
     private fun openTrip(item: TripItem) {

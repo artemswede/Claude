@@ -109,7 +109,7 @@ class SetupView(ctx: Context, private val sc: Bt.Scale, private val host: Host) 
         content.removeAllViews()
         val page = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(if (sc.phone) 16 else 48), dp(if (sc.phone) 16 else 36), dp(if (sc.phone) 16 else 48), dp(24)) }
         fun title(s: String) = addTo(page, context.text(s, if (sc.phone) 26f else if (sc === Bt.TABLET) 40f else 30f, p.t1, 700))
-        fun lead(s: String) = addTo(page, context.text(s, if (sc.phone) 16f else if (sc === Bt.TABLET) 23f else 18f, p.t2, lineHeight = if (sc.phone) 22f else 32f), dp(14))
+        fun lead(s: String) = addTo(page, context.text(s, if (sc.phone) 16f else if (sc === Bt.TABLET) 23f else 18f, p.t2, lineHeight = if (sc.phone) 22f else 29f), dp(14))
         fun state(ok: Boolean, s: String) = addTo(page, context.chip(if (ok) "✓ $s" else s, if (ok) p.acc else p.amb, if (ok) p.accT else p.ambT, 16f), dp(16), width = ViewGroup.LayoutParams.WRAP_CONTENT)
         when (step) {
             0 -> {

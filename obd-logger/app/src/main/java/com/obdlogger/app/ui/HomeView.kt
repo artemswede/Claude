@@ -30,8 +30,11 @@ class HomeView(
     private val onDetails: () -> Unit,
     private val onSettings: () -> Unit,
     private val onCheck: () -> Unit = {},
+    /** Opens the last saved trip (Г7: «поездка сохранена»). */
+    private val onOpenLast: () -> Unit = {},
+    /** Д7: the dark palette at night while driving. */
+    private val p: Bt.Palette = Bt.LIGHT,
 ) : FrameLayout(ctx) {
-    private var p = Bt.LIGHT
     private val leftCol = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
     private val chartTitle = ctx.label("Коррекция смеси за поездку", sc, p)
     private val chartNorm = ctx.text("норма ±10 %", sc.cap, p.t3)
@@ -293,6 +296,7 @@ class HomeView(
     }
 
     private fun off(m: HomeModel) {
+        justSaved(m)
         val dot = View(context).apply { background = roundRect(p.l0, dp(9).toFloat()) }
         dot.layoutParams = LinearLayout.LayoutParams(dp(sc.lamp), dp(sc.lamp))
         gap(row(context, dp(8), Gravity.CENTER_VERTICAL, dot, context.label("Машина не подключена", sc, p)), 0)
@@ -317,7 +321,24 @@ class HomeView(
         gap(context.text("Вывод о машине появится после первой поездки: нужно 5 минут езды и 2 минуты прогретого холостого.", sc.cap, p.t3), 14)
     }
 
+    /** Г7: right after a trip the main screen says it was saved and opens it. */
+    private fun justSaved(m: HomeModel) {
+        val t = m.trip ?: return
+        val start = t.start ?: return
+        val end = start.plusSeconds((t.durationMin * 60).toLong())
+        if (java.time.Duration.between(end, java.time.LocalDateTime.now()).toMinutes() > 30) return
+        val box = column(context, dp(6),
+            row(context, dp(8), Gravity.CENTER_VERTICAL, context.icon(R.drawable.ic_check, p.acc, 18), context.label("Мотор заглушен · поездка сохранена", sc, p, p.acc)),
+            context.text(HomeModel.tripRange(t), sc.hs, p.t1, 600, mono = true),
+            link("Разбор и файлы →") { onOpenLast() })
+        box.setPadding(dp(18), dp(14), dp(18), dp(14))
+        box.background = roundRect(p.s1, dp(14).toFloat(), dp(1), p.acc, dp(5).toFloat())
+        gap(box, 0)
+        gap(View(context).apply { layoutParams = LinearLayout.LayoutParams(1, dp(18)) }, 0)
+    }
+
     private fun waiting(m: HomeModel, s: LoggerState.Snapshot) {
+        justSaved(m)
         gap(context.label("Автозапись", sc, p), 0)
         gap(headline("Жду запуска двигателя"), 12)
         gap(context.text("Запись начнётся сама. Ничего нажимать не нужно.", sc.pl, p.t2, lineHeight = sc.pl * 1.35f), 12)
@@ -449,7 +470,7 @@ class HomeView(
             typeface = Bt.sans(ctx, 600)
             includeFontPadding = false
             setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, maxSp)
-            setLineSpacing(0f, 1.08f)
+            setLineSpacing(0f, 0.96f)
         }
 
         private var fittedFor = -1
@@ -464,7 +485,7 @@ class HomeView(
                 while (size > minSp) {
                     tp.textSize = size * density
                     @Suppress("DEPRECATION")
-                    val l = android.text.StaticLayout(text, tp, width, android.text.Layout.Alignment.ALIGN_NORMAL, 1.08f, 0f, false)
+                    val l = android.text.StaticLayout(text, tp, width, android.text.Layout.Alignment.ALIGN_NORMAL, 0.96f, 0f, false)
                     if (l.lineCount <= lines) break
                     size -= 2f
                 }

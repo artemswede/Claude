@@ -90,7 +90,7 @@ class LoggerService : Service() {
     }
 
     private fun start(intent: Intent, auto: Boolean) {
-        Compat.startForeground(this, NOTIFICATION_ID, notification(if (auto) "Автозапись: жду двигатель" else "Подключение…"))
+        Compat.startForeground(this, NOTIFICATION_ID, notification(if (auto) "Жду машину" else "Подключение…"))
         if (worker?.isAlive == true) return
         val demo = intent.getBooleanExtra(EXTRA_DEMO, false)
         val address = if (demo) null else intent.getStringExtra(EXTRA_ADDRESS) ?: Prefs.device(this)
@@ -228,7 +228,7 @@ class LoggerService : Service() {
                         if (waiting) "Автозапись: жду машину (адаптер не отвечает — зажигание выключено?)"
                         else "Нет связи с адаптером: ${e.message}. Повтор…",
                     )
-                    updateNotification(if (waiting) "Автозапись: жду машину" else "Переподключение…")
+                    updateNotification(if (waiting) "Жду машину" else "Переподключение…")
                     pause(if (waiting) 30_000 else 3_000)
                 }
             }
@@ -406,6 +406,7 @@ class LoggerService : Service() {
                     values = logger.latest.entries.map { e -> e.key to e.value },
                 )
             }
+            updateNotification("Идёт запись", force = false)
             // Ignition on, engine off for long enough: the trip is over.
             val offSince = t.engineOffSinceMs
             if (auto && offSince != null && now - offSince > TRIP_GAP_MS) {
@@ -543,7 +544,8 @@ class LoggerService : Service() {
                 currentCsv = null,
             )
         }
-        updateNotification(if (waitingNext) "Автозапись: жду двигатель" else "Сохранено")
+        updateNotification(if (waitingNext) "Жду машину" else "Запись выключена")
+        if (rows > 0 && !t.demo) tripSavedNotification(t.files.csv)
     }
 
     /** Auto mode brings the app to the front when a trip starts (needs «поверх других окон» on Android 10+). */
@@ -591,25 +593,83 @@ class LoggerService : Service() {
         socket = null
     }
 
+    /**
+     * The ongoing notification (В5): «Жду машину» or «Идёт запись · N мин» with the
+     * poll rate and the two lamps as words; Метка only when driver marks are on.
+     */
     private fun notification(text: String): Notification {
+        val snap = LoggerState.snapshot
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         fun action(title: String, action: String, code: Int) = Notification.Action.Builder(
             Icon.createWithResource(this, R.drawable.ic_notify), title,
             PendingIntent.getService(this, code, Intent(this, LoggerService::class.java).setAction(action), PendingIntent.FLAG_IMMUTABLE),
         ).build()
-        return Compat.notificationBuilder(this, CHANNEL_ID, "Запись OBD")
+        val openAction = Notification.Action.Builder(Icon.createWithResource(this, R.drawable.ic_notify), "Открыть", open).build()
+        fun lamp(l: Lamp) = when (l) {
+            Lamp.OK -> "●"
+            Lamp.WAIT -> "◐"
+            else -> "○"
+        }
+        val lamps = "${lamp(snap.link)} ЭБУ  ${lamp(snap.engine)} мотор"
+        val title = if (recording) "Идёт запись · ${snap.elapsedSec / 60} мин" else text
+        val body = if (recording) {
+            listOfNotNull(
+                snap.cycleMs.takeIf { it > 0 }?.let { "Опрос 1 строка / %.1f с".format(it / 1000.0) },
+                if (snap.dtcInfo.contains(Regex("Ошибки: [PCBU]"))) "есть коды" else "кодов нет",
+                lamps,
+            ).joinToString(" · ")
+        } else lamps
+        return Compat.notificationBuilder(this, CHANNEL_ID, "Автозапись")
             .setSmallIcon(R.drawable.ic_notify)
-            .setContentTitle(getString(R.string.app_name))
-            .setContentText(text)
+            .setContentTitle(title)
+            .setContentText(body)
             .setContentIntent(open)
             .setOngoing(true)
-            .apply { if (Prefs.marks(this@LoggerService)) addAction(action("Метка", ACTION_MARK, 1)) }
-            .addAction(action("Стоп", ACTION_STOP, 2))
+            .setShowWhen(false)
+            .apply {
+                if (recording && Prefs.marks(this@LoggerService)) addAction(action("Метка", ACTION_MARK, 1))
+                addAction(openAction)
+                addAction(action(if (autoMode && !recording) "Остановить автозапись" else "Стоп", ACTION_STOP, 2))
+            }
             .build()
     }
 
-    private fun updateNotification(text: String) =
+    private var lastNotifyMs = 0L
+    private var lastNotifyText = ""
+
+    /** Updates the ongoing notification; while recording at most once a minute, so the shade does not flicker. */
+    private fun updateNotification(text: String, force: Boolean = true) {
+        val now = System.currentTimeMillis()
+        if (!force && text == lastNotifyText && now - lastNotifyMs < 60_000) return
+        lastNotifyMs = now
+        lastNotifyText = text
         (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIFICATION_ID, notification(text))
+    }
+
+    /** «Поездка сохранена» with the verdict — a normal notification on its own channel. */
+    private fun tripSavedNotification(csv: File) {
+        val s = try {
+            SessionFiles.analyze(csv)
+        } catch (e: Exception) {
+            null
+        } ?: return
+        val top = s.top
+        val text = when {
+            !s.dtcs.isNullOrEmpty() -> "Записан код ${s.dtcs!!.joinToString(", ")} — откройте разбор"
+            s.durationMin < com.obdlogger.core.HomeLogic.NEED_TRIP_MIN -> "Короткая поездка — для вывода мало данных"
+            top != null -> "Есть версия — ${top.headline.replaceFirstChar { it.lowercase() }} (${top.confidence})"
+            else -> "Отклонений не найдено"
+        }
+        val open = PendingIntent.getActivity(this, 3, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        val n = Compat.notificationBuilder(this, RESULT_CHANNEL_ID, "Разбор")
+            .setSmallIcon(R.drawable.ic_notify)
+            .setContentTitle("Поездка сохранена")
+            .setContentText(text)
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).notify(RESULT_NOTIFICATION_ID, n)
+    }
 
     companion object {
         const val ACTION_START = "com.obdlogger.START"
@@ -631,6 +691,8 @@ class LoggerService : Service() {
         private const val DEMO_TIME_SCALE = 5.0
         private const val CHANNEL_ID = "recording"
         private const val NOTIFICATION_ID = 1
+        private const val RESULT_CHANNEL_ID = "result"
+        private const val RESULT_NOTIFICATION_ID = 2
 
         fun intent(ctx: Context, action: String) = Intent(ctx, LoggerService::class.java).setAction(action)
     }
