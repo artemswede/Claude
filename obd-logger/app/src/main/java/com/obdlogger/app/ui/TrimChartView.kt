@@ -63,7 +63,9 @@ class TrimChartView(ctx: Context) : View(ctx) {
         // Display only: a short moving average takes out sensor flicker; the norm crossing stays where it is.
         val v = DoubleArray(raw.size) { Double.NaN }
         pts.forEachIndexed { k, i ->
-            val win = pts.subList(max(0, k - 2), min(pts.size, k + 3))
+            // Only the trims flicker; rpm dips must stay visible.
+            val r = if (code.startsWith("trim")) 2 else 0
+            val win = pts.subList(max(0, k - r), min(pts.size, k + r + 1))
             v[i] = win.sumOf { raw[it] } / win.size
         }
         var lo = pts.minOfOrNull { v[it] } ?: 0.0
