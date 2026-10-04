@@ -181,7 +181,7 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
                 background = if (on) roundRect(p.t1, dp(9).toFloat()) else null
                 setOnClickListener { change(v); rebuild() }
             }
-            seg.addView(b, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(if (sc.phone) 40 else 48)))
+            seg.addView(b, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(if (sc.phone) 44 else 48)))
         }
         rowBox(title, sub, seg, null)
     }

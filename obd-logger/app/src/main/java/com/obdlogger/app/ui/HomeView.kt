@@ -368,6 +368,8 @@ class HomeView(
     }
 
     private fun pastVersion(m: HomeModel) {
+        // Already shown in the «Прошлая поездка сохранена» card above.
+        if (m.unseen && m.past?.name == m.trip?.name) return
         val t = m.past
         if (t == null) {
             gap(divider(), 18)
