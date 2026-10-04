@@ -44,6 +44,9 @@ object SensorNames {
         "oil_c" to "Температура масла",
         "fuel_rate_lh" to "Расход топлива",
         "marker" to "Метка",
+        // Derived: LTFT + STFT, what the ECU really adds (SeriesStore / TripTable).
+        "trim_b1" to "Коррекция Б1",
+        "trim_b2" to "Коррекция Б2",
     )
 
     private val trim = Regex("^(stft|ltft)_b(\\d)_pct$")
@@ -97,7 +100,10 @@ object SensorNames {
         return code
     }
 
-    fun unit(code: String): String = units[code] ?: if (rawPid.matches(code) || mode21.matches(code)) "" else ""
+    fun unit(code: String): String = units[code] ?: if (code.startsWith("trim_b")) "%" else ""
+
+    /** Code shown under the name: derived columns name their sources. */
+    fun source(code: String): String = if (code.startsWith("trim_b")) "ltft+stft_${code.removePrefix("trim_")}" else code
 
     /** «Обороты (rpm)» — name with the code for people who also read the CSV. */
     fun full(code: String): String = label(code).let { if (it == code) it else "$it ($code)" }

@@ -52,6 +52,8 @@ data class Finding(
     val urgency: String? = null,
     /** 2–3 numbers from the log that support the version. */
     val why: List<Evidence> = emptyList(),
+    /** Stable id for the knowledge base ([Hypotheses]): «air_leak», «dips»… */
+    val kind: String = "",
 )
 
 /** Per-row series of a trip for the main-screen chart. */
@@ -62,6 +64,66 @@ class TripTrace(
     val modes: Array<DriveMode?>,
     val start: LocalDateTime?,
 )
+
+/** A parsed CSV with every row classified by [DriveMode]; columns are read on demand. */
+class TripTable(
+    val header: List<String>,
+    val rows: List<List<String>>,
+    val times: List<LocalDateTime?>,
+    /** Milliseconds since the first row. */
+    val ms: List<Long>,
+) {
+    private val col = header.withIndex().associate { (i, h) -> h to i }
+    var modes: List<DriveMode?> = List(rows.size) { null }
+        internal set
+    var closed: BooleanArray = BooleanArray(rows.size)
+        internal set
+
+    val start: LocalDateTime? get() = times.firstNotNullOfOrNull { it }
+
+    fun has(name: String) = name in col || (name.startsWith("trim_b") && "stft_${name.removePrefix("trim_")}_pct" in col)
+
+    fun raw(name: String): List<Double?> {
+        if (name.startsWith("trim_b")) return totalTrim(name.removePrefix("trim_b").toInt())
+        val i = col[name] ?: return List(rows.size) { null }
+        return rows.map { it.getOrNull(i)?.toDoubleOrNull() }
+    }
+
+    /** Slow columns (polled every 5th cycle) are reused for up to 30 s. */
+    fun carried(name: String): List<Double?> {
+        val v = raw(name)
+        var last: Double? = null
+        var lastMs = 0L
+        return v.indices.map { i ->
+            val x = v[i]
+            if (x != null) {
+                last = x
+                lastMs = ms[i]
+                x
+            } else if (last != null && ms[i] - lastMs <= 30_000L) last else null
+        }
+    }
+
+    /** LTFT + STFT: what the ECU really adds. */
+    fun totalTrim(bank: Int): List<Double?> {
+        val st = raw("stft_b${bank}_pct")
+        val lt = carried("ltft_b${bank}_pct")
+        return st.indices.map { i -> st[i]?.let { s -> lt[i]?.let { s + it } } }
+    }
+
+    /** Numeric sensor columns (no time, marker or text), derived trims first. */
+    val sensors: List<String> by lazy {
+        val skip = setOf("time", "t_s", "marker", "fuel_system")
+        val numeric = header.filter { it !in skip && raw(it).any { v -> v != null } }
+        (1..2).map { "trim_b$it" }.filter { has(it) } + numeric
+    }
+
+    /** Markers with their row index: «M1», «RECONNECT», «TEST2». */
+    val markers: List<Pair<Int, String>> by lazy {
+        val i = col["marker"] ?: return@lazy emptyList()
+        rows.withIndex().mapNotNull { (n, r) -> r.getOrNull(i)?.takeIf { it.isNotBlank() }?.let { n to it } }
+    }
+}
 
 class TripSummary(
     val name: String,
@@ -89,54 +151,35 @@ class TripSummary(
 object TripAnalyzer {
     private val TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
 
-    /** Slow columns (polled every 5th cycle) are reused for this long. */
-    private const val CARRY_MS = 30_000L
     private const val WARM_C = 70.0
     private const val DIP_RPM = 560.0
     private const val MIN_SAMPLES = 5
 
-    fun analyze(name: String, csv: String, info: String? = null): TripSummary? {
+    /** Parses a CSV and classifies every row by operating mode. Null if there is nothing to analyse. */
+    fun table(csv: String): TripTable? {
         val lines = csv.lineSequence().filter { it.isNotBlank() }.toList()
         if (lines.size < 2) return null
         val header = splitCsv(lines[0])
-        val col = header.withIndex().associate { (i, h) -> h to i }
-        val timeIdx = col["time"] ?: return null
+        val timeIdx = header.indexOf("time").takeIf { it >= 0 } ?: return null
         val rows = lines.drop(1).map { splitCsv(it) }
         val times = rows.map { r -> r.getOrNull(timeIdx)?.let { runCatching { LocalDateTime.parse(it, TIME) }.getOrNull() } }
-        val ms = times.map { t -> t?.let { Duration.between(times.firstNotNullOfOrNull { x -> x } ?: it, it).toMillis() } ?: 0L }
+        val first = times.firstNotNullOfOrNull { it }
+        val ms = times.map { t -> t?.let { Duration.between(first ?: it, it).toMillis() } ?: 0L }
+        val t = TripTable(header, rows, times, ms)
 
-        fun raw(name: String): List<Double?> {
-            val i = col[name] ?: return List(rows.size) { null }
-            return rows.map { it.getOrNull(i)?.toDoubleOrNull() }
-        }
-
-        fun carried(name: String): List<Double?> {
-            val v = raw(name)
-            var last: Double? = null
-            var lastMs = 0L
-            return v.indices.map { i ->
-                val x = v[i]
-                if (x != null) {
-                    last = x
-                    lastMs = ms[i]
-                    x
-                } else if (last != null && ms[i] - lastMs <= CARRY_MS) last else null
-            }
-        }
-
-        val rpm = raw("rpm")
-        val speed = raw("speed_kmh")
-        val throttle = raw("throttle_pct")
-        val load = raw("engine_load_pct")
-        val coolant = carried("coolant_c")
+        val rpm = t.raw("rpm")
+        val speed = t.raw("speed_kmh")
+        val throttle = t.raw("throttle_pct")
+        val load = t.raw("engine_load_pct")
+        val coolant = t.carried("coolant_c")
         val running = rpm.map { it != null && it > 250 }
 
         // Closed-throttle position differs per car; take a low percentile of the trip.
-        val thr = throttle.filterIndexed { i, t -> t != null && running[i] }.filterNotNull().sorted()
+        val thr = throttle.filterIndexed { i, x -> x != null && running[i] }.filterNotNull().sorted()
         val closedThr = if (thr.isEmpty()) 0.0 else thr[(thr.size * 0.05).toInt()] + 1.0
-        fun closed(i: Int) = throttle[i]?.let { it <= closedThr } ?: false
+        t.closed = BooleanArray(rows.size) { i -> throttle[i]?.let { it <= closedThr } ?: false }
 
-        val modes = rows.indices.map { i ->
+        t.modes = rows.indices.map { i ->
             val r = rpm[i] ?: return@map null
             if (!running[i]) return@map null
             val c = coolant[i]
@@ -145,12 +188,28 @@ object TripAnalyzer {
                 (throttle[i] ?: 0.0) > 50 || (load[i] ?: 0.0) > 75 -> DriveMode.HEAVY
                 c != null && c < WARM_C -> DriveMode.COLD
                 c == null -> null
-                s == 0.0 && closed(i) && r < 1100 -> DriveMode.WARM_IDLE
-                s in 0.5..20.0 && closed(i) -> DriveMode.ROLL_TO_STOP
-                s >= 40 && !closed(i) && (load[i] ?: 0.0) in 15.0..70.0 -> DriveMode.CRUISE
+                s == 0.0 && t.closed[i] && r < 1100 -> DriveMode.WARM_IDLE
+                s in 0.5..20.0 && t.closed[i] -> DriveMode.ROLL_TO_STOP
+                s >= 40 && !t.closed[i] && (load[i] ?: 0.0) in 15.0..70.0 -> DriveMode.CRUISE
                 else -> null
             }
         }
+        return t
+    }
+
+    fun analyze(name: String, csv: String, info: String? = null): TripSummary? = table(csv)?.let { analyze(name, it, info) }
+
+    fun analyze(name: String, t: TripTable, info: String? = null): TripSummary {
+        val rows = t.rows
+        val ms = t.ms
+        val times = t.times
+        val modes = t.modes
+        fun raw(n: String) = t.raw(n)
+        fun carried(n: String) = t.carried(n)
+        fun closed(i: Int) = t.closed[i]
+        val rpm = raw("rpm")
+        val speed = raw("speed_kmh")
+        val coolant = carried("coolant_c")
 
         fun inMode(values: List<Double?>, vararg m: DriveMode) =
             values.filterIndexed { i, v -> v != null && modes[i] in m }.filterNotNull()
@@ -158,11 +217,7 @@ object TripAnalyzer {
         fun median(v: List<Double>): Double? =
             if (v.size < MIN_SAMPLES) null else v.sorted().let { s -> if (s.size % 2 == 1) s[s.size / 2] else (s[s.size / 2 - 1] + s[s.size / 2]) / 2 }
 
-        fun totalTrim(bank: Int): List<Double?> {
-            val st = raw("stft_b${bank}_pct")
-            val lt = carried("ltft_b${bank}_pct")
-            return st.indices.map { i -> st[i]?.let { s -> lt[i]?.let { s + it } } }
-        }
+        fun totalTrim(bank: Int) = t.totalTrim(bank)
 
         val metrics = LinkedHashMap<Metric, Double>()
         fun put(m: Metric, v: Double?) {
@@ -224,7 +279,7 @@ object TripAnalyzer {
         if (!dtcs.isNullOrEmpty()) {
             out += Finding(Severity.BAD, "Коды неисправностей: ${dtcs.joinToString(", ")}",
                 "ЭБУ сообщает сохранённые коды", "Расшифровать коды для этого двигателя", "высокая",
-                headline = "Блок записал коды: ${dtcs.joinToString(", ")}")
+                headline = "Блок записал коды: ${dtcs.joinToString(", ")}", kind = "dtc")
         }
 
         val idle = listOfNotNull(m[Metric.IDLE_TRIM_B1], m[Metric.IDLE_TRIM_B2])
@@ -245,6 +300,7 @@ object TripAnalyzer {
                 },
                 if (cruiseMax != null) "высокая" else "средняя",
                 headline = if (onlyIdle) "Подсос воздуха на холостом" else "Бедная смесь на всех режимах",
+                kind = if (onlyIdle) "air_leak" else "lean_all",
                 urgency = if (idleMax > 30) "Ехать можно, но не откладывайте проверку." else "Не критично для поездки. Проверьте в ближайшие дни.",
                 why = buildList {
                     add(Evidence("ХХ: ЭБУ добавляет топливо", pct(idleMax), deviating = true))
@@ -259,13 +315,14 @@ object TripAnalyzer {
             out += Finding(if (idleMax < -20) Severity.BAD else Severity.WARN, "Богатая смесь на холостом",
                 "Коррекция на холостом ${idle.joinToString(" / ") { f(it) + " %" }}",
                 "Подтекающие форсунки, давление топлива, продувка адсорбера (EVAP), датчик температуры ОЖ", "средняя",
+                kind = "rich_idle",
                 urgency = "Не критично для поездки. Расход выше обычного — проверьте в ближайшие дни.",
                 why = listOfNotNull(Evidence("ХХ: ЭБУ убирает топливо", pct(idleMax), deviating = true),
                     cruiseMax?.let { Evidence("В движении", pct(it), deviating = abs(it) > 10) }))
         }
         if (cruiseMax != null && cruiseMax < -10) {
             out += Finding(Severity.WARN, "Богатая смесь в движении", "Коррекция в движении ${cruise.joinToString(" / ") { f(it) + " %" }}",
-                "ДМРВ завышает, давление топлива, форсунки", "средняя")
+                "ДМРВ завышает, давление топлива, форсунки", "средняя", kind = "rich_cruise")
         }
 
         val dips = m[Metric.RPM_DIPS] ?: 0.0
@@ -274,6 +331,7 @@ object TripAnalyzer {
             out += Finding(if (dips >= 5) Severity.BAD else Severity.WARN, "Провалы холостого хода",
                 "${dips.toInt()} раз обороты опускались ниже ${DIP_RPM.toInt()} при прогретом моторе и закрытом дросселе",
                 "Нагар на дросселе и в EGR (для D-4 типично), подсос воздуха, слабый аккумулятор. Чистка дросселя/EGR, затем обучение холостого", "высокая",
+                kind = "dips",
                 urgency = "Мотор может заглохнуть на остановке. Проверьте в ближайшие дни.",
                 why = listOfNotNull(
                     Evidence("Провалы ниже ${DIP_RPM.toInt()} об/мин", "${dips.toInt()} раз", deviating = true),
@@ -281,7 +339,7 @@ object TripAnalyzer {
                 ))
         } else if (idleRpm != null && idleRpm < 620) {
             out += Finding(Severity.WATCH, "Низкие обороты холостого", "Медиана ${idleRpm.toInt()} об/мин",
-                "Чистка дросселя, проверка подсоса воздуха", "средняя")
+                "Чистка дросселя, проверка подсоса воздуха", "средняя", kind = "low_rpm")
         }
 
         val rearIdle = m[Metric.IDLE_REAR_O2]
@@ -300,24 +358,27 @@ object TripAnalyzer {
         if (volts != null && volts < 13.4) {
             out += Finding(Severity.WARN, "Слабая зарядка", "Медиана ${fmt(volts)} В на работающем моторе",
                 "Генератор, регулятор напряжения, ремень, клеммы", "средняя",
+                kind = "weak_charge",
                 urgency = "Проверьте зарядку до дальней поездки.",
                 why = listOfNotNull(Evidence("Напряжение на работающем моторе", "${fmt(volts)} В", deviating = true),
                     vMin?.let { Evidence("Минимум", "${fmt(it)} В", deviating = it < 12.8) }))
         } else if (vMin != null && vMin < 12.8) {
             out += Finding(Severity.WATCH, "Просадки напряжения", "Минимум ${fmt(vMin)} В на работающем моторе",
-                "Ремень генератора, клеммы, аккумулятор; совпадает ли с провалами оборотов", "низкая")
+                "Ремень генератора, клеммы, аккумулятор; совпадает ли с провалами оборотов", "низкая",
+                headline = "Просадка напряжения до ${fmt(vMin)} В", kind = "voltage_dips")
         }
 
         val coolantMax = m[Metric.COOLANT_MAX]
         if (coolantMax != null && coolantMax > 104) {
             out += Finding(Severity.BAD, "Перегрев", "Температура ОЖ до ${coolantMax.toInt()} °C",
                 "Вентилятор радиатора, уровень ОЖ, термостат, помпа", "высокая",
+                kind = "overheat",
                 urgency = "Остановитесь, дайте мотору остыть и проверьте уровень жидкости.",
                 why = listOf(Evidence("Температура ОЖ, максимум", "${coolantMax.toInt()} °C", deviating = true)))
         } else if (coolantMax == null && coolantPeak != null && coolantPeak < 75 && durationMin >= 15) {
             out += Finding(Severity.WARN, "Мотор не прогревается", "Максимум ${coolantPeak.toInt()} °C за ${durationMin.toInt()} мин",
                 "Термостат открыт постоянно или датчик температуры", "средняя",
-                headline = "Мотор не прогревается",
+                headline = "Мотор не прогревается", kind = "cold_engine",
                 urgency = "Ехать можно. Расход и износ выше, печка греет хуже — проверьте термостат.",
                 why = listOf(Evidence("Температура ОЖ, максимум", "${coolantPeak.toInt()} °C", deviating = true),
                     Evidence("Норма для прогретого мотора", "80–100 °C")))
@@ -371,12 +432,121 @@ private object BigRound {
 object TripComparison {
     /** Limit, direction (+1 = bad when rising) and what happens there. */
     private val LIMITS = mapOf(
-        Metric.IDLE_TRIM_B1 to Triple(25.0, +1, "ЭБУ, вероятно, запишет ошибку бедной смеси P0171"),
-        Metric.IDLE_TRIM_B2 to Triple(25.0, +1, "ЭБУ, вероятно, запишет ошибку бедной смеси P0174"),
+        Metric.IDLE_TRIM_B1 to Triple(25.0, +1, "около этого порога ЭБУ обычно записывает P0171"),
+        Metric.IDLE_TRIM_B2 to Triple(25.0, +1, "около этого порога ЭБУ обычно записывает P0174"),
         Metric.IDLE_RPM to Triple(560.0, -1, "холостой начнёт проваливаться, риск заглохания"),
         Metric.CHARGE_V to Triple(13.2, -1, "аккумулятор перестанет заряжаться"),
         Metric.COOLANT_MAX to Triple(105.0, +1, "перегрев"),
     )
+
+    enum class Tone { BAD, WARN, OK, NEUTRAL }
+
+    /** One row of the «Сравнение» table. */
+    class Row(
+        val metric: Metric, val title: String, val code: String, val unit: String,
+        val values: List<Double?>, val arrow: String, val verdict: String, val tone: Tone,
+    )
+
+    class Forecast(
+        val metric: Metric,
+        /** «Если темп сохранится, через ~3–4 поездки …» */
+        val text: String,
+        val confidence: String,
+        val confidenceWhy: String,
+        val series: List<Double>,
+        val limit: Double,
+        val limitLabel: String,
+    )
+
+    class Table(val trips: List<TripSummary>, val rows: List<Row>, val forecast: Forecast?)
+
+    private class Spec(val title: String, val code: String, val lo: Double?, val hi: Double?, val bad: Int)
+
+    private val SPECS = linkedMapOf(
+        Metric.IDLE_TRIM_B1 to Spec("Коррекция Б1", "ltft+stft_b1", -10.0, 10.0, +1),
+        Metric.IDLE_TRIM_B2 to Spec("Коррекция Б2", "ltft+stft_b2", -10.0, 10.0, +1),
+        Metric.CRUISE_TRIM_B1 to Spec("Коррекция в движении", "", -10.0, 10.0, +1),
+        Metric.IDLE_RPM to Spec("Обороты ХХ", "rpm", 600.0, 850.0, -1),
+        Metric.RPM_DIPS to Spec("Провалы ниже 560", "", null, 1.0, +1),
+        Metric.IDLE_REAR_O2 to Spec("Лямбда Б1 после кат.", "o2_b1s2", 0.45, null, -1),
+        Metric.CHARGE_V to Spec("Напряжение, мотор работает", "battery_v", 13.5, 14.8, -1),
+        Metric.COOLANT_MAX to Spec("Температура ОЖ, максимум", "coolant_c", null, 104.0, +1),
+    )
+
+    private fun out(spec: Spec, v: Double) = (spec.lo != null && v < spec.lo) || (spec.hi != null && v > spec.hi)
+
+    /** Structured comparison of the last [count] trips for the trips screen and the overview. */
+    fun table(trips: List<TripSummary>, count: Int = 3): Table {
+        val shown = trips.sortedBy { it.start }.takeLast(count)
+        val dates = java.time.format.DateTimeFormatter.ofPattern("dd.MM")
+        val rows = SPECS.mapNotNull { (metric, spec) ->
+            val values = shown.map { it.metrics[metric] }
+            if (values.all { it == null }) return@mapNotNull null
+            val v = values.filterNotNull()
+            val last = v.last()
+            val isOut = out(spec, last)
+            val (arrow, verdict, tone) = when {
+                metric == Metric.RPM_DIPS -> when {
+                    last == 0.0 && v.any { it > 0 } -> Triple("↘", "ушли", Tone.OK)
+                    v.all { it == 0.0 } -> Triple("→", "нет", Tone.OK)
+                    v.size >= 2 && last > v[v.size - 2] -> Triple("↗", "чаще", Tone.WARN)
+                    else -> Triple("↘", "есть, реже", Tone.WARN)
+                }
+                v.size < 2 -> Triple("·", "мало данных", Tone.NEUTRAL)
+                else -> {
+                    val d = last - v.first()
+                    val scale = maxOf(abs(last), abs(v.first()), 1.0)
+                    val steady = v.takeLast(3).zipWithNext().all { (a, b) -> (b - a) * Math.signum(d) >= 0 }
+                    val outSince = run {
+                        var k = values.size - 1
+                        while (k > 0 && values[k - 1]?.let { out(spec, it) } == true) k--
+                        k
+                    }
+                    val since = if (outSince == 0) "уже за порогом" else "за порогом с ${shown[outSince].start?.format(dates) ?: "?"}"
+                    val badDir = (if (spec.lo != null && spec.hi != null) Math.signum(last) else spec.bad.toDouble()) * Math.signum(d) > 0
+                    when {
+                        abs(d) / scale < 0.05 -> if (isOut) Triple("→", "за нормой", Tone.WARN) else Triple("→", "стабильно", Tone.OK)
+                        !steady -> Triple("↕", "колеблется — тренда нет", if (isOut) Tone.WARN else Tone.NEUTRAL)
+                        badDir -> Triple(if (d > 0) "↗" else "↘", if (isOut) "${if (d > 0) "растёт" else "падает"} · $since" else if (d > 0) "растёт" else "падает", if (isOut) Tone.WARN else Tone.NEUTRAL)
+                        else -> Triple(if (d > 0) "↗" else "↘", if (isOut) "улучшается, но за нормой" else "улучшается", if (isOut) Tone.WARN else Tone.OK)
+                    }
+                }
+            }
+            Row(metric, spec.title, spec.code, metric.unit, values, arrow, verdict, tone)
+        }
+        return Table(shown, rows, forecast(trips.sortedBy { it.start }))
+    }
+
+    private fun forecast(sorted: List<TripSummary>): Forecast? {
+        for ((metric, limit) in LIMITS) {
+            val series = sorted.mapNotNull { it.metrics[metric] }.takeLast(6)
+            if (series.size < 3) continue
+            val (thr, dir, what) = limit
+            val slope = slope(series)
+            val last = series.last()
+            if ((last - thr) * dir >= 0 || slope * dir <= 1e-6) continue
+            val n = ceil((thr - last) / slope).toInt()
+            if (n > 20) continue
+            val steady = series.takeLast(3).zipWithNext().all { (a, b) -> (b - a) * dir >= 0 }
+            val conf = when {
+                series.size >= 6 && steady -> "средняя"
+                else -> "низкая"
+            }
+            val why = "${series.size} ${trips(series.size).let { if (it == "поездку") "поездка" else it }}" +
+                (if (!steady) ", тренд неровный" else "")
+            val name = when (metric) {
+                Metric.IDLE_TRIM_B1 -> "коррекция Б1 на холостом"
+                Metric.IDLE_TRIM_B2 -> "коррекция Б2 на холостом"
+                Metric.IDLE_RPM -> "обороты холостого"
+                Metric.CHARGE_V -> "напряжение зарядки"
+                else -> metric.ru.lowercase()
+            }
+            val unit = if (metric.unit == "%") " %" else " ${metric.unit}"
+            val text = "Если темп сохранится, через ~$n–${n + 1} ${trips(n + 1)} $name дойдёт до ~${TripAnalyzer.fmt(thr)}$unit — $what."
+            return Forecast(metric, text, conf, why, series, thr, "≈ порог")
+        }
+        return null
+    }
 
     fun render(trips: List<TripSummary>): String = buildString {
         if (trips.isEmpty()) {

@@ -33,16 +33,53 @@ class SeriesStore(private val capacity: Int = 20_000) {
     var columns: List<String> = emptyList()
         private set
 
+    /** Derived «trim_bN» = STFT + last LTFT (LTFT is polled slowly): index of stft, ltft. */
+    private var derived: List<Pair<Int, Int>> = emptyList()
+    private var lastLtft = DoubleArray(0)
+    private var raw = 0
+
+    /** [columns] as written to the CSV; derived columns (total trim per bank) are appended. */
     @Synchronized
     fun reset(columns: List<String>) {
-        this.columns = columns
+        raw = columns.size
+        val d = (1..2).mapNotNull { b ->
+            val st = columns.indexOf("stft_b${b}_pct")
+            val lt = columns.indexOf("ltft_b${b}_pct")
+            if (st >= 0 && lt >= 0) "trim_b$b" to (st to lt) else null
+        }
+        derived = d.map { it.second }
+        lastLtft = DoubleArray(d.size) { Double.NaN }
+        this.columns = columns + d.map { it.first }
         rows.clear()
     }
 
     @Synchronized
     fun add(timeMs: Long, values: List<String?>) {
-        rows.addLast(Row(timeMs, DoubleArray(columns.size) { values.getOrNull(it)?.toDoubleOrNull() ?: Double.NaN }))
+        val v = DoubleArray(columns.size) { if (it < raw) values.getOrNull(it)?.toDoubleOrNull() ?: Double.NaN else Double.NaN }
+        derived.forEachIndexed { k, (st, lt) ->
+            if (!v[lt].isNaN()) lastLtft[k] = v[lt]
+            v[raw + k] = v[st] + lastLtft[k]
+        }
+        rows.addLast(Row(timeMs, v))
         while (rows.size > capacity) rows.removeFirst()
+    }
+
+    /** Last known value of [name], NaN if never seen. */
+    @Synchronized
+    fun last(name: String): Double {
+        val i = columns.indexOf(name)
+        if (i < 0) return Double.NaN
+        for (r in rows.reversed()) if (!r.values[i].isNaN()) return r.values[i]
+        return Double.NaN
+    }
+
+    /** Time of the last row where [name] had a value. */
+    @Synchronized
+    fun lastTimeOf(name: String): Long? {
+        val i = columns.indexOf(name)
+        if (i < 0) return null
+        for (r in rows.reversed()) if (!r.values[i].isNaN()) return r.time
+        return null
     }
 
     @Synchronized
