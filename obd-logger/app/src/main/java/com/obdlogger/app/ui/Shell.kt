@@ -35,6 +35,8 @@ class Shell(private val activity: Activity) {
     var page = Page.OVERVIEW
         private set
     var onPage: (Page) -> Unit = {}
+    /** Tap on the car name: edit this car's profile. */
+    var onCar: () -> Unit = {}
     /** Д7: the main screen is dark at night while a trip is recorded. */
     var nightHome = false
         set(value) {
@@ -176,12 +178,15 @@ class Shell(private val activity: Activity) {
 
     fun render(s: LoggerState.Snapshot) {
         snapshot = s
-        car.text = Prefs.vehicle(ctx)
+        val name = Prefs.vehicle(ctx)
+        val unnamed = name.isBlank() && Prefs.currentCar(ctx) != null
+        car.text = if (unnamed) "Новая машина · указать название" else name
+        car.setTextColor(if (unnamed) p.acc else p.t2)
+        car.setOnClickListener { onCar() }
         lamp1.background = roundRect(lampColor(s.link), ctx.dp(sc.lamp).toFloat())
         lamp2.background = roundRect(lampColor(s.engine), ctx.dp(sc.lamp).toFloat())
         val min = s.elapsedSec / 60
         rec.text = when {
-            s.demo && s.running -> "Демо · симуляция"
             s.recording -> "Запись идёт · $min мин"
             s.auto -> "Жду запуска двигателя"
             s.running -> "Подключение…"

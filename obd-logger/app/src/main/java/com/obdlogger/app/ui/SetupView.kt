@@ -173,10 +173,10 @@ class SetupView(ctx: Context, private val sc: Bt.Scale, private val host: Host) 
             }
             else -> {
                 title("Профиль машины")
-                lead("Марка, модель, год, двигатель, пробег. Попадёт в разбор и в план для мастера.")
+                lead("Как назвать машину, к которой подключён адаптер: марка, модель, год, двигатель. У каждой машины своё название и своя история поездок — Бортач различает их сам.")
                 val input = EditText(context).apply {
                     setText(host.carText())
-                    hint = "Toyota Avensis 2005 · 2.0 D-4 (1AZ-FSE) · 187 000 км"
+                    hint = "Марка, модель, год, двигатель, пробег"
                     inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
                     textSize = if (sc.phone) 17f else 21f
                     typeface = Bt.sans(context)

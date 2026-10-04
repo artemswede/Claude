@@ -56,6 +56,8 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     private lateinit var settings: SettingsView
     private lateinit var trips: TripsView
     @Volatile private var tripsModel: TripsModel? = null
+    /** Car chosen in the journal; null = the car of the newest trip. */
+    private var tripsCar: String? = null
     /** Pages opened on top of a section (trip, version, plan); «назад» closes the top one. */
     private val stack = HashMap<Shell.Page, ArrayList<View>>()
     private lateinit var record: RecordView
@@ -92,12 +94,13 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         record = RecordView(this, shell.sc)
         shell.containers.getValue(Shell.Page.RECORD).addView(record)
 
-        trips = TripsView(this, shell.sc) { openTrip(it) }
+        trips = TripsView(this, shell.sc, { openTrip(it) }, { key -> tripsCar = key; refreshTrips(force = true) })
         shell.containers.getValue(Shell.Page.TRIPS).addView(trips)
 
         settings = SettingsView(this, shell.sc)
         shell.containers.getValue(Shell.Page.SETTINGS).addView(settings)
 
+        shell.onCar = { editCar() }
         shell.onPage = { pg ->
             when (pg) {
                 Shell.Page.OVERVIEW -> refreshHome()
@@ -107,7 +110,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
             }
         }
 
-        if (!LoggerState.snapshot.running) Prefs.checkKilled(this)
+        if (!LoggerState.snapshot.running) Thread { Recovery.run(this); runOnUiThread { if (shell.page == Shell.Page.OVERVIEW) refreshHome() } }.start()
         loadDevices()
         if (!Prefs.setupDone(this) && Prefs.device(this) == null) {
             setup = SetupView(this, shell.sc, this).also { setContentView(it) }
@@ -164,7 +167,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
 
     override fun batteryFree(): Boolean = (getSystemService(POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(packageName)
     override fun overlayAllowed(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || Settings.canDrawOverlays(this)
-    override fun setCar(text: String) = prefs.edit().putString(Prefs.VEHICLE, text).apply()
+    override fun setCar(text: String) = Prefs.setVehicle(this, text)
 
     override fun finishSetup() {
         prefs.edit().putBoolean(Prefs.SETUP_DONE, true).apply()
@@ -349,7 +352,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
             .setMessage("Попадёт в разбор и в отчёт для специалиста.")
             .setView(input)
             .setPositiveButton("Сохранить") { _, _ ->
-                prefs.edit().putString(Prefs.VEHICLE, input.text.toString().trim()).apply()
+                Prefs.setVehicle(this, input.text.toString().trim())
                 refreshSettings(force = true)
                 shell.render(LoggerState.snapshot)
             }
@@ -506,7 +509,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         tripsShownFor = saved
         Thread {
             val m = try {
-                TripsModel.build(this)
+                TripsModel.build(this, tripsCar)
             } catch (e: Exception) {
                 null
             }
@@ -568,12 +571,16 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
             runOnUiThread {
                 shell.show(Shell.Page.TRIPS)
                 trips.bind(m)
-                m.trips.firstOrNull()?.let { openTrip(it) }
+                m.trips.firstOrNull()?.let {
+                    Prefs.setSeenTrip(this, it.summary.name)
+                    openTrip(it)
+                }
             }
         }.start()
     }
 
     private fun openTrip(item: TripItem) {
+        if (item === tripsModel?.trips?.firstOrNull()) Prefs.setSeenTrip(this, item.summary.name)
         val v = TripDetailView(this, shell.sc, item, this)
         push(Shell.Page.TRIPS, v)
         Thread {
@@ -585,9 +592,10 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     /** «Подробнее» on the main screen: the version card of the trip shown there. */
     private fun openHomeVersion() {
         Thread {
-            val m = tripsModel ?: TripsModel.build(this).also { tripsModel = it }
             val model = HomeModel.build(this, LoggerState.snapshot)
             val f = model.trip?.top ?: model.past?.top
+            // Only this car's trips go into the version.
+            val m = TripsModel.build(this, (model.trip ?: model.past)?.car?.key)
             runOnUiThread {
                 if (f == null) shell.show(Shell.Page.TRIPS)
                 else push(Shell.Page.OVERVIEW, VersionView(this, shell.sc, Hypotheses.of(f, m.trips.map { it.summary } + listOfNotNull(model.trip.takeIf { model.live })), "Обзор", this))
@@ -619,7 +627,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     }
 
     override fun openVersion(f: Finding, item: TripItem?) {
-        val all = tripsModel?.trips?.map { it.summary }.orEmpty()
+        val all = tripsModel?.trips?.map { it.summary }.orEmpty().filter { item == null || it.car?.key == item.summary.car?.key }
         val upTo = item?.summary?.start?.let { st -> all.filter { (it.start ?: st) <= st } } ?: all
         push(shell.page, VersionView(this, shell.sc, Hypotheses.of(f, upTo.ifEmpty { listOfNotNull(item?.summary) }), if (shell.page == Shell.Page.TRIPS) "Поездка" else "Обзор", this))
     }

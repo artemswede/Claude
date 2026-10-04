@@ -17,12 +17,31 @@ object Prefs {
     const val SETUP_DONE = "setup_done"
     const val KILLED_AT = "killed_at"
     const val RECORDING_SINCE = "recording_since"
+    const val RECORDING_FILE = "recording_file"
+    const val SEEN_TRIP = "seen_trip"
 
     fun of(ctx: Context): SharedPreferences = ctx.getSharedPreferences("settings", Context.MODE_PRIVATE)
     fun device(ctx: Context): String? = of(ctx).getString(DEVICE, null)
-    fun vehicle(ctx: Context): String = of(ctx).getString(VEHICLE, null) ?: "Toyota Avensis 2005"
+    const val CURRENT_CAR = "current_car"
+
+    /**
+     * Name of the car connected last («Toyota Avensis 2005 · 2.0 D-4»), set by the
+     * owner per car: the tablet moves between cars and each keeps its own name.
+     * Empty when not named yet.
+     */
+    fun vehicle(ctx: Context): String = currentCar(ctx)?.let { carName(ctx, it) } ?: of(ctx).getString(VEHICLE, null).orEmpty()
+    fun setVehicle(ctx: Context, name: String) {
+        val car = currentCar(ctx)
+        if (car != null) setCarName(ctx, car, name) else of(ctx).edit().putString(VEHICLE, name).apply()
+    }
+    /** Key of the car the adapter last talked to (see CarId). */
+    fun currentCar(ctx: Context): String? = of(ctx).getString(CURRENT_CAR, null)
+    fun setCurrentCar(ctx: Context, key: String) = of(ctx).edit().putString(CURRENT_CAR, key).apply()
+    fun carName(ctx: Context, key: String): String? = of(ctx).getString("car_name_$key", null)
+    fun setCarName(ctx: Context, key: String, name: String) = of(ctx).edit().putString("car_name_$key", name).apply()
     fun extended(ctx: Context): Boolean = of(ctx).getBoolean(EXTENDED, true)
-    fun auto(ctx: Context): Boolean = of(ctx).getBoolean(AUTO, false)
+    /** On by default: Бортач is meant to record every trip by itself once an adapter is chosen. */
+    fun auto(ctx: Context): Boolean = of(ctx).getBoolean(AUTO, true)
     /** Start waiting for the engine when the tablet is switched on. */
     fun boot(ctx: Context): Boolean = of(ctx).getBoolean(BOOT, true)
     /** Driver marks are optional: the analysis works without them. */
@@ -38,13 +57,7 @@ object Prefs {
     fun setupDone(ctx: Context): Boolean = of(ctx).getBoolean(SETUP_DONE, false)
     /** When the system last killed the service mid-recording; 0 = never / acknowledged. */
     fun killedAt(ctx: Context): Long = of(ctx).getLong(KILLED_AT, 0)
-
-    /**
-     * A trip was being written when the process died (the service clears this when it
-     * saves a trip): remember when, so the main screen can say the system stopped it.
-     */
-    fun checkKilled(ctx: Context) {
-        val since = of(ctx).getLong(RECORDING_SINCE, 0)
-        if (since > 0) of(ctx).edit().putLong(KILLED_AT, System.currentTimeMillis()).remove(RECORDING_SINCE).apply()
-    }
+    /** The last trip whose result the owner has opened (the main screen stops offering it). */
+    fun seenTrip(ctx: Context): String? = of(ctx).getString(SEEN_TRIP, null)
+    fun setSeenTrip(ctx: Context, name: String) = of(ctx).edit().putString(SEEN_TRIP, name).apply()
 }

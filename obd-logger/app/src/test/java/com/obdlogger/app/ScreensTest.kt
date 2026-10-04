@@ -26,8 +26,6 @@ import com.obdlogger.core.TripDetail
 import com.obdlogger.core.SeriesStore
 import com.obdlogger.app.ui.SettingsView
 import com.obdlogger.app.ui.Shell
-import com.obdlogger.core.CarProfile
-import com.obdlogger.core.SimDrive
 import com.obdlogger.core.TripAnalyzer
 import com.obdlogger.core.TripSummary
 import org.junit.Test
@@ -39,9 +37,10 @@ import org.robolectric.annotation.GraphicsMode
 import java.io.File
 
 /**
- * Renders every screen with real and simulated trips into PNGs (build/screens/<size>/),
- * so layout, sizes and fonts can be checked without a device. Any crash while
- * building a screen fails the build.
+ * Renders every screen with real recorded trips into PNGs (build/screens/<size>/),
+ * so layout, sizes and fonts can be checked without a device, and runs the UX
+ * audit ([UxAudit]) on each: small touch targets, clipped text, too small type,
+ * low contrast, views off screen. Any crash while building a screen fails the build.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -62,10 +61,16 @@ class ScreensTest {
     private fun all(size: String) {
         val a = Robolectric.buildActivity(Activity::class.java).setup().get()
         val scenes = Scenes(a)
+        val report = StringBuilder()
         for ((name, build) in scenes.list()) {
             val root = build()
             shot(a, size, name, root)
+            val issues = UxAudit.check(root)
+            report.append("== $name: ${if (issues.isEmpty()) "ok" else "${issues.size} замечаний"}\n")
+            issues.forEach { report.append("   - ").append(it).append('\n') }
         }
+        val dir = File(System.getProperty("screens.dir") ?: "build/screens", size).apply { mkdirs() }
+        File(dir, "ux-report.txt").writeText(report.toString())
     }
 
     private fun shot(a: Activity, size: String, name: String, view: View) {
@@ -81,31 +86,34 @@ class ScreensTest {
     }
 }
 
-/** Sample data: the real Avensis trips from the fixtures plus simulated cars. */
+/**
+ * Sample data: only real recorded trips (test fixtures of one car). Trips without
+ * an info file borrow the previous trip's, so all belong to the same car.
+ */
 object Samples {
     private val dir = File("../obd-core/src/test/resources/trips")
+    private val csvs by lazy { dir.listFiles().orEmpty().filter { it.name.endsWith(".csv") }.sortedBy { it.name } }
+
+    private fun infoFor(f: File): String? {
+        val own = File(dir, f.nameWithoutExtension + "_info.txt")
+        if (own.exists()) return own.readText()
+        return csvs.takeWhile { it != f }.reversed().map { File(dir, it.nameWithoutExtension + "_info.txt") }.firstOrNull { it.exists() }?.readText()
+    }
 
     val real: List<TripSummary> by lazy {
-        dir.listFiles().orEmpty().filter { it.name.endsWith(".csv") }.sortedBy { it.name }.mapNotNull { f ->
-            val info = File(dir, f.nameWithoutExtension + "_info.txt")
-            TripAnalyzer.analyze(f.nameWithoutExtension, f.readText(), if (info.exists()) info.readText() else null)
-        }
+        csvs.mapNotNull { f -> TripAnalyzer.analyze(f.nameWithoutExtension, f.readText(), infoFor(f)) }
     }
 
     val realItems: List<TripItem> by lazy {
-        dir.listFiles().orEmpty().filter { it.name.endsWith(".csv") }.sortedBy { it.name }.mapNotNull { f ->
-            real.firstOrNull { it.name == f.nameWithoutExtension }?.let { TripItem(f, it, null) }
-        }
+        csvs.mapNotNull { f -> real.firstOrNull { it.name == f.nameWithoutExtension }?.let { TripItem(f, it, null) } }
     }
 
     fun detail(item: TripItem) = TripDetail(TripAnalyzer.table(item.csv.readText())!!, item.summary)
 
-    fun sim(profile: CarProfile, minutes: Double = 20.0) = SimDrive.drive(profile, minutes)
-
-    fun simSummary(profile: CarProfile, minutes: Double = 20.0): TripSummary {
-        val t = sim(profile, minutes)
-        return TripAnalyzer.analyze(t.name, t.csv, t.info)!!
-    }
+    /** The same real trip seen differently: no version (calm) or with a stored code. */
+    fun variant(t: TripSummary, findings: List<com.obdlogger.core.Finding>, dtcs: List<String>?) = TripSummary(
+        t.name, t.start, t.durationMin, t.rows, t.modeRows, t.metrics, dtcs, findings, t.trace, t.warmIdleSec, t.car,
+    )
 }
 
 /** Every screen state as (name, builder); each builder returns the full window content. */
@@ -134,12 +142,9 @@ class Scenes(private val a: Activity) {
         HomeView(a, sh.sc, {}, {}).apply { bind(HomeModel.from(saved, current, s), s) }
     }
 
+    /** The last real trip, as if it were being recorded now. */
     private val liveStore by lazy {
-        val t = Samples.sim(CarProfile.LEAN_IDLE, 13.3)
-        SeriesStore().apply {
-            reset(t.columns)
-            t.rows.forEach { (ms, v) -> add(ms, v) }
-        }
+        SeriesStore().also { SessionFiles.loadInto(Samples.realItems.last().csv, it) }
     }
 
     private fun check(s: LoggerState.Snapshot, results: Pair<CheckResult?, CheckResult?>?, st: CheckTest.State? = null) = shell(Shell.Page.OVERVIEW, s) { sh ->
@@ -184,9 +189,9 @@ class Scenes(private val a: Activity) {
         val real = Samples.real
         return listOf(
             "D1_version" to { home(recording, real.dropLast(1), real.last()) },
-            "D2_calm" to { home(recording, real, Samples.simSummary(CarProfile.HEALTHY)) },
-            "D3_dtc" to { home(recording, real, Samples.simSummary(CarProfile.CAN_DTC)) },
-            "D4_collecting" to { home(recording, real, Samples.simSummary(CarProfile.LEAN_IDLE, 3.0)) },
+            "D2_calm" to { home(recording, real.dropLast(1), Samples.variant(real.last(), emptyList(), emptyList())) },
+            "D3_dtc" to { home(recording, real.dropLast(1), Samples.variant(real.last(), real.last().findings, listOf("P0171"))) },
+            "D4_collecting" to { home(recording, real.drop(1), real.first()) },
             "D7_night" to {
                 val shell = Shell(a)
                 shell.nightHome = true
@@ -205,10 +210,10 @@ class Scenes(private val a: Activity) {
             "G3_attention" to { record(1, recording) },
             "G2_charts" to { record(2, recording) },
             "N2_stale" to { record(0, off) },
-            "V1_journal" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc) {}.apply { bind(TripsModel.from(Samples.realItems)) } } },
-            "V1a_empty" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc) {}.apply { bind(TripsModel.from(emptyList())) } } },
-            "V3_compare" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc) {}.apply { bind(TripsModel.from(Samples.realItems)); showTab(1) } } },
-            "V3a_compare_few" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc) {}.apply { bind(TripsModel.from(Samples.realItems.take(1))); showTab(1) } } },
+            "V1_journal" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc, {}).apply { bind(TripsModel.from(Samples.realItems)) } } },
+            "V1a_empty" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc, {}).apply { bind(TripsModel.from(emptyList())) } } },
+            "V3_compare" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc, {}).apply { bind(TripsModel.from(Samples.realItems)); showTab(1) } } },
+            "V3a_compare_few" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc, {}).apply { bind(TripsModel.from(Samples.realItems.take(1))); showTab(1) } } },
             "V2_trip" to { trip(0) },
             "V2_stats" to { trip(1) },
             "V2_rating" to { trip(2) },

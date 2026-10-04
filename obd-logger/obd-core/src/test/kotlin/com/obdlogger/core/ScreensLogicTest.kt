@@ -115,4 +115,33 @@ class ScreensLogicTest {
         assertNotNull(CheckTest.blocker(750.0, 0.0, 40.0))
         assertNull(CheckTest.blocker(750.0, 0.0, 88.0))
     }
+
+    @Test
+    fun differentCarsGetDifferentKeys() {
+        val a = SimDrive.drive(CarProfile.LEAN_IDLE, 6.0)
+        val b = SimDrive.drive(CarProfile.CAN_HEALTHY, 6.0)
+        val ka = CarId.of(a.info)!!.key
+        val kb = CarId.of(b.info)!!.key
+        assertTrue(ka != kb, "$ka vs $kb")
+        // The same car twice gets the same key.
+        assertEquals(ka, CarId.of(SimDrive.drive(CarProfile.LEAN_IDLE, 6.0).info)!!.key)
+    }
+
+    @Test
+    fun comparisonPutsTheWorstProblemFirst() {
+        fun trip(i: Int, trim: Double, dips: Double, volts: Double) = TripSummary("t$i", java.time.LocalDateTime.of(2026, 10, i, 10, 0), 30.0, 500,
+            emptyMap(), mapOf(Metric.IDLE_TRIM_B1 to trim, Metric.RPM_DIPS to dips, Metric.CHARGE_V to volts), emptyList(), emptyList())
+        // Mixture fixed, dips came up: dips go first.
+        val t = TripComparison.table(listOf(trip(1, 20.0, 0.0, 14.1), trip(2, 4.0, 6.0, 14.1)))
+        assertEquals(Metric.RPM_DIPS, t.rows.first().metric, t.rows.joinToString { "${it.metric}=${it.problem}" })
+        assertEquals(Metric.CHARGE_V, t.rows.last().metric)
+    }
+
+    @Test
+    fun findingsOfEqualSeverityAreSortedByHowFarOut() {
+        val s = SimDrive.drive(CarProfile.LEAN_IDLE, 20.0)
+        val sum = TripAnalyzer.analyze("t", s.csv, s.info)!!
+        val scores = sum.findings.filter { it.severity == sum.findings.first().severity }.map { it.score }
+        assertEquals(scores.sortedDescending(), scores)
+    }
 }

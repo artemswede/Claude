@@ -29,20 +29,28 @@ class HomeModel(
     val past: TripSummary?,
     val trend: Trend?,
     val lastTripText: String,
+    /** The last saved trip's result was not opened yet: offered on the main screen until it is. */
+    val unseen: Boolean = false,
 ) {
     companion object {
         private val DATE = DateTimeFormatter.ofPattern("dd.MM")
 
         /** Heavy: reads CSV files. Call off the main thread. */
         fun build(ctx: Context, s: LoggerState.Snapshot): HomeModel {
-            val saved = SessionFiles.tripCsvs(ctx).takeLast(8).mapNotNull { SessionFiles.analyze(it) }.filter { it.rows >= 10 }
+            val saved = SessionFiles.tripCsvs(ctx).takeLast(30).mapNotNull { TripCache.item(it)?.summary }.filter { it.rows >= 10 }
             val current = s.currentCsv?.let(::File)?.takeIf { s.recording && it.exists() }
-                ?.let { f -> runCatching { TripAnalyzer.analyze(f.nameWithoutExtension, f.readText()) }.getOrNull() }
-            return from(saved, current, s)
+                ?.let { f ->
+                    val info = SessionFiles.infoOf(f).takeIf { it.exists() }?.readText()
+                    runCatching { TripAnalyzer.analyze(f.nameWithoutExtension, f.readText(), info) }.getOrNull()
+                }
+            return from(saved.filter { it.name != current?.name }, current, s, com.obdlogger.app.Prefs.seenTrip(ctx))
         }
 
         /** Pure part of [build]: decides the state from already analysed trips. */
-        fun from(saved: List<TripSummary>, current: TripSummary?, s: LoggerState.Snapshot): HomeModel {
+        fun from(allSaved: List<TripSummary>, current: TripSummary?, s: LoggerState.Snapshot, seenTrip: String? = null): HomeModel {
+            // Only this car's trips: the tablet is moved between cars, their data must not mix.
+            val car = (current ?: allSaved.maxByOrNull { it.start ?: java.time.LocalDateTime.MIN })?.car?.key
+            val saved = allSaved.filter { it.car?.key == car }.sortedBy { it.start }.takeLast(8)
             val live = current != null
             val trip = current ?: saved.lastOrNull()
 
@@ -51,7 +59,7 @@ class HomeModel(
             val past = saved.lastOrNull { HomeLogic.conclusive(it) }
 
             val history = (saved + listOfNotNull(current)).distinctBy { it.name }
-            return HomeModel(state, trip, live, past, trend(history), lastTrip(trip, live))
+            return HomeModel(state, trip, live, past, trend(history), lastTrip(trip, live), !live && trip != null && trip.name != seenTrip)
         }
 
         private fun trend(trips: List<TripSummary>): Trend? {

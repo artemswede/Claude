@@ -78,7 +78,7 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         toggle("Автозапись поездок", "завели мотор — запись, заглушили — сохранено; перезапуск до 2 мин — та же поездка", h.autoOn()) { h.setAuto(it) }
         chevron("Адаптер", h.adapterText()) { h.pickAdapter() }
         chevron("Профиль машины", h.carText()) { h.editCar() }
-        toggle("Искать скрытые параметры Toyota", "при подключении; старт дольше на ~1 мин", h.extendedOn()) { h.setExtended(it) }
+        toggle("Искать скрытые параметры производителя", "Toyota / Lexus: блоки режима 21, старт дольше на ~1 мин. У других марок просто пропускается", h.extendedOn()) { h.setExtended(it) }
         toggle("Метки водителя", "необязательно: разбор работает без них. Кнопка «Метка» в уведомлении во время записи", h.marksOn()) { h.setMarks(it) }
 
         section("Фон и запуск")

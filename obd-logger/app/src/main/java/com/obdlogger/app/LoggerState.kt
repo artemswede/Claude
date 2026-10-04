@@ -16,7 +16,6 @@ object LoggerState {
         val auto: Boolean = false,
         /** A trip is being written right now (false while auto mode waits). */
         val recording: Boolean = false,
-        val demo: Boolean = false,
         val status: String = "Готов к работе",
         /** Tablet ↔ ECU: Bluetooth, adapter and ECU answering. */
         val link: Lamp = Lamp.OFF,

@@ -54,7 +54,40 @@ data class Finding(
     val why: List<Evidence> = emptyList(),
     /** Stable id for the knowledge base ([Hypotheses]): «air_leak», «dips»… */
     val kind: String = "",
+    /** How far beyond the norm, in norm widths; orders findings of equal severity (worst first). */
+    val score: Double = 0.0,
 )
+
+/**
+ * Which car a trip belongs to. Trips of different cars are never compared: the
+ * app is moved between cars. VIN when the ECU reports it, otherwise the protocol
+ * plus the set of supported PIDs — different engines answer differently.
+ */
+data class CarId(val key: String, val name: String) {
+    companion object {
+        /** Same key the service computes at connect time and [of] reads back from the info file. */
+        fun key(vin: String?, protocolLine: String, pidsLine: String): String? = when {
+            vin != null && Regex("[A-HJ-NPR-Z0-9]{17}").matches(vin) -> "vin:$vin"
+            pidsLine.isBlank() || pidsLine == "—" -> null
+            else -> "ecu:" + (protocolLine.trim() + "|" + pidsLine.trim()).hashCode().toUInt().toString(16)
+        }
+
+        /** Protocol line as written in the info file: «ISO 9141-2 (#3)». */
+        fun protocolLine(info: VehicleInfo) = "${info.protocol} (#${info.protocolNumber})"
+
+        fun pidsLine(info: VehicleInfo) = info.supportedPids.joinToString(" ") { "%02X".format(it) }.ifEmpty { "—" }
+
+        fun of(info: String?): CarId? {
+            if (info == null) return null
+            val owner = Regex("Автомобиль \\(со слов владельца\\): (.*)").find(info)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() && it != "не указан" }
+            val vin = Regex("VIN: ([A-HJ-NPR-Z0-9]{17})").find(info)?.groupValues?.get(1)
+            val proto = Regex("Протокол OBD: ([^\\n]*)").find(info)?.groupValues?.get(1)?.trim().orEmpty()
+            val pids = info.substringAfter("Поддерживаемые автомобилем PID режима 01:", "").trim().lineSequence().firstOrNull()?.trim().orEmpty()
+            val key = key(vin, proto, pids) ?: return owner?.let { CarId("name:$it", it) }
+            return CarId(key, owner ?: if (vin != null) "VIN …${vin.takeLast(6)}" else "Машина без названия")
+        }
+    }
+}
 
 /** Per-row series of a trip for the main-screen chart. */
 class TripTrace(
@@ -137,6 +170,8 @@ class TripSummary(
     val trace: TripTrace? = null,
     /** Seconds of warm idle standing — the mode most versions need. */
     val warmIdleSec: Double = 0.0,
+    /** The car, from the trip's info file; null for very old recordings. */
+    val car: CarId? = null,
 ) {
     /** The version to show first: highest severity, real findings only. */
     val top: Finding? get() = findings.firstOrNull { it.severity >= Severity.WARN }
@@ -266,7 +301,7 @@ object TripAnalyzer {
         var warmIdleMs = 0L
         for (i in 1 until rows.size) if (modes[i] == DriveMode.WARM_IDLE) warmIdleMs += (ms[i] - ms[i - 1]).coerceIn(0L, 10_000L)
         return TripSummary(name, times.firstNotNullOfOrNull { it }, duration, rows.size, modeRows, metrics, dtcs,
-            findings(metrics, modeRows, dtcs, coolantPeak, duration), trace, warmIdleMs / 1000.0)
+            findings(metrics, modeRows, dtcs, coolantPeak, duration), trace, warmIdleMs / 1000.0, CarId.of(info))
     }
 
     private fun findings(
@@ -279,7 +314,7 @@ object TripAnalyzer {
         if (!dtcs.isNullOrEmpty()) {
             out += Finding(Severity.BAD, "Коды неисправностей: ${dtcs.joinToString(", ")}",
                 "ЭБУ сообщает сохранённые коды", "Расшифровать коды для этого двигателя", "высокая",
-                headline = "Блок записал коды: ${dtcs.joinToString(", ")}", kind = "dtc")
+                headline = "Блок записал коды: ${dtcs.joinToString(", ")}", kind = "dtc", score = 100.0)
         }
 
         val idle = listOfNotNull(m[Metric.IDLE_TRIM_B1], m[Metric.IDLE_TRIM_B2])
@@ -301,6 +336,7 @@ object TripAnalyzer {
                 if (cruiseMax != null) "высокая" else "средняя",
                 headline = if (onlyIdle) "Подсос воздуха на холостом" else "Бедная смесь на всех режимах",
                 kind = if (onlyIdle) "air_leak" else "lean_all",
+                score = (idleMax - 10) / 10,
                 urgency = if (idleMax > 30) "Ехать можно, но не откладывайте проверку." else "Не критично для поездки. Проверьте в ближайшие дни.",
                 why = buildList {
                     add(Evidence("ХХ: ЭБУ добавляет топливо", pct(idleMax), deviating = true))
@@ -315,14 +351,14 @@ object TripAnalyzer {
             out += Finding(if (idleMax < -20) Severity.BAD else Severity.WARN, "Богатая смесь на холостом",
                 "Коррекция на холостом ${idle.joinToString(" / ") { f(it) + " %" }}",
                 "Подтекающие форсунки, давление топлива, продувка адсорбера (EVAP), датчик температуры ОЖ", "средняя",
-                kind = "rich_idle",
+                kind = "rich_idle", score = (-idleMax - 10) / 10,
                 urgency = "Не критично для поездки. Расход выше обычного — проверьте в ближайшие дни.",
                 why = listOfNotNull(Evidence("ХХ: ЭБУ убирает топливо", pct(idleMax), deviating = true),
                     cruiseMax?.let { Evidence("В движении", pct(it), deviating = abs(it) > 10) }))
         }
         if (cruiseMax != null && cruiseMax < -10) {
             out += Finding(Severity.WARN, "Богатая смесь в движении", "Коррекция в движении ${cruise.joinToString(" / ") { f(it) + " %" }}",
-                "ДМРВ завышает, давление топлива, форсунки", "средняя", kind = "rich_cruise")
+                "ДМРВ завышает, давление топлива, форсунки", "средняя", kind = "rich_cruise", score = (-cruiseMax - 10) / 10)
         }
 
         val dips = m[Metric.RPM_DIPS] ?: 0.0
@@ -330,8 +366,8 @@ object TripAnalyzer {
         if (dips >= 2) {
             out += Finding(if (dips >= 5) Severity.BAD else Severity.WARN, "Провалы холостого хода",
                 "${dips.toInt()} раз обороты опускались ниже ${DIP_RPM.toInt()} при прогретом моторе и закрытом дросселе",
-                "Нагар на дросселе и в EGR (для D-4 типично), подсос воздуха, слабый аккумулятор. Чистка дросселя/EGR, затем обучение холостого", "высокая",
-                kind = "dips",
+                "Нагар на дросселе и в EGR, подсос воздуха, слабый аккумулятор. Чистка дросселя/EGR, затем обучение холостого", "высокая",
+                kind = "dips", score = dips / 2,
                 urgency = "Мотор может заглохнуть на остановке. Проверьте в ближайшие дни.",
                 why = listOfNotNull(
                     Evidence("Провалы ниже ${DIP_RPM.toInt()} об/мин", "${dips.toInt()} раз", deviating = true),
@@ -339,7 +375,7 @@ object TripAnalyzer {
                 ))
         } else if (idleRpm != null && idleRpm < 620) {
             out += Finding(Severity.WATCH, "Низкие обороты холостого", "Медиана ${idleRpm.toInt()} об/мин",
-                "Чистка дросселя, проверка подсоса воздуха", "средняя", kind = "low_rpm")
+                "Чистка дросселя, проверка подсоса воздуха", "средняя", kind = "low_rpm", score = (620 - idleRpm) / 60)
         }
 
         val rearIdle = m[Metric.IDLE_REAR_O2]
@@ -358,27 +394,27 @@ object TripAnalyzer {
         if (volts != null && volts < 13.4) {
             out += Finding(Severity.WARN, "Слабая зарядка", "Медиана ${fmt(volts)} В на работающем моторе",
                 "Генератор, регулятор напряжения, ремень, клеммы", "средняя",
-                kind = "weak_charge",
+                kind = "weak_charge", score = (13.4 - volts) / 0.4,
                 urgency = "Проверьте зарядку до дальней поездки.",
                 why = listOfNotNull(Evidence("Напряжение на работающем моторе", "${fmt(volts)} В", deviating = true),
                     vMin?.let { Evidence("Минимум", "${fmt(it)} В", deviating = it < 12.8) }))
         } else if (vMin != null && vMin < 12.8) {
             out += Finding(Severity.WATCH, "Просадки напряжения", "Минимум ${fmt(vMin)} В на работающем моторе",
                 "Ремень генератора, клеммы, аккумулятор; совпадает ли с провалами оборотов", "низкая",
-                headline = "Просадка напряжения до ${fmt(vMin)} В", kind = "voltage_dips")
+                headline = "Просадка напряжения до ${fmt(vMin)} В", kind = "voltage_dips", score = (12.8 - vMin) / 0.4)
         }
 
         val coolantMax = m[Metric.COOLANT_MAX]
         if (coolantMax != null && coolantMax > 104) {
             out += Finding(Severity.BAD, "Перегрев", "Температура ОЖ до ${coolantMax.toInt()} °C",
                 "Вентилятор радиатора, уровень ОЖ, термостат, помпа", "высокая",
-                kind = "overheat",
+                kind = "overheat", score = (coolantMax - 104) / 4,
                 urgency = "Остановитесь, дайте мотору остыть и проверьте уровень жидкости.",
                 why = listOf(Evidence("Температура ОЖ, максимум", "${coolantMax.toInt()} °C", deviating = true)))
         } else if (coolantMax == null && coolantPeak != null && coolantPeak < 75 && durationMin >= 15) {
             out += Finding(Severity.WARN, "Мотор не прогревается", "Максимум ${coolantPeak.toInt()} °C за ${durationMin.toInt()} мин",
                 "Термостат открыт постоянно или датчик температуры", "средняя",
-                headline = "Мотор не прогревается", kind = "cold_engine",
+                headline = "Мотор не прогревается", kind = "cold_engine", score = (75 - coolantPeak) / 10,
                 urgency = "Ехать можно. Расход и износ выше, печка греет хуже — проверьте термостат.",
                 why = listOf(Evidence("Температура ОЖ, максимум", "${coolantPeak.toInt()} °C", deviating = true),
                     Evidence("Норма для прогретого мотора", "80–100 °C")))
@@ -387,7 +423,8 @@ object TripAnalyzer {
         if (out.none { it.severity >= Severity.WARN }) {
             out += Finding(Severity.OK, "Явных отклонений не найдено", "Ключевые показатели в норме", "—", "средняя")
         }
-        return out.sortedByDescending { it.severity }
+        // Worst first: severity, then how far beyond the norm — fix one, the next comes up.
+        return out.sortedWith(compareByDescending<Finding> { it.severity }.thenByDescending { it.score })
     }
 
     /** «+21.9 %» / «−3.1 %» with a real minus sign. */
@@ -445,6 +482,8 @@ object TripComparison {
     class Row(
         val metric: Metric, val title: String, val code: String, val unit: String,
         val values: List<Double?>, val arrow: String, val verdict: String, val tone: Tone,
+        /** How problematic now: beyond the norm in norm widths (+ a bit for getting worse); rows are sorted by it. */
+        val problem: Double = 0.0,
     )
 
     class Forecast(
@@ -472,6 +511,32 @@ object TripComparison {
         Metric.CHARGE_V to Spec("Напряжение, мотор работает", "battery_v", 13.5, 14.8, -1),
         Metric.COOLANT_MAX to Spec("Температура ОЖ, максимум", "coolant_c", null, 104.0, +1),
     )
+
+    /**
+     * Ordering key of a row: the latest value's distance outside the norm, in norm
+     * widths, plus a small bonus when it moved the bad way. In-norm rows score ≤ 0.1,
+     * rows without enough data go last.
+     */
+    private fun problem(spec: Spec, metric: Metric, v: List<Double>): Double {
+        if (v.isEmpty()) return -1.0
+        val last = v.last()
+        val width = when {
+            spec.lo != null && spec.hi != null -> spec.hi - spec.lo
+            metric == Metric.RPM_DIPS -> 2.0
+            else -> 0.3 * abs(spec.lo ?: spec.hi ?: 1.0)
+        }.coerceAtLeast(1e-6)
+        val beyond = when {
+            spec.lo != null && last < spec.lo -> (spec.lo - last) / width
+            spec.hi != null && last > spec.hi -> (last - spec.hi) / width
+            else -> 0.0
+        }
+        val worse = if (v.size >= 2) {
+            val d = last - v[v.size - 2]
+            val bad = if (spec.lo != null && spec.hi != null) Math.signum(last) * d else spec.bad * d
+            if (bad > 0) 0.1 else 0.0
+        } else 0.0
+        return (if (beyond > 0) 1 + beyond else 0.0) + worse - (if (v.size < 2) 0.5 else 0.0)
+    }
 
     private fun out(spec: Spec, v: Double) = (spec.lo != null && v < spec.lo) || (spec.hi != null && v > spec.hi)
 
@@ -512,8 +577,8 @@ object TripComparison {
                     }
                 }
             }
-            Row(metric, spec.title, spec.code, metric.unit, values, arrow, verdict, tone)
-        }
+            Row(metric, spec.title, spec.code, metric.unit, values, arrow, verdict, tone, problem(spec, metric, v))
+        }.sortedByDescending { it.problem }
         return Table(shown, rows, forecast(trips.sortedBy { it.start }))
     }
 

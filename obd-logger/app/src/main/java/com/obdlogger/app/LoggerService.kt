@@ -18,6 +18,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.provider.Settings
 import com.obdlogger.core.AdapterInfo
+import com.obdlogger.core.CarId
 import com.obdlogger.core.DataLogger
 import com.obdlogger.core.DtcSnapshot
 import com.obdlogger.core.ElmConnection
@@ -27,8 +28,6 @@ import com.obdlogger.core.ElmTimeoutException
 import com.obdlogger.core.ObdSession
 import com.obdlogger.core.Pids
 import com.obdlogger.core.SessionReport
-import com.obdlogger.core.SimulatedElm
-import com.obdlogger.core.TripComparison
 import java.io.File
 import java.io.IOException
 import java.io.Writer
@@ -43,8 +42,11 @@ import java.io.Writer
  */
 class LoggerService : Service() {
     /** One recording: its files and the logger writing them. */
-    private class Trip(val files: SessionFiles, val trace: ElmTraceLog, val demo: Boolean) {
+    private class Trip(val files: SessionFiles, val trace: ElmTraceLog) {
         var csv: Writer? = null
+        /** The CSV's file stream: synced to storage regularly, so a power cut loses seconds, not the trip. */
+        var csvStream: java.io.FileOutputStream? = null
+        var lastSyncMs = 0L
         var logger: DataLogger? = null
         var report: SessionReport? = null
         var lastDataMs = System.currentTimeMillis()
@@ -53,6 +55,8 @@ class LoggerService : Service() {
 
     @Volatile private var stopRequested = false
     @Volatile private var checkRequested = false
+    /** Info file of the trip being recorded (its header is copied into check logs). */
+    @Volatile private var tripInfoFile: File? = null
     @Volatile private var checkStopRequested = false
     @Volatile private var recording = false
     @Volatile private var autoMode = false
@@ -66,7 +70,15 @@ class LoggerService : Service() {
 
     /** Car started (tablet starts charging), screen on or adapter appeared: check right away. */
     private val pokeReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) = poke()
+        override fun onReceive(context: Context, intent: Intent) {
+            // Tablet shutting down (often together with the car): get the trip onto storage now.
+            if (intent.action == Intent.ACTION_SHUTDOWN || intent.action == "android.intent.action.QUICKBOOT_POWEROFF") {
+                trace("shutdown broadcast: syncing the trip")
+                currentTrip?.let { syncTrip(it, force = true) }
+                return
+            }
+            poke()
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -82,7 +94,6 @@ class LoggerService : Service() {
             ACTION_CHECK_STOP -> checkStopRequested = true
             // Restarted by the system after being killed: note it and resume auto mode if it is on.
             null -> {
-                if (worker?.isAlive != true) Prefs.checkKilled(this)
                 if (Prefs.auto(this)) start(Intent(this, LoggerService::class.java), auto = true) else stopSelf()
             }
         }
@@ -92,9 +103,8 @@ class LoggerService : Service() {
     private fun start(intent: Intent, auto: Boolean) {
         Compat.startForeground(this, NOTIFICATION_ID, notification(if (auto) "Жду машину" else "Подключение…"))
         if (worker?.isAlive == true) return
-        val demo = intent.getBooleanExtra(EXTRA_DEMO, false)
-        val address = if (demo) null else intent.getStringExtra(EXTRA_ADDRESS) ?: Prefs.device(this)
-        if (!demo && address == null) {
+        val address = intent.getStringExtra(EXTRA_ADDRESS) ?: Prefs.device(this)
+        if (address == null) {
             LoggerState.update { it.copy(status = "Выберите адаптер, чтобы включить автозапись") }
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
@@ -110,7 +120,7 @@ class LoggerService : Service() {
         registerPokes()
         LoggerState.update {
             LoggerState.Snapshot(
-                running = true, auto = auto, demo = demo,
+                running = true, auto = auto,
                 status = if (auto) "Автозапись: жду двигатель" else "Подключение к адаптеру…",
                 link = Lamp.WAIT, linkText = "подключение", savedTrips = it.savedTrips,
             )
@@ -137,6 +147,8 @@ class LoggerService : Service() {
             addAction(Intent.ACTION_POWER_CONNECTED)
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
+            addAction(Intent.ACTION_SHUTDOWN)
+            addAction("android.intent.action.QUICKBOOT_POWEROFF")
         }
         registerReceiver(pokeReceiver, filter)
         receiverRegistered = true
@@ -158,13 +170,9 @@ class LoggerService : Service() {
         traceTarget?.write(line)
     }
 
-    /** Bluetooth adapter, or the simulated car when [address] is null (demo mode). */
+    /** The Bluetooth adapter. */
     @SuppressLint("MissingPermission")
-    private fun openLink(address: String?): ElmIo {
-        if (address == null) {
-            trace("demo mode: simulated car, no Bluetooth")
-            return SimulatedElm(timeScale = DEMO_TIME_SCALE, latencyMs = 60)
-        }
+    private fun openLink(address: String): ElmIo {
         val device = getSystemService(BluetoothManager::class.java).adapter.getRemoteDevice(address)
         lamps(link = Lamp.WAIT, linkText = "Bluetooth: подключение")
         trace("device: ${device.name} ($address), bond state ${device.bondState}")
@@ -172,8 +180,9 @@ class LoggerService : Service() {
         return ElmConnection(s.inputStream, s.outputStream, ::trace)
     }
 
-    private fun runWorker(address: String?, vehicle: String, extendedScan: Boolean, auto: Boolean) {
-        val demo = address == null
+    private fun runWorker(address: String, vehicle: String, extendedScan: Boolean, auto: Boolean) {
+        // A trip cut off by a power loss or a kill: finish its files before recording anew.
+        Recovery.run(this)
         // Link traffic before a trip exists (auto mode waiting) goes to a small separate log.
         val waitLog = ElmTraceLog(File(SessionFiles.dir(this), if (auto) "auto_wait.log" else "connect.log"))
         traceTarget = waitLog
@@ -202,9 +211,9 @@ class LoggerService : Service() {
                         if (!waitForEngine(elm, s, auto)) break
                     }
                     if (stopRequested) break
-                    val t = trip ?: startTrip(s, adapterInfo, vehicle, extendedScan, demo, auto).also { trip = it }
+                    val t = trip ?: startTrip(s, adapterInfo, vehicle, extendedScan, auto).also { trip = it }
                     failure = null
-                    if (recordTrip(t, elm, s, auto, demo)) {
+                    if (recordTrip(t, elm, s, auto)) {
                         finishTrip(t, s)
                         trip = null
                         traceTarget = waitLog
@@ -304,9 +313,10 @@ class LoggerService : Service() {
         return false
     }
 
-    private fun startTrip(s: ObdSession, adapterInfo: AdapterInfo, vehicle: String, extendedScan: Boolean, demo: Boolean, auto: Boolean): Trip {
-        val files = SessionFiles.create(this, demo)
-        val t = Trip(files, ElmTraceLog(files.elmLog, Prefs.trace(this)), demo)
+    private fun startTrip(s: ObdSession, adapterInfo: AdapterInfo, vehicle: String, extendedScan: Boolean, auto: Boolean): Trip {
+        val files = SessionFiles.create(this)
+        val t = Trip(files, ElmTraceLog(files.elmLog, Prefs.trace(this)))
+        tripInfoFile = files.info
         traceTarget = t.trace
         trace("trip start; app ${BuildConfig.VERSION_NAME}; Android ${Build.VERSION.RELEASE} (${Build.MANUFACTURER} ${Build.MODEL}); auto=$auto")
         trace("adapter: $adapterInfo; protocol: ${s.protocolName} (#${s.protocolNumber})")
@@ -317,6 +327,15 @@ class LoggerService : Service() {
         if (auto) openUi()
 
         val info = s.readVehicleInfo()
+        // Which car is this? The tablet moves between cars; each keeps its own name and history.
+        CarId.key(info.vin, CarId.protocolLine(info), CarId.pidsLine(info))?.let { key ->
+            val newCar = Prefs.carName(this, key) == null
+            Prefs.setCurrentCar(this, key)
+            if (newCar) Prefs.setCarName(this, key, if (Prefs.of(this).getString(Prefs.CURRENT_CAR + "_seen", null) == null) Prefs.of(this).getString(Prefs.VEHICLE, null).orEmpty() else "")
+            Prefs.of(this).edit().putString(Prefs.CURRENT_CAR + "_seen", "1").apply()
+            trace("car: $key (${if (newCar) "new" else Prefs.carName(this, key)})")
+        }
+        val carName = Prefs.vehicle(this)
         trace("vehicle: vin=${info.vin}, pids=${info.supportedPids.joinToString(" ") { "%02X".format(it) }}")
         status("Поиск датчиков без формулы…")
         val rawPids = s.discoverRawPids(info.supportedPids)
@@ -324,11 +343,14 @@ class LoggerService : Service() {
         val extended = if (extendedScan) s.discoverExtended { status(it) } else emptyList()
         trace("mode 21 blocks: ${extended.map { "${it.ecu}:%02X:%d".format(it.id, it.length) }}")
         val items = Pids.pollItems(info.supportedPids, s.singleResponse, rawPids, extended)
-        val writer = files.csv.bufferedWriter().also { t.csv = it }
+        val stream = java.io.FileOutputStream(files.csv).also { t.csvStream = it }
+        val writer = stream.bufferedWriter().also { t.csv = it }
+        currentTrip = t
+        Prefs.of(this).edit().putString(Prefs.RECORDING_FILE, files.csv.absolutePath).apply()
         val logger = DataLogger(items, writer, defaultHeader = s.defaultHeader).also { it.writeHeader() }
         t.logger = logger
         LiveData.store.reset(logger.columns.map { it.name })
-        t.report = SessionReport(vehicle, adapterInfo, info).also { files.info.writeText(it.render(logger, null, null)) }
+        t.report = SessionReport(carName, adapterInfo, info).also { files.info.writeText(it.render(logger, null, null)) }
         LoggerState.update {
             it.copy(dtcInfo = dtcSummary(info.dtcs) + "\nПротокол: ${info.protocol}", currentCsv = files.csv.absolutePath, protocol = info.protocol)
         }
@@ -339,13 +361,13 @@ class LoggerService : Service() {
      * Records until stopped (returns false) or, in auto mode, until the engine has been
      * off or the ECU silent for [TRIP_GAP_MS] (returns true: the trip is over).
      */
-    private fun recordTrip(t: Trip, elm: ElmIo, s: ObdSession, auto: Boolean, demo: Boolean): Boolean {
+    private fun recordTrip(t: Trip, elm: ElmIo, s: ObdSession, auto: Boolean): Boolean {
         val logger = t.logger ?: return false
         logger.onReconnect()
         recording = true
-        val recText = if (demo) "Демо-запись (симуляция, без машины)" else if (auto) "Автозапись: идёт поездка" else "Запись"
+        val recText = if (auto) "Автозапись: идёт поездка" else "Запись"
         status(recText)
-        updateNotification(if (demo) "Демо-запись" else "Идёт запись")
+        updateNotification("Идёт запись")
         val rpmIndex = logger.columns.indexOfFirst { it.name == "rpm" }
         var silentCycles = 0
         var autoMarker: String? = if (logger.rows > 0) "RECONNECT" else null
@@ -374,6 +396,7 @@ class LoggerService : Service() {
                 }
             }
             if (r.wroteRow) {
+                syncTrip(t)
                 LoggerState.consumeMarker(marker)
                 autoMarker = null
                 silentCycles = 0
@@ -436,7 +459,7 @@ class LoggerService : Service() {
                 logger.onReconnect()
                 autoMarker = "RECONNECT"
                 silentCycles = 0
-                updateNotification(if (demo) "Демо-запись" else "Идёт запись")
+                updateNotification("Идёт запись")
             } else {
                 pause(1000)
             }
@@ -474,13 +497,32 @@ class LoggerService : Service() {
         val ok = c.state?.phase == com.obdlogger.core.CheckTest.Phase.DONE
         trace("check log end: ${c.state?.phase}")
         if (ok) {
-            c.files.info.writeText("Проверочный лог Бортача ${BuildConfig.VERSION_NAME}\nМашина: ${Prefs.vehicle(this)}\n" +
+            // The trip's header (car, VIN, protocol, PIDs) ties the check log to its car.
+            val tripInfo = tripInfoFile?.takeIf { it.exists() }?.readText()?.substringBefore("=== Коды неисправностей ===").orEmpty()
+            c.files.info.writeText(tripInfo + "\n=== Проверочный лог Бортача ${BuildConfig.VERSION_NAME} ===\n" +
                 "Шаги: прогретый холостой 2:00 → 2500 об/мин 1:00 → холостой 1:00 (столбец marker: TEST1…TEST3)\n")
             SessionFiles.exportToDownloads(this, c.files.csv)
             LoggerState.update { it.copy(checkCsv = c.files.csv.absolutePath, savedTrips = it.savedTrips + 1) }
         } else {
             // An aborted test is not a check log: nothing to compare with.
             c.files.csv.delete()
+        }
+    }
+
+    @Volatile private var currentTrip: Trip? = null
+
+    /**
+     * Pushes the CSV from the OS cache to storage every 15 s (and on shutdown). The
+     * writer already flushes every row; fsync makes it survive a power cut.
+     */
+    private fun syncTrip(t: Trip, force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && now - t.lastSyncMs < 15_000) return
+        t.lastSyncMs = now
+        try {
+            t.csv?.flush()
+            t.csvStream?.fd?.sync()
+        } catch (_: Exception) {
         }
     }
 
@@ -505,8 +547,7 @@ class LoggerService : Service() {
             t.report?.let { t.files.info.writeText(it.render(logger, finalDtcs, System.currentTimeMillis())) }
             if (rows > 0) {
                 val analysis = try {
-                    if (t.demo) TripComparison.render(listOfNotNull(SessionFiles.analyze(t.files.csv)))
-                    else SessionFiles.compareRecent(this)
+                    SessionFiles.compareRecent(this)
                 } catch (e: Exception) {
                     "Анализ не удался: $e"
                 }
@@ -517,7 +558,8 @@ class LoggerService : Service() {
         t.trace.close()
         if (traceTarget === t.trace) traceTarget = null
         tripLock?.let { if (it.isHeld) it.release() }
-        Prefs.of(this).edit().remove(Prefs.RECORDING_SINCE).apply()
+        if (currentTrip === t) currentTrip = null
+        Prefs.of(this).edit().remove(Prefs.RECORDING_SINCE).remove(Prefs.RECORDING_FILE).apply()
 
         if (rows == 0 && autoMode) {
             // Auto mode probed the ECU but nothing was recorded: no empty trip files.
@@ -545,7 +587,7 @@ class LoggerService : Service() {
             )
         }
         updateNotification(if (waitingNext) "Жду машину" else "Запись выключена")
-        if (rows > 0 && !t.demo) tripSavedNotification(t.files.csv)
+        if (rows > 0) tripSavedNotification(t.files.csv)
     }
 
     /** Auto mode brings the app to the front when a trip starts (needs «поверх других окон» on Android 10+). */
@@ -681,14 +723,11 @@ class LoggerService : Service() {
         const val ACTION_CHECK_STOP = "com.obdlogger.CHECK_STOP"
         const val EXTRA_ADDRESS = "address"
         const val EXTRA_VEHICLE = "vehicle"
-        const val EXTRA_DEMO = "demo"
         const val EXTRA_EXTENDED = "extended"
         private const val SILENT_CYCLES_BEFORE_REINIT = 2
         private const val ENGINE_RPM = 300
         /** Engine off longer than this ends an auto-mode trip; a quick restart (remote start) stays in it. */
         private const val TRIP_GAP_MS = 2 * 60_000L
-        /** Demo drive runs 5× faster: the 12-minute scenario (warm-up, city, highway) in ~2.5 minutes. */
-        private const val DEMO_TIME_SCALE = 5.0
         private const val CHANNEL_ID = "recording"
         private const val NOTIFICATION_ID = 1
         private const val RESULT_CHANNEL_ID = "result"

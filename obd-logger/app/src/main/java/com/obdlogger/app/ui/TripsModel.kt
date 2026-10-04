@@ -2,6 +2,7 @@ package com.obdlogger.app.ui
 
 import android.content.Context
 import com.obdlogger.app.SessionFiles
+import com.obdlogger.core.CarId
 import com.obdlogger.core.CheckResult
 import com.obdlogger.core.DriveMode
 import com.obdlogger.core.TripAnalyzer
@@ -24,20 +25,31 @@ class TripItem(val csv: File, val summary: TripSummary, val check: CheckResult?)
 }
 
 /** Journal + comparison, built off the main thread from the files on disk. */
-class TripsModel(val items: List<TripItem>, val comparison: TripComparison.Table, val checks: List<TripItem>) {
+class TripsModel(
+    val items: List<TripItem>,
+    val comparison: TripComparison.Table,
+    val checks: List<TripItem>,
+    /** Cars seen in the recordings, the newest first; the journal shows one at a time. */
+    val cars: List<CarId> = emptyList(),
+    val car: CarId? = null,
+) {
     val trips get() = items.filter { !it.isCheck }
 
     companion object {
         /** Heavy: reads CSV files (cached by name and size). */
-        fun build(ctx: Context): TripsModel {
+        fun build(ctx: Context, carKey: String? = null): TripsModel {
             val files = SessionFiles.tripCsvs(ctx) + SessionFiles.checkCsvs(ctx)
-            return from(files.mapNotNull { TripCache.item(it) })
+            return from(files.mapNotNull { TripCache.item(it) }, carKey)
         }
 
-        fun from(items: List<TripItem>): TripsModel {
-            val sorted = items.filter { it.summary.rows >= 10 }.sortedByDescending { it.summary.start }
+        /** [carKey] null = the car of the newest recording. */
+        fun from(items: List<TripItem>, carKey: String? = null): TripsModel {
+            val all = items.filter { it.summary.rows >= 10 }.sortedByDescending { it.summary.start }
+            val cars = all.mapNotNull { it.summary.car }.distinctBy { it.key }
+            val car = cars.firstOrNull { it.key == carKey } ?: all.firstOrNull()?.summary?.car
+            val sorted = all.filter { it.summary.car?.key == car?.key }
             val trips = sorted.filter { !it.isCheck }.map { it.summary }
-            return TripsModel(sorted, TripComparison.table(trips), sorted.filter { it.isCheck })
+            return TripsModel(sorted, TripComparison.table(trips), sorted.filter { it.isCheck }, cars, car)
         }
     }
 }
@@ -48,7 +60,7 @@ object TripCache {
 
     @Synchronized
     fun item(csv: File): TripItem? {
-        val key = "${csv.absolutePath}:${csv.length()}"
+        val key = "${csv.absolutePath}:${csv.length()}:${SessionFiles.infoOf(csv).length()}"
         cache[key]?.let { return it }
         val text = try {
             csv.readText()

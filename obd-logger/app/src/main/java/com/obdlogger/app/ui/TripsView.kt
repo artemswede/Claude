@@ -81,7 +81,13 @@ class ModeBar(ctx: Context, private val p: Bt.Palette) : View(ctx) {
  * «Поездки» (В1, В1а, В3, В3а): journal with filters and the comparison table with
  * a forecast. Tapping a trip opens [TripDetailView].
  */
-class TripsView(ctx: Context, private val sc: Bt.Scale, private val onOpen: (TripItem) -> Unit) : FrameLayout(ctx) {
+class TripsView(
+    ctx: Context,
+    private val sc: Bt.Scale,
+    private val onOpen: (TripItem) -> Unit,
+    /** Another car was chosen: rebuild the model for it. */
+    private val onPickCar: (String) -> Unit = {},
+) : FrameLayout(ctx) {
     private val p = Bt.LIGHT
     private var model: TripsModel? = null
     private var filter = 0
@@ -127,8 +133,26 @@ class TripsView(ctx: Context, private val sc: Bt.Scale, private val onOpen: (Tri
 
     // ---- Журнал ----
 
+    /** «Машина: …» — trips of one car only; another car is picked here. */
+    private fun carBar(m: TripsModel): View? {
+        val car = m.car ?: return null
+        val name = com.obdlogger.app.Prefs.carName(context, car.key)?.takeIf { it.isNotBlank() } ?: car.name
+        val many = m.cars.size > 1
+        val t = context.text(if (many) "Машина: $name · другая ▾" else "Машина: $name", if (sc.phone) 14f else 16f, if (many) p.acc else p.t2, 600)
+        if (many) t.setOnClickListener {
+            val names = m.cars.map { c -> com.obdlogger.app.Prefs.carName(context, c.key)?.takeIf { it.isNotBlank() } ?: c.name }
+            android.app.AlertDialog.Builder(context)
+                .setTitle("Поездки какой машины показать")
+                .setItems(names.toTypedArray()) { _, i -> onPickCar(m.cars[i].key) }
+                .show()
+        }
+        t.setPadding(dp(sc.pad), dp(12), dp(sc.pad), dp(4))
+        return t
+    }
+
     private fun journal(m: TripsModel): View {
         val list = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, dp(24)) }
+        carBar(m)?.let { addTo(list, it) }
         if (sc.phone) addTo(list, journalFilter.detached().apply { }, dp(8))
         val items = when (filter) {
             1 -> m.trips.filter { it.summary.top != null && it.summary.durationMin >= HomeLogic.NEED_TRIP_MIN }
@@ -208,6 +232,7 @@ class TripsView(ctx: Context, private val sc: Bt.Scale, private val onOpen: (Tri
 
     private fun compare(m: TripsModel): View {
         val box = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(sc.pad), dp(16), dp(sc.pad), dp(28)) }
+        carBar(m)?.let { addTo(box, it.apply { setPadding(0, 0, 0, dp(8)) }) }
         if (sc.phone) addTo(box, compareFilter.detached(), 0, width = ViewGroup.LayoutParams.WRAP_CONTENT)
         if (compareChecks) {
             addTo(box, checks(m), dp(8))
@@ -219,7 +244,7 @@ class TripsView(ctx: Context, private val sc: Bt.Scale, private val onOpen: (Tri
             addTo(box, context.text("Нужно хотя бы 2 поездки с прогретым холостым ходом. Сейчас: ${t.trips.size}. Тренды и прогноз появятся сами.", sc.p, p.t2), dp(10))
             return box
         }
-        addTo(box, context.text("Значения на прогретом холостом стоя, если не указано иное. Обычные поездки сравниваются осторожно: условия разные. Для точного «до / после» — проверочный лог.", if (sc.phone) 13f else 15f, p.t2))
+        addTo(box, context.text("Сверху — самое проблемное сейчас: устраните одно — поднимется следующее. Значения на прогретом холостом стоя, если не указано иное; для точного «до / после» — проверочный лог.", if (sc.phone) 13f else 15f, p.t2))
         val days = t.trips.map { it.start?.format(dayFmt) ?: "?" }
         // Several trips on one day: add the time so the columns differ.
         val dates = if (days.toSet().size < days.size) t.trips.map { it.start?.format(DateTimeFormatter.ofPattern("dd.MM HH:mm")) ?: "?" } else days

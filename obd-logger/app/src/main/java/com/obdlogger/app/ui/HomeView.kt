@@ -322,14 +322,25 @@ class HomeView(
     }
 
     /** Г7: right after a trip the main screen says it was saved and opens it. */
+    /**
+     * Г7: the previous trip's result, shown at the next start until it is opened —
+     * the tablet usually switches off together with the car.
+     */
     private fun justSaved(m: HomeModel) {
         val t = m.trip ?: return
-        val start = t.start ?: return
-        val end = start.plusSeconds((t.durationMin * 60).toLong())
-        if (java.time.Duration.between(end, java.time.LocalDateTime.now()).toMinutes() > 30) return
+        if (!m.unseen) return
+        val top = t.top?.takeIf { t.durationMin >= HomeLogic.NEED_TRIP_MIN }
+        val verdict = when {
+            !t.dtcs.isNullOrEmpty() -> "Блок записал коды: ${t.dtcs!!.joinToString(", ")}"
+            t.durationMin < HomeLogic.NEED_TRIP_MIN -> "Короткая поездка — для вывода мало данных"
+            top != null -> "Есть версия: ${top.headline.replaceFirstChar { it.lowercase() }}"
+            t.warmIdleSec < HomeLogic.NEED_IDLE_SEC -> "Мало прогретого холостого — вывод неполный"
+            else -> "Отклонений не найдено"
+        }
         val box = column(context, dp(6),
-            row(context, dp(8), Gravity.CENTER_VERTICAL, context.icon(R.drawable.ic_check, p.acc, 18), context.label("Мотор заглушен · поездка сохранена", sc, p, p.acc)),
+            row(context, dp(8), Gravity.CENTER_VERTICAL, context.icon(R.drawable.ic_check, p.acc, 18), context.label("Прошлая поездка сохранена", sc, p, p.acc)),
             context.text(HomeModel.tripRange(t), sc.hs, p.t1, 600, mono = true),
+            context.text(verdict, sc.p, if (top != null || !t.dtcs.isNullOrEmpty()) p.amb else p.t2, 500),
             link("Разбор и файлы →") { onOpenLast() })
         box.setPadding(dp(18), dp(14), dp(18), dp(14))
         box.background = roundRect(p.s1, dp(14).toFloat(), dp(1), p.acc, dp(5).toFloat())

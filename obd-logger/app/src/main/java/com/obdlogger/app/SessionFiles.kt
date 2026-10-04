@@ -34,16 +34,11 @@ class SessionFiles(dir: File, baseName: String) {
 
     companion object {
         const val DOWNLOAD_FOLDER = "OBD-Logger"
-        private const val DEMO_PREFIX = "demo_"
         const val CHECK_PREFIX = "check_"
 
         fun dir(ctx: Context) = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "sessions").apply { mkdirs() }
 
-        /** Demo recordings get their own prefix so they never mix into trip comparisons. */
-        fun create(ctx: Context, demo: Boolean = false) = SessionFiles(
-            dir(ctx),
-            (if (demo) DEMO_PREFIX else "obd_") + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()),
-        )
+        fun create(ctx: Context) = SessionFiles(dir(ctx), "obd_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()))
 
         /** Copies [file] to Downloads/OBD-Logger: MediaStore on Android 10+, the public folder before. */
         fun exportToDownloads(ctx: Context, file: File): Exported {
@@ -93,7 +88,7 @@ class SessionFiles(dir: File, baseName: String) {
             }
         }
 
-        /** Real (non-demo) recorded trips, oldest first. */
+        /** Recorded trips, oldest first. */
         fun tripCsvs(ctx: Context): List<File> =
             dir(ctx).listFiles().orEmpty()
                 .filter { it.name.startsWith("obd_") && it.name.endsWith(".csv") && it.length() > 0 }
