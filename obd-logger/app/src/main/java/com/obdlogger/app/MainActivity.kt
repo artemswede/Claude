@@ -33,6 +33,7 @@ import com.obdlogger.core.CheckTest
 import com.obdlogger.app.ui.HomeView
 import com.obdlogger.app.ui.PlanView
 import com.obdlogger.app.ui.RecordView
+import com.obdlogger.app.ui.ReportData
 import com.obdlogger.app.ui.Reports
 import com.obdlogger.app.ui.SettingsView
 import com.obdlogger.app.ui.SetupView
@@ -161,12 +162,12 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     override fun openBluetoothSettings() = startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
 
     override fun permissionsGranted(): Boolean = hasBluetoothPermission() &&
-        (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
+        (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || Compat.granted(this, Manifest.permission.POST_NOTIFICATIONS))
 
     override fun requestPermissions() = requestNeededPermissions()
 
-    override fun batteryFree(): Boolean = (getSystemService(POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(packageName)
-    override fun overlayAllowed(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || Settings.canDrawOverlays(this)
+    override fun batteryFree(): Boolean = Compat.batteryFree(this)
+    override fun overlayAllowed(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || Compat.canOverlay(this)
     override fun setCar(text: String) = Prefs.setVehicle(this, text)
 
     override fun finishSetup() {
@@ -180,7 +181,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
 
     /** Е1–Е4: what stops recording right now, if anything. */
     private fun currentProblem(s: LoggerState.Snapshot): HomeView.Problem? {
-        val bt = getSystemService(BluetoothManager::class.java)?.adapter
+        val bt = Compat.bluetooth(this)
         val killed = Prefs.killedAt(this)
         val wantsCar = Prefs.auto(this) || s.running
         return when {
@@ -228,20 +229,20 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         val needed = buildList {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) add(Manifest.permission.BLUETOOTH_CONNECT)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
-            // Android 7–9 save to the public Downloads folder directly.
+            // Android 5–9 save to the public Downloads folder directly.
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-        }.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
-        if (needed.isNotEmpty()) requestPermissions(needed.toTypedArray(), 1)
+        }.filter { !Compat.granted(this, it) }
+        if (needed.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) requestPermissions(needed.toTypedArray(), 1)
     }
 
     private fun hasBluetoothPermission() =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+            Compat.granted(this, Manifest.permission.BLUETOOTH_CONNECT)
 
     /** Paired devices, OBD-looking ones first; null with a reason when Bluetooth is not usable. */
     @SuppressLint("MissingPermission")
     private fun loadDevices(): String? {
-        val adapter = getSystemService(BluetoothManager::class.java)?.adapter
+        val adapter = Compat.bluetooth(this)
         val problem = when {
             adapter == null -> "На устройстве нет Bluetooth"
             !hasBluetoothPermission() -> "Нужно разрешение «Устройства поблизости» для Bluetooth"
@@ -361,10 +362,9 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     }
 
     override fun batteryText(): String {
-        val pm = getSystemService(POWER_SERVICE) as PowerManager
         val huawei = Build.MANUFACTURER.equals("HUAWEI", true) || Build.MANUFACTURER.equals("HONOR", true)
         return when {
-            !pm.isIgnoringBatteryOptimizations(packageName) -> "ограничено — система может остановить запись в фоне. Нажмите, чтобы снять"
+            !Compat.batteryFree(this) -> "ограничено — система может остановить запись в фоне. Нажмите, чтобы снять"
             huawei -> "снято. На Huawei ещё: Батарея → Запуск приложений → Бортач → «Управлять вручную»"
             else -> "снято — запись не остановится при выключенном экране"
         }
@@ -372,8 +372,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
 
     @SuppressLint("BatteryLife")
     override fun askBattery() {
-        val pm = getSystemService(POWER_SERVICE) as PowerManager
-        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+        if (!Compat.batteryFree(this)) {
             try {
                 startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
             } catch (e: Exception) {
@@ -385,11 +384,11 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     }
 
     override fun overlayText() =
-        if (Settings.canDrawOverlays(this)) "разрешено — Бортач откроется сам, когда начнётся поездка"
+        if (Compat.canOverlay(this)) "разрешено — Бортач откроется сам, когда начнётся поездка"
         else "не разрешено — запись идёт в фоне, приложение открывается вручную"
 
     override fun askOverlay() {
-        if (Settings.canDrawOverlays(this)) {
+        if (Compat.canOverlay(this)) {
             Toast.makeText(this, overlayText(), Toast.LENGTH_SHORT).show()
             return
         }
@@ -629,10 +628,43 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         startActivity(Intent.createChooser(send, title))
     }
 
+    /** Report data for a trip: detail, this car's comparison up to the trip, check logs, version. Heavy. */
+    private fun reportData(item: TripItem): ReportData {
+        val m = TripsModel.build(this, item.summary.car?.key)
+        val upTo = m.trips.filter { (it.summary.start ?: java.time.LocalDateTime.MIN) <= (item.summary.start ?: java.time.LocalDateTime.MAX) }
+        val sums = upTo.map { it.summary }
+        val h = item.summary.top?.takeIf { item.summary.durationMin >= com.obdlogger.core.HomeLogic.NEED_TRIP_MIN }?.let { Hypotheses.of(it, sums) }
+        val interrupted = SessionFiles.infoOf(item.csv).takeIf { it.exists() }?.readText()?.contains("=== ЗАПИСЬ ПРЕРВАНА ===") == true
+        return ReportData(item, TripCache.detail(item), com.obdlogger.core.TripComparison.table(sums, 5), m.checks, h, interrupted)
+    }
+
     override fun printReport(item: TripItem) {
-        val f = item.summary.top
-        val h = f?.let { Hypotheses.of(it, tripsModel?.trips?.map { t -> t.summary }.orEmpty()) }
-        print("Бортач — поездка ${HomeModel.tripRange(item.summary)}", Reports.tripHtml(item, h, Prefs.vehicle(this), BuildConfig.VERSION_NAME))
+        Toast.makeText(this, "Готовлю отчёт с графиками…", Toast.LENGTH_SHORT).show()
+        Thread {
+            val html = try {
+                Reports.tripHtml(reportData(item), Prefs.vehicle(this), BuildConfig.VERSION_NAME)
+            } catch (e: Exception) {
+                null
+            }
+            runOnUiThread {
+                if (html == null) Toast.makeText(this, "Не удалось собрать отчёт", Toast.LENGTH_LONG).show()
+                else print("Бортач — поездка ${HomeModel.tripRange(item.summary)}", html)
+            }
+        }.start()
+    }
+
+    /** «Поделиться» a trip: its files plus the same report as HTML (opens in any browser, with charts). */
+    override fun shareTrip(item: TripItem) {
+        Thread {
+            val report = try {
+                File(SessionFiles.dir(this), "report_${item.csv.nameWithoutExtension}.html").apply {
+                    writeText(Reports.tripHtml(reportData(item), Prefs.vehicle(this@MainActivity), BuildConfig.VERSION_NAME))
+                }
+            } catch (e: Exception) {
+                null
+            }
+            runOnUiThread { share(item.files() + listOfNotNull(report), "Поездка ${HomeModel.tripRange(item.summary)}") }
+        }.start()
     }
 
     override fun openVersion(f: Finding, item: TripItem?) {
@@ -703,17 +735,31 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         trips.showTab(1)
     }
 
-    override fun printPlan(h: Hypothesis) = print("Бортач — план проверки", Reports.planHtml(h, Prefs.vehicle(this), BuildConfig.VERSION_NAME))
+    /** This car's comparison for the plan (the version's trips decide the car). */
+    private fun planComparison(h: Hypothesis) = h.seenIn.lastOrNull()?.first?.car?.key?.let { key ->
+        com.obdlogger.core.TripComparison.table(TripsModel.build(this, key).trips.map { it.summary }, 5)
+    }
+
+    override fun printPlan(h: Hypothesis) {
+        Thread {
+            val html = Reports.planHtml(h, Prefs.vehicle(this), BuildConfig.VERSION_NAME, planComparison(h))
+            runOnUiThread { print("Бортач — план проверки", html) }
+        }.start()
+    }
 
     override fun sharePlan(h: Hypothesis) {
-        val f = File(SessionFiles.dir(this), "plan_${h.finding.kind.ifEmpty { "version" }}.html")
-        f.writeText(Reports.planHtml(h, Prefs.vehicle(this), BuildConfig.VERSION_NAME))
-        val send = Intent(Intent.ACTION_SEND)
-            .setType("text/html")
-            .putExtra(Intent.EXTRA_TEXT, Reports.planText(h, Prefs.vehicle(this)))
-            .putExtra(Intent.EXTRA_STREAM, ShareProvider.uri(this, f))
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        startActivity(Intent.createChooser(send, "План для мастера"))
+        Thread {
+            val f = File(SessionFiles.dir(this), "plan_${h.finding.kind.ifEmpty { "version" }}.html")
+            f.writeText(Reports.planHtml(h, Prefs.vehicle(this), BuildConfig.VERSION_NAME, planComparison(h)))
+            runOnUiThread {
+                val send = Intent(Intent.ACTION_SEND)
+                    .setType("text/html")
+                    .putExtra(Intent.EXTRA_TEXT, Reports.planText(h, Prefs.vehicle(this)))
+                    .putExtra(Intent.EXTRA_STREAM, ShareProvider.uri(this, f))
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                startActivity(Intent.createChooser(send, "План для мастера"))
+            }
+        }.start()
     }
 
     /** Print / save as PDF through the system print dialog. */
@@ -729,7 +775,8 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
                 printView = null
             }
         }
-        wv.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+        // Base URL = assets, so the report's @font-face finds the IBM Plex fonts.
+        wv.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "utf-8", null)
     }
 
     private fun refreshSettings(force: Boolean = false) {

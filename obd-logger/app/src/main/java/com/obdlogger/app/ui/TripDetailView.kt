@@ -23,6 +23,8 @@ interface TripActions {
     fun back()
     fun share(files: List<java.io.File>, title: String)
     fun printReport(item: TripItem)
+    /** Files of the trip plus its report as HTML. */
+    fun shareTrip(item: TripItem)
     fun openVersion(f: Finding, item: TripItem?)
 }
 
@@ -125,10 +127,12 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
 
         if (s.trace != null && !item.isCheck) {
             val head = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-            addTo(head, context.label("Коррекция смеси Б1 за поездку", sc, p), 0, 1f)
-            if (!sc.phone) addTo(head, context.text("норма ±10 % · подложка — холостой", 14f, p.t3))
+            val focus = HomeModel.focusOf(s)
+            addTo(head, context.label("${SensorNames.label(focus)} за поездку", sc, p), 0, 1f)
+            val normText = com.obdlogger.core.Norms.of(focus, com.obdlogger.core.LiveMode.IDLE)?.text?.let { "$it · " } ?: ""
+            if (!sc.phone) addTo(head, context.text("${normText}подложка — холостой", 14f, p.t3))
             addTo(box, head, dp(22))
-            val chart = TrimChartView(context).apply { set(s.trace, p, sc, dimmed = false) }
+            val chart = TrimChartView(context).apply { set(s.trace, p, sc, dimmed = false, code = focus) }
             box.addView(chart, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(if (sc.phone) 220 else 300)).apply { topMargin = dp(8) })
         }
 
@@ -136,7 +140,7 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
         val files = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         if (!sc.phone) addTo(files, context.label("Для специалиста", sc, p), 0, 1f)
         addTo(files, context.button("Отчёт PDF", sc, p, primary = false) { actions.printReport(item) }, if (sc.phone) 0 else dp(12))
-        addTo(files, context.button("Поделиться", sc, p, primary = true) { actions.share(item.files(), "Поездка ${HomeModel.tripRange(s)}") }, dp(12))
+        addTo(files, context.button("Поделиться", sc, p, primary = true) { actions.shareTrip(item) }, dp(12))
         addTo(box, files, dp(16))
         val names = item.files().joinToString(" · ") { it.name }
         addTo(box, context.text("Файлы: $names — CSV с данными, разбор и журнал адаптера.", if (sc.phone) 12f else 14f, p.t3), dp(10))

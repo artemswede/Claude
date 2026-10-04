@@ -12,7 +12,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -173,7 +172,7 @@ class LoggerService : Service() {
     /** The Bluetooth adapter. */
     @SuppressLint("MissingPermission")
     private fun openLink(address: String): ElmIo {
-        val device = getSystemService(BluetoothManager::class.java).adapter.getRemoteDevice(address)
+        val device = (Compat.bluetooth(this) ?: throw IOException("Bluetooth недоступен")).getRemoteDevice(address)
         lamps(link = Lamp.WAIT, linkText = "Bluetooth: подключение")
         trace("device: ${device.name} ($address), bond state ${device.bondState}")
         val s = BluetoothElm.connect(device, ::trace, { stopRequested }) { socket = it }
@@ -592,7 +591,7 @@ class LoggerService : Service() {
 
     /** Auto mode brings the app to the front when a trip starts (needs «поверх других окон» on Android 10+). */
     private fun openUi() {
-        val allowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || Settings.canDrawOverlays(this)
+        val allowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || Compat.canOverlay(this)
         if (!allowed) return
         try {
             startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP))
@@ -642,11 +641,9 @@ class LoggerService : Service() {
     private fun notification(text: String): Notification {
         val snap = LoggerState.snapshot
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
-        fun action(title: String, action: String, code: Int) = Notification.Action.Builder(
-            Icon.createWithResource(this, R.drawable.ic_notify), title,
-            PendingIntent.getService(this, code, Intent(this, LoggerService::class.java).setAction(action), PendingIntent.FLAG_IMMUTABLE),
-        ).build()
-        val openAction = Notification.Action.Builder(Icon.createWithResource(this, R.drawable.ic_notify), "Открыть", open).build()
+        fun action(title: String, action: String, code: Int) = Compat.action(this, R.drawable.ic_notify, title,
+            PendingIntent.getService(this, code, Intent(this, LoggerService::class.java).setAction(action), PendingIntent.FLAG_IMMUTABLE))
+        val openAction = Compat.action(this, R.drawable.ic_notify, "Открыть", open)
         fun lamp(l: Lamp) = when (l) {
             Lamp.OK -> "●"
             Lamp.WAIT -> "◐"

@@ -36,8 +36,8 @@ class HomeView(
     private val p: Bt.Palette = Bt.LIGHT,
 ) : FrameLayout(ctx) {
     private val leftCol = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-    private val chartTitle = ctx.label("Коррекция смеси за поездку", sc, p)
-    private val chartNorm = ctx.text("норма ±10 %", sc.cap, p.t3)
+    private val chartTitle = ctx.label("", sc, p)
+    private val chartNorm = ctx.text("", sc.cap, p.t3)
     private val chart = TrimChartView(ctx)
     private val chartCap = ctx.text("", sc.cap + 1, p.t3)
     private val lastTrip = ctx.text("", if (sc.phone) 16f else if (sc === Bt.TABLET) 19f else 15f, p.t1, maxLines = 2)
@@ -179,12 +179,17 @@ class HomeView(
             HomeState.NO_TRIPS -> noTrips()
         }
 
+        // The chart follows the problem: mixture, rpm, voltage, coolant… — whatever is worst for this car.
+        val name = com.obdlogger.core.SensorNames.label(m.focus).uppercase()
         chartTitle.text = when {
-            t == null -> "КОРРЕКЦИЯ СМЕСИ"
-            m.live -> "КОРРЕКЦИЯ СМЕСИ ЗА ПОЕЗДКУ"
-            else -> "КОРРЕКЦИЯ СМЕСИ · ПРОШЛАЯ ПОЕЗДКА ${HomeModel.tripRange(t)}"
+            t == null -> name
+            m.live -> "$name ЗА ПОЕЗДКУ"
+            else -> "$name · ПРОШЛАЯ ПОЕЗДКА ${HomeModel.tripRange(t)}"
         }
-        chart.set(t?.trace, p, sc, dimmed = !m.live)
+        chartNorm.text = com.obdlogger.core.Norms.of(m.focus, com.obdlogger.core.LiveMode.IDLE)?.let { n ->
+            n.text + (com.obdlogger.core.SensorNames.unit(m.focus).let { u -> if (u.isEmpty()) "" else " $u" }) + if (m.focus == "rpm") " на ХХ" else ""
+        } ?: ""
+        chart.set(t?.trace, p, sc, dimmed = !m.live, code = m.focus)
         chartCap.text = when {
             t == null -> "Здесь появится график первой поездки."
             !m.live -> "Это запись прошлой поездки, не текущее состояние."
@@ -197,7 +202,7 @@ class HomeView(
 
         lastTrip.text = m.lastTripText
         val tr = m.trend
-        spark.set(tr?.values ?: emptyList(), p)
+        spark.set(tr?.values ?: emptyList(), p, tr?.normLo, tr?.normHi)
         trendTitle.text = tr?.title ?: "Тренд появится после 2 поездок"
         trendValues.text = tr?.valuesText ?: ""
 
@@ -437,22 +442,30 @@ class HomeView(
     class Sparkline(ctx: Context) : View(ctx) {
         private var v: List<Double> = emptyList()
         private var p = Bt.LIGHT
+        private var normLo: Double? = null
+        private var normHi: Double? = null
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        fun set(values: List<Double>, palette: Bt.Palette) {
+        fun set(values: List<Double>, palette: Bt.Palette, lo: Double? = -10.0, hi: Double? = 10.0) {
             v = values
             p = palette
+            normLo = lo
+            normHi = hi
             invalidate()
         }
 
         override fun onDraw(canvas: Canvas) {
             if (v.isEmpty()) return
-            val lo = minOf(-10.0, v.min()) - 2
-            val hi = maxOf(10.0, v.max()) + 2
+            var lo = minOf(normLo ?: v.min(), v.min())
+            var hi = maxOf(normHi ?: v.max(), v.max())
+            val pad = (hi - lo).coerceAtLeast(1e-6) * 0.15
+            lo -= pad; hi += pad
             fun y(x: Double) = (height * (1 - (x - lo) / (hi - lo))).toFloat()
-            paint.style = Paint.Style.FILL
-            paint.color = p.accZ
-            canvas.drawRect(0f, y(10.0), width.toFloat(), y(-10.0), paint)
+            if (normLo != null || normHi != null) {
+                paint.style = Paint.Style.FILL
+                paint.color = p.accZ
+                canvas.drawRect(0f, y(normHi ?: hi), width.toFloat(), y(normLo ?: lo), paint)
+            }
             val step = if (v.size > 1) (width - 16f) / (v.size - 1) else 0f
             val path = Path()
             v.forEachIndexed { i, x -> if (i == 0) path.moveTo(8f + i * step, y(x)) else path.lineTo(8f + i * step, y(x)) }

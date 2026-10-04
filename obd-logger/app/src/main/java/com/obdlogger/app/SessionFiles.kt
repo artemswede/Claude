@@ -67,7 +67,7 @@ class SessionFiles(dir: File, baseName: String) {
             }
         }
 
-        /** Android 7–9: needs WRITE_EXTERNAL_STORAGE; the media scanner gives a content:// URI for sharing. */
+        /** Android 5–9: needs WRITE_EXTERNAL_STORAGE; the media scanner gives a content:// URI for sharing. */
         @Suppress("DEPRECATION")
         private fun exportLegacy(ctx: Context, file: File, mime: String): Exported {
             return try {

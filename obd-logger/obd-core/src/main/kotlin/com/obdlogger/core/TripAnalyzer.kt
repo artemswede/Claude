@@ -96,7 +96,51 @@ class TripTrace(
     val trimB1: DoubleArray,
     val modes: Array<DriveMode?>,
     val start: LocalDateTime?,
-)
+    /** The sensors a version can be about ([Focus.CODES]), NaN where unknown. */
+    val series: Map<String, DoubleArray> = emptyMap(),
+) {
+    fun of(code: String): DoubleArray? = series[code]?.takeIf { s -> s.any { !it.isNaN() } }
+}
+
+/**
+ * Which sensor and which trip metric a version is about — so the main screen
+ * charts what matters for this car right now, not always the mixture.
+ */
+object Focus {
+    val CODES = listOf("trim_b1", "trim_b2", "rpm", "battery_v", "coolant_c", "o2_b1s2_v", "maf_gs")
+
+    fun code(kind: String): String? = when (kind) {
+        "air_leak", "lean_all", "rich_idle", "rich_cruise" -> "trim_b1"
+        "dips", "low_rpm" -> "rpm"
+        "weak_charge", "voltage_dips" -> "battery_v"
+        "overheat", "cold_engine" -> "coolant_c"
+        "rear_o2" -> "o2_b1s2_v"
+        else -> null
+    }
+
+    fun metric(kind: String): Metric? = when (kind) {
+        "air_leak", "rich_idle" -> Metric.IDLE_TRIM_B1
+        "lean_all", "rich_cruise" -> Metric.CRUISE_TRIM_B1
+        "dips" -> Metric.RPM_DIPS
+        "low_rpm" -> Metric.IDLE_RPM
+        "weak_charge" -> Metric.CHARGE_V
+        "voltage_dips" -> Metric.CHARGE_V_MIN
+        "overheat", "cold_engine" -> Metric.COOLANT_MAX
+        "rear_o2" -> Metric.IDLE_REAR_O2
+        else -> null
+    }
+
+    fun code(metric: Metric): String = when (metric) {
+        Metric.IDLE_TRIM_B1, Metric.CRUISE_TRIM_B1 -> "trim_b1"
+        Metric.IDLE_TRIM_B2, Metric.CRUISE_TRIM_B2 -> "trim_b2"
+        Metric.IDLE_RPM, Metric.ROLL_RPM, Metric.RPM_DIPS -> "rpm"
+        Metric.CHARGE_V, Metric.CHARGE_V_MIN -> "battery_v"
+        Metric.COOLANT_MAX -> "coolant_c"
+        Metric.IDLE_REAR_O2, Metric.CRUISE_REAR_O2 -> "o2_b1s2_v"
+        Metric.IDLE_MAF -> "maf_gs"
+        Metric.INTAKE_AIR -> "intake_air_c"
+    }
+}
 
 /** A parsed CSV with every row classified by [DriveMode]; columns are read on demand. */
 class TripTable(
@@ -296,6 +340,10 @@ object TripAnalyzer {
             DoubleArray(rows.size) { trim1[it] ?: Double.NaN },
             modes.toTypedArray(),
             times.firstNotNullOfOrNull { it },
+            Focus.CODES.filter { t.has(it) }.associateWith { c ->
+                val v = if (c == "coolant_c" || c == "battery_v") t.carried(c) else t.raw(c)
+                DoubleArray(rows.size) { v[it] ?: Double.NaN }
+            },
         )
         // Rows are ~3 s apart on K-line; count time, not rows.
         var warmIdleMs = 0L
@@ -309,7 +357,7 @@ object TripAnalyzer {
         coolantPeak: Double? = null, durationMin: Double = 0.0,
     ): List<Finding> {
         val out = mutableListOf<Finding>()
-        fun f(v: Double) = String.format(Locale.ROOT, "%+.1f", v)
+        fun f(v: Double) = pct(v).removeSuffix(" %")
 
         if (!dtcs.isNullOrEmpty()) {
             out += Finding(Severity.BAD, "Коды неисправностей: ${dtcs.joinToString(", ")}",
@@ -383,10 +431,10 @@ object TripAnalyzer {
         if (rearIdle != null && rearIdle < 0.15 && (rearCruise == null || rearCruise > 0.45)) {
             out += Finding(Severity.WATCH, "Задняя лямбда на холостом показывает «бедно»",
                 "${fmt(rearIdle)} В на холостом" + (rearCruise?.let { ", ${fmt(it)} В в движении" } ?: ""),
-                "Подтверждает бедную смесь на холостом (если коррекции тоже высокие) либо подсос воздуха в выпуске", "средняя")
+                "Подтверждает бедную смесь на холостом (если коррекции тоже высокие) либо подсос воздуха в выпуске", "средняя", kind = "rear_o2")
         } else if (rearCruise != null && rearCruise < 0.2 && (modeRows[DriveMode.CRUISE] ?: 0) >= 30) {
             out += Finding(Severity.WATCH, "Задняя лямбда почти всё время около нуля",
-                "${fmt(rearCruise)} В при равномерном движении", "Подсос в выпуске перед датчиком, старый датчик или бедная смесь", "низкая")
+                "${fmt(rearCruise)} В при равномерном движении", "Подсос в выпуске перед датчиком, старый датчик или бедная смесь", "низкая", kind = "rear_o2")
         }
 
         val volts = m[Metric.CHARGE_V]
@@ -484,6 +532,9 @@ object TripComparison {
         val values: List<Double?>, val arrow: String, val verdict: String, val tone: Tone,
         /** How problematic now: beyond the norm in norm widths (+ a bit for getting worse); rows are sorted by it. */
         val problem: Double = 0.0,
+        /** Norm band of the metric, for charts; null side = no limit there. */
+        val normLo: Double? = null,
+        val normHi: Double? = null,
     )
 
     class Forecast(
@@ -577,7 +628,7 @@ object TripComparison {
                     }
                 }
             }
-            Row(metric, spec.title, spec.code, metric.unit, values, arrow, verdict, tone, problem(spec, metric, v))
+            Row(metric, spec.title, spec.code, metric.unit, values, arrow, verdict, tone, problem(spec, metric, v), spec.lo, spec.hi)
         }.sortedByDescending { it.problem }
         return Table(shown, rows, forecast(trips.sortedBy { it.start }))
     }

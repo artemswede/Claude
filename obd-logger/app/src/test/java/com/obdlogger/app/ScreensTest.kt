@@ -189,6 +189,8 @@ class Scenes(private val a: Activity) {
         val real = Samples.real
         return listOf(
             "D1_version" to { home(recording, real.dropLast(1), real.last()) },
+            // A trip whose version is not about the mixture: the chart and trend follow rpm.
+            "D1b_version_rpm" to { home(recording, real.take(1), real[1]) },
             "D2_calm" to { home(recording, real.dropLast(1), Samples.variant(real.last(), emptyList(), emptyList())) },
             "D3_dtc" to { home(recording, real.dropLast(1), Samples.variant(real.last(), real.last().findings, listOf("P0171"))) },
             "D4_collecting" to { home(recording, real.drop(1), real.first()) },
@@ -262,6 +264,7 @@ object NoActions : TripActions, VersionActions, CheckActions {
     override fun back() = Unit
     override fun share(files: List<java.io.File>, title: String) = Unit
     override fun printReport(item: TripItem) = Unit
+    override fun shareTrip(item: TripItem) = Unit
     override fun openVersion(f: com.obdlogger.core.Finding, item: TripItem?) = Unit
     override fun openPlan(h: com.obdlogger.core.Hypothesis) = Unit
     override fun startCheck() = Unit

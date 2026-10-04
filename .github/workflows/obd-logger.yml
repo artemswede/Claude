@@ -31,7 +31,7 @@ jobs:
         run: echo "BORTACH_VERSION=$(TZ=Europe/Moscow date +%Y%m%d_%H%M)" >> "$GITHUB_ENV"
 
       - name: Unit tests and APK
-        run: ./gradlew --no-daemon :obd-core:test :app:assembleDebug
+        run: ./gradlew --no-daemon :obd-core:test :app:assembleDebug :app:lintDebug
 
       # Every screen rendered on sample trips (Robolectric); published for review.
       - name: Screenshots
@@ -39,6 +39,12 @@ jobs:
         continue-on-error: true
         run: |
           ./gradlew --no-daemon :app:testDebugUnitTest
+          # The trip report and the plan as PDF, printed by Chrome like the app's WebView does.
+          R="$PWD/app/build/screens/report"
+          cp -r app/src/main/assets/fonts "$R/"
+          for f in trip_report plan; do
+            google-chrome --headless --no-sandbox --disable-gpu --no-pdf-header-footer --print-to-pdf="$R/$f.pdf" "file://$R/$f.html" || true
+          done
           cd app/build/screens && zip -qr "../../../screens-${BORTACH_VERSION}.zip" .
 
       - name: Name the APK

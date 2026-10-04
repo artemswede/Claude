@@ -15,7 +15,8 @@ android {
 
     defaultConfig {
         applicationId = "com.obdlogger.app"
-        minSdk = 24
+        // Android 5.0+: old car head units often run 5–6 (or a vendor 7 that installs only with v1 signing).
+        minSdk = 21
         targetSdk = 34
         versionCode = buildNumber
         versionName = buildVersion
@@ -28,7 +29,17 @@ android {
             storePassword = "android"
             keyAlias = "androiddebugkey"
             keyPassword = "android"
+            // v1 (JAR) signature too: old and vendor firmwares reject APKs signed with v2 only
+            // («ошибка синтаксического анализа пакета»).
+            enableV1Signing = true
+            enableV2Signing = true
         }
+    }
+
+    // Fail the build if code calls an API newer than minSdk without a version check.
+    lint {
+        checkOnly += "NewApi"
+        abortOnError = true
     }
 
     buildFeatures {
