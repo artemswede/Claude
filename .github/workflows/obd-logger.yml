@@ -31,7 +31,11 @@ jobs:
         run: echo "BORTACH_VERSION=$(TZ=Europe/Moscow date +%Y%m%d_%H%M)" >> "$GITHUB_ENV"
 
       - name: Unit tests and APK
-        run: ./gradlew --no-daemon :obd-core:test :app:assembleDebug :app:lintDebug
+        run: |
+          ./gradlew --no-daemon :obd-core:test :app:assembleDebug :app:lintDebug || {
+            cat app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt 2>/dev/null
+            exit 1
+          }
 
       # Every screen rendered on sample trips (Robolectric); published for review.
       - name: Screenshots

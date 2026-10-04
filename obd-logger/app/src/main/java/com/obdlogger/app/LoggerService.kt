@@ -105,7 +105,7 @@ class LoggerService : Service() {
         val address = intent.getStringExtra(EXTRA_ADDRESS) ?: Prefs.device(this)
         if (address == null) {
             LoggerState.update { it.copy(status = "Выберите адаптер, чтобы включить автозапись") }
-            stopForeground(STOP_FOREGROUND_REMOVE)
+            Compat.stopForeground(this)
             stopSelf()
             return
         }
@@ -129,7 +129,7 @@ class LoggerService : Service() {
 
     private fun requestStop() {
         if (worker?.isAlive != true) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
+            Compat.stopForeground(this)
             stopSelf()
             return
         }
@@ -263,7 +263,7 @@ class LoggerService : Service() {
                     status = if (it.rows == 0 && fail != null) "Данные не записаны: $fail" else it.status,
                 )
             }
-            stopForeground(STOP_FOREGROUND_REMOVE)
+            Compat.stopForeground(this)
             stopSelf()
         }
     }
