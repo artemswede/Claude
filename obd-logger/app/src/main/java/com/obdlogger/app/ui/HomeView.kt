@@ -11,7 +11,6 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import android.widget.Toast
 import com.obdlogger.app.Lamp
 import com.obdlogger.app.LoggerState
 import com.obdlogger.app.R
@@ -30,6 +29,7 @@ class HomeView(
     private val sc: Bt.Scale,
     private val onDetails: () -> Unit,
     private val onSettings: () -> Unit,
+    private val onCheck: () -> Unit = {},
 ) : FrameLayout(ctx) {
     private var p = Bt.LIGHT
     private val leftCol = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
@@ -37,10 +37,10 @@ class HomeView(
     private val chartNorm = ctx.text("норма ±10 %", sc.cap, p.t3)
     private val chart = TrimChartView(ctx)
     private val chartCap = ctx.text("", sc.cap + 1, p.t3)
-    private val lastTrip = ctx.text("", if (sc.phone) 17f else 22f, p.t1)
+    private val lastTrip = ctx.text("", if (sc.phone) 16f else if (sc === Bt.TABLET) 19f else 15f, p.t1, maxLines = 2)
     private val spark = Sparkline(ctx)
-    private val trendTitle = ctx.text("", if (sc.phone) 15f else 19f, p.t1, 600)
-    private val trendValues = ctx.text("", if (sc.phone) 14f else 17f, p.t2, 400, mono = true)
+    private val trendTitle = ctx.text("", if (sc.phone) 15f else if (sc === Bt.TABLET) 17f else 14f, p.t1, 600, maxLines = 2)
+    private val trendValues = ctx.text("", if (sc.phone) 13f else if (sc === Bt.TABLET) 15f else 13f, p.t2, 400, mono = true, maxLines = 1)
     private val testButton = ctx.text("Записать проверочный лог", sc.btnBigFont, p.accInk, 600).apply {
         gravity = Gravity.CENTER
         setPadding(dp(28), 0, dp(28), 0)
@@ -51,13 +51,11 @@ class HomeView(
         setCompoundDrawables(ic, null, null, null)
         compoundDrawablePadding = dp(12)
         elevation = dp(2).toFloat()
-        setOnClickListener {
-            Toast.makeText(context, "Проверочный лог появится в следующем обновлении «Бортача».", Toast.LENGTH_LONG).show()
-        }
+        setOnClickListener { onCheck() }
     }
-    private val testCap = ctx.text("4 минуты: ХХ → 2500 об/мин → ХХ", sc.cap, p.t3)
+    private val testCap = ctx.text("4 минуты: ХХ → 2500 об/мин → ХХ", sc.cap, p.t3).apply { if (sc === Bt.S1024) visibility = View.GONE }
     private val testBlock = column(ctx, dp(4), testButton, testCap).apply { gravity = Gravity.END }
-    private val noTest = ctx.text("", if (sc.phone) 15f else 19f, p.t2).apply { gravity = Gravity.END }
+    private val noTest = ctx.text("", if (sc.phone) 15f else if (sc === Bt.TABLET) 17f else 14f, p.t2).apply { gravity = Gravity.END }
     private val bottomBar = LinearLayout(ctx)
 
     init {
@@ -112,9 +110,56 @@ class HomeView(
             top.addView(chartCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 0.58f).apply { leftMargin = dp(sc.gap) })
             val page = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
             page.addView(top, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-            page.addView(bottomBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(sc.botH)))
+            bottomBar.minimumHeight = dp(sc.botH)
+            page.addView(bottomBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(page)
         }
+    }
+
+    /** Е1–Е4: a problem that blocks recording, shown over the main screen. */
+    class Problem(
+        val label: String,
+        val title: String,
+        val text: String,
+        val action: String,
+        val onAction: () -> Unit,
+        val hint: String? = null,
+        val dismiss: (() -> Unit)? = null,
+    )
+
+    private var problemView: View? = null
+
+    fun problem(pr: Problem?) {
+        problemView?.let { removeView(it) }
+        problemView = null
+        if (pr == null) return
+        val icon = context.icon(R.drawable.ic_warn, p.amb, 40)
+        val box = column(context, dp(12), icon,
+            context.label(pr.label, sc, p),
+            context.text(pr.title, if (sc.phone) 24f else sc.hl, p.t1, 700),
+            context.text(pr.text, if (sc.phone) 16f else sc.pl, p.t2, lineHeight = if (sc.phone) 22f else sc.pl * 1.35f))
+        val actions = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        addTo(actions, button(pr.action) { pr.onAction() })
+        pr.dismiss?.let { d -> addTo(actions, context.text("Понятно", sc.btnFont, p.acc, 600).apply { setPadding(dp(16), dp(12), dp(16), dp(12)); setOnClickListener { d() } }, dp(12)) }
+        pr.hint?.let { addTo(actions, context.text(it, sc.cap, p.t2).apply { maxWidth = dp(300) }, dp(16)) }
+        addTo(box, actions, dp(8))
+        val cardView = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            background = roundRect(p.s1, dp(18).toFloat())
+            elevation = dp(8).toFloat()
+        }
+        cardView.addView(View(context).apply { setBackgroundColor(p.amb) }, LinearLayout.LayoutParams(dp(6), ViewGroup.LayoutParams.MATCH_PARENT))
+        box.setPadding(dp(if (sc.phone) 20 else 40), dp(if (sc.phone) 20 else 36), dp(if (sc.phone) 20 else 40), dp(if (sc.phone) 20 else 36))
+        cardView.addView(box, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val veil = FrameLayout(context).apply {
+            setBackgroundColor(p.bg)
+            isClickable = true
+            addView(cardView, LayoutParams(if (sc.phone) ViewGroup.LayoutParams.MATCH_PARENT else dp(820), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER).apply {
+                leftMargin = dp(16); rightMargin = dp(16)
+            })
+        }
+        problemView = veil
+        addView(veil)
     }
 
     fun bind(m: HomeModel, s: LoggerState.Snapshot) {

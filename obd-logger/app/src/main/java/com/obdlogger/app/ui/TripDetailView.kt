@@ -196,7 +196,7 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
         addTo(right, hline(context, p.line), dp(12))
         // By mode.
         val table = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        val cols = floatArrayOf(2.2f, 0.9f, 1f, 1.1f, 1.8f, 1.7f)
+        val cols = floatArrayOf(2.2f, 0.8f, 1f, 1.1f, 1.9f, 1.8f)
         fun tr(cells: List<View>, bg: Int? = null) = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -205,7 +205,13 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
             cells.forEachIndexed { i, v -> addView(v, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, cols[i])) }
         }
         val headers = if (sc.phone) listOf("Режим", "Доля", "N", "Мед.", "Мин…макс", "Оценка") else listOf("Режим", "Доля", "Замеров", "Медиана", "Мин…макс", "Оценка")
-        table.addView(tr(headers.mapIndexed { i, h -> context.label(h, sc, p).apply { if (i in 1..4) gravity = Gravity.END } }))
+        table.addView(tr(headers.mapIndexed { i, h ->
+            context.label(h, sc, p).apply {
+                letterSpacing = 0.04f
+                if (i in 1..4) gravity = Gravity.END
+                if (i == 5) setPadding(dp(12), 0, 0, 0)
+            }
+        }))
         table.addView(hline(context, p.line2))
         val fs = if (sc.phone) 13f else 17f
         for (m in f.byMode.sortedByDescending { it.mode == DriveMode.WARM_IDLE }) {

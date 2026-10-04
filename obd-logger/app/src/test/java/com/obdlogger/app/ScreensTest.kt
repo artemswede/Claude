@@ -6,7 +6,13 @@ import android.graphics.Canvas
 import android.view.View
 import com.obdlogger.app.ui.HomeModel
 import com.obdlogger.app.ui.HomeView
+import com.obdlogger.app.ui.Bt
+import com.obdlogger.app.ui.CheckActions
+import com.obdlogger.app.ui.CheckView
 import com.obdlogger.app.ui.PlanView
+import com.obdlogger.app.ui.SetupView
+import com.obdlogger.core.CheckResult
+import com.obdlogger.core.CheckTest
 import com.obdlogger.app.ui.RecordView
 import com.obdlogger.app.ui.TripActions
 import com.obdlogger.app.ui.TripDetailView
@@ -136,6 +142,31 @@ class Scenes(private val a: Activity) {
         }
     }
 
+    private fun check(s: LoggerState.Snapshot, results: Pair<CheckResult?, CheckResult?>?, st: CheckTest.State? = null) = shell(Shell.Page.OVERVIEW, s) { sh ->
+        CheckView(a, sh.sc, NoActions).apply { bind(s.copy(check = st), results) }
+    }
+
+    private fun run(t: CheckTest, until: Int, rpm: (Int) -> Double): CheckTest.State {
+        var st: CheckTest.State? = null
+        for (sec in 1..until) st = t.update(sec * 1000L, rpm(sec), 0.0)
+        return st!!
+    }
+
+    private fun step2() = run(CheckTest(0), 162) { if (it <= 121) 760.0 else 2480.0 }
+    private fun aborted() = CheckTest(0).let { t -> run(t, 30) { 760.0 }; t.update(31_000, 760.0, 14.0) }
+    private fun done() = run(CheckTest(0), 245) { if (it in 122..181) 2500.0 else 760.0 }
+
+    private fun checkResults(): Pair<CheckResult?, CheckResult?> {
+        fun res(trim: Double, rear: Double) = CheckResult("c", null, trim, trim - 14, trim - 7, 690.0, rear, 0.7, 1.7)
+        return res(4.2, 0.62) to res(21.4, 0.06)
+    }
+
+    private fun setup(step: Int): View = SetupView(a, Bt.scaleFor(a), FakeSetup).apply { show(step) }
+
+    private fun problem(pr: HomeView.Problem) = shell(Shell.Page.OVERVIEW, waiting) { sh ->
+        HomeView(a, sh.sc, {}, {}).apply { bind(HomeModel.from(Samples.real, null, waiting), waiting); problem(pr) }
+    }
+
     private fun versionTrip() = Samples.realItems.last { it.summary.top != null }
 
     private fun hypothesis() = Hypotheses.of(versionTrip().summary.top!!, Samples.real)
@@ -174,12 +205,45 @@ class Scenes(private val a: Activity) {
             "V2_charts" to { trip(3) },
             "K2_version" to { shell(Shell.Page.OVERVIEW, waiting) { sh -> VersionView(a, sh.sc, hypothesis(), "Обзор", NoActions) } },
             "K3_plan" to { shell(Shell.Page.OVERVIEW, waiting) { sh -> PlanView(a, sh.sc, hypothesis(), "Toyota Avensis 2005 · 2.0 D-4 (1AZ-FSE)", NoActions) } },
+            "P1_prep" to { check(recording.copy(values = listOf("rpm" to "760", "speed_kmh" to "0", "coolant_c" to "88")), null) },
+            "P2_step" to { check(recording, null, step2()) },
+            "P3_abort" to { check(recording, null, aborted()) },
+            "P4_result" to { check(recording, checkResults(), done()) },
+            "R1_setup_adapter" to { setup(0) },
+            "R3_setup_battery" to { setup(2) },
+            "R6_setup_car" to { setup(5) },
+            "E1_bt_off" to { problem(HomeView.Problem("Bluetooth", "Bluetooth выключен", "Адаптер подключается по Bluetooth. Включите его — запись начнётся сама, когда заведёте мотор.", "Включить Bluetooth", {})) },
+            "E3_killed" to { problem(HomeView.Problem("Запись", "Система остановила запись", "В 03.10 11:40 Android закрыл Бортач в фоне. Записанное до этого момента сохранено в «Поездках». Чтобы это не повторялось, снимите ограничение батареи.", "Не ограничивать в фоне", {}, dismiss = {})) },
+            "E4_silent" to { problem(HomeView.Problem("Адаптер", "Адаптер сопряжён, но молчит", "Bluetooth соединяется, а ELM327 не отвечает на команды. Чаще всего адаптер обесточен: вынут или не держит контакт в разъёме.", "Переподключить", {}, hint = "Проверьте, горит ли индикатор на адаптере.")) },
             "N1_settings" to { shell(Shell.Page.SETTINGS, off) { sh -> SettingsView(a, sh.sc).apply { bind(FakeHost, "") } } },
         )
     }
 }
 
-object NoActions : TripActions, VersionActions {
+object FakeSetup : SetupView.Host {
+    override fun devices() = listOf(Triple("OBDII", "00:1D:A5:68:98:8A", true), Triple("JBL Flip 5", "F8:DF:15:22:01:9C", false)) to null
+    override fun selectedDevice() = "00:1D:A5:68:98:8A"
+    override fun selectDevice(address: String) = Unit
+    override fun openBluetoothSettings() = Unit
+    override fun permissionsGranted() = true
+    override fun requestPermissions() = Unit
+    override fun batteryFree() = false
+    override fun askBattery() = Unit
+    override fun overlayAllowed() = false
+    override fun askOverlay() = Unit
+    override fun autoOn() = true
+    override fun setAuto(on: Boolean) = Unit
+    override fun bootOn() = true
+    override fun setBoot(on: Boolean) = Unit
+    override fun carText() = "Toyota Avensis 2005"
+    override fun setCar(text: String) = Unit
+    override fun finishSetup() = Unit
+}
+
+object NoActions : TripActions, VersionActions, CheckActions {
+    override fun startTest() = Unit
+    override fun stopTest() = Unit
+    override fun closeTest() = Unit
     override fun back() = Unit
     override fun share(files: List<java.io.File>, title: String) = Unit
     override fun printReport(item: TripItem) = Unit

@@ -62,16 +62,16 @@ object Bt {
     )
 
     val TABLET = Scale(
-        lbl = 15f, hxl = 54f, hl = 40f, hm = 28f, hs = 23f, pl = 26f, p = 20f, cap = 16f, code = 14f, conf = 19f,
-        evLabel = 22f, evValue = 30f, evPad = 12, sbarH = 60, sbarFont = 18f, brandFont = 21f, lamp = 18,
-        railW = 108, riH = 96, riFont = 15f, riIcon = 32, btnH = 64, btnFont = 20f, btnBigH = 84, btnBigFont = 24f,
-        endLbl = 18f, axis = 15f, botH = 150, pad = 32, gap = 40, tileValue = 72f, phone = false,
+        lbl = 13f, hxl = 44f, hl = 34f, hm = 24f, hs = 20f, pl = 21f, p = 17f, cap = 14f, code = 13f, conf = 16f,
+        evLabel = 19f, evValue = 25f, evPad = 11, sbarH = 56, sbarFont = 16f, brandFont = 19f, lamp = 16,
+        railW = 100, riH = 88, riFont = 14f, riIcon = 28, btnH = 56, btnFont = 17f, btnBigH = 68, btnBigFont = 20f,
+        endLbl = 16f, axis = 13f, botH = 120, pad = 28, gap = 36, tileValue = 64f, phone = false,
     )
     val S1024 = Scale(
-        lbl = 13f, hxl = 36f, hl = 30f, hm = 22f, hs = 18f, pl = 19f, p = 16f, cap = 13f, code = 12f, conf = 15f,
+        lbl = 12f, hxl = 32f, hl = 27f, hm = 21f, hs = 17f, pl = 17f, p = 15f, cap = 12f, code = 12f, conf = 14f,
         evLabel = 17f, evValue = 21f, evPad = 8, sbarH = 46, sbarFont = 15f, brandFont = 17f, lamp = 14,
         railW = 84, riH = 72, riFont = 12f, riIcon = 26, btnH = 52, btnFont = 16f, btnBigH = 60, btnBigFont = 18f,
-        endLbl = 15f, axis = 13f, botH = 100, pad = 22, gap = 24, tileValue = 44f, phone = false,
+        endLbl = 14f, axis = 12f, botH = 96, pad = 22, gap = 24, tileValue = 44f, phone = false,
     )
     val PHONE = Scale(
         lbl = 12f, hxl = 28f, hl = 24f, hm = 20f, hs = 17f, pl = 17f, p = 15f, cap = 13f, code = 11f, conf = 14f,

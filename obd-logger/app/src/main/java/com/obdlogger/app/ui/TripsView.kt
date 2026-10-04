@@ -220,17 +220,19 @@ class TripsView(ctx: Context, private val sc: Bt.Scale, private val onOpen: (Tri
             return box
         }
         addTo(box, context.text("Значения на прогретом холостом стоя, если не указано иное. Обычные поездки сравниваются осторожно: условия разные. Для точного «до / после» — проверочный лог.", if (sc.phone) 13f else 15f, p.t2))
-        val dates = t.trips.map { it.start?.format(dayFmt) ?: "?" }
+        val days = t.trips.map { it.start?.format(dayFmt) ?: "?" }
+        // Several trips on one day: add the time so the columns differ.
+        val dates = if (days.toSet().size < days.size) t.trips.map { it.start?.format(DateTimeFormatter.ofPattern("dd.MM HH:mm")) ?: "?" } else days
         val table = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         val nameW = dp(if (sc.phone) 170 else 300)
-        val valW = dp(if (sc.phone) 74 else 108)
+        val valW = dp(if (sc.phone) 80 else 124)
         fun rowOf(cells: List<View>, name: View): LinearLayout = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(12), dp(14), 0, dp(14))
             addView(name, LinearLayout.LayoutParams(nameW, ViewGroup.LayoutParams.WRAP_CONTENT))
             cells.forEachIndexed { i, v ->
-                addView(v, LinearLayout.LayoutParams(if (i < dates.size) valW else if (i == dates.size) dp(56) else ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+                addView(v, LinearLayout.LayoutParams(if (i < dates.size) valW else if (i == dates.size) dp(76) else ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             }
         }
         val head = rowOf(dates.map { d -> context.label(d, sc, p).apply { gravity = Gravity.END } } +
@@ -239,9 +241,9 @@ class TripsView(ctx: Context, private val sc: Bt.Scale, private val onOpen: (Tri
         table.addView(head)
         table.addView(hline(context, p.line2))
         for (r in t.rows) {
-            val name = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.BOTTOM }
+            val name = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
             name.addView(context.text(r.title, if (sc.phone) 15f else 19f, p.t1, 600, maxLines = 2))
-            if (r.code.isNotEmpty() && !sc.phone) addTo(name, context.text(r.code, 13f, p.t3, 400, mono = true), dp(6))
+            if (r.code.isNotEmpty()) addTo(name, context.text(r.code, if (sc.phone) 11f else 13f, p.t3, 400, mono = true), dp(2))
             val last = r.values.lastOrNull()
             val cells = r.values.mapIndexed { i, v ->
                 context.text(v?.let { x -> fmtMetric(r.unit, x) } ?: "—", if (sc.phone) 14f else 18f, p.t1, if (i == r.values.lastIndex && last != null) 600 else 400, mono = true).apply { gravity = Gravity.END }

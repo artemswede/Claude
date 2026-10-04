@@ -24,12 +24,17 @@ import android.print.PrintManager
 import android.view.View
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.obdlogger.app.ui.CheckActions
+import com.obdlogger.app.ui.CheckView
 import com.obdlogger.app.ui.HomeModel
+import com.obdlogger.core.CheckResult
+import com.obdlogger.core.CheckTest
 import com.obdlogger.app.ui.HomeView
 import com.obdlogger.app.ui.PlanView
 import com.obdlogger.app.ui.RecordView
 import com.obdlogger.app.ui.Reports
 import com.obdlogger.app.ui.SettingsView
+import com.obdlogger.app.ui.SetupView
 import com.obdlogger.app.ui.Shell
 import com.obdlogger.app.ui.TripActions
 import com.obdlogger.app.ui.TripCache
@@ -44,7 +49,7 @@ import com.obdlogger.core.Hypotheses
 import com.obdlogger.core.Hypothesis
 import java.io.File
 
-class MainActivity : Activity(), SettingsView.Host, TripActions, VersionActions {
+class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions, VersionActions, CheckActions {
     private lateinit var shell: Shell
     private lateinit var home: HomeView
     private lateinit var settings: SettingsView
@@ -62,6 +67,7 @@ class MainActivity : Activity(), SettingsView.Host, TripActions, VersionActions 
     private val ticker = object : Runnable {
         override fun run() {
             if (shell.page == Shell.Page.RECORD) refreshRecord()
+            checkView?.let { if (it.isShown) refreshCheck() }
             // The main screen re-analyses the trip every 5 s while visible.
             if (shell.page == Shell.Page.OVERVIEW && ticks % 5 == 0) refreshHome()
             ticks++
@@ -79,7 +85,7 @@ class MainActivity : Activity(), SettingsView.Host, TripActions, VersionActions 
         shell = Shell(this)
         setContentView(shell.root)
 
-        home = HomeView(this, shell.sc, onDetails = { openHomeVersion() }, onSettings = { shell.show(Shell.Page.SETTINGS) })
+        home = HomeView(this, shell.sc, onDetails = { openHomeVersion() }, onSettings = { shell.show(Shell.Page.SETTINGS) }, onCheck = { openCheck() })
         shell.containers.getValue(Shell.Page.OVERVIEW).addView(home)
 
         record = RecordView(this, shell.sc)
@@ -100,8 +106,13 @@ class MainActivity : Activity(), SettingsView.Host, TripActions, VersionActions 
             }
         }
 
-        requestNeededPermissions()
+        if (!LoggerState.snapshot.running) Prefs.checkKilled(this)
         loadDevices()
+        if (!Prefs.setupDone(this) && Prefs.device(this) == null) {
+            setup = SetupView(this, shell.sc, this).also { setContentView(it) }
+        } else {
+            requestNeededPermissions()
+        }
         Thread { SessionFiles.cleanup(this, Prefs.keepDays(this)) }.start()
         // Auto mode is on but the service is not running (app was updated, killed or the tablet rebooted).
         if (Prefs.auto(this) && !LoggerState.snapshot.running && Prefs.device(this) != null && hasBluetoothPermission()) {
@@ -126,6 +137,79 @@ class MainActivity : Activity(), SettingsView.Host, TripActions, VersionActions 
         super.onResume()
         // Coming back from the battery / overlay system screens.
         refreshSettings(force = true)
+        loadDevices()
+        setup?.refresh()
+        if (shell.page == Shell.Page.OVERVIEW) refreshHome()
+    }
+
+    // ---- SetupView.Host (first run) ----
+
+    private var setup: SetupView? = null
+
+    @SuppressLint("MissingPermission")
+    override fun devices(): Pair<List<Triple<String, String, Boolean>>, String?> {
+        val problem = loadDevices()
+        return devices.map { Triple(it.name ?: "?", it.address, looksLikeObd(it)) } to problem
+    }
+
+    override fun selectedDevice(): String? = Prefs.device(this)
+    override fun selectDevice(address: String) = prefs.edit().putString(Prefs.DEVICE, address).apply()
+    override fun openBluetoothSettings() = startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+
+    override fun permissionsGranted(): Boolean = hasBluetoothPermission() &&
+        (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
+
+    override fun requestPermissions() = requestNeededPermissions()
+
+    override fun batteryFree(): Boolean = (getSystemService(POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(packageName)
+    override fun overlayAllowed(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || Settings.canDrawOverlays(this)
+    override fun setCar(text: String) = prefs.edit().putString(Prefs.VEHICLE, text).apply()
+
+    override fun finishSetup() {
+        prefs.edit().putBoolean(Prefs.SETUP_DONE, true).apply()
+        setup = null
+        setContentView(shell.root)
+        shell.render(LoggerState.snapshot)
+        shell.show(Shell.Page.OVERVIEW)
+        if (Prefs.auto(this) && !LoggerState.snapshot.running && Prefs.device(this) != null && hasBluetoothPermission()) startAuto()
+    }
+
+    /** Е1–Е4: what stops recording right now, if anything. */
+    private fun currentProblem(s: LoggerState.Snapshot): HomeView.Problem? {
+        val bt = getSystemService(BluetoothManager::class.java)?.adapter
+        val killed = Prefs.killedAt(this)
+        val wantsCar = Prefs.auto(this) || s.running
+        return when {
+            killed > 0 -> HomeView.Problem(
+                "Запись", "Система остановила запись",
+                "В ${java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.ROOT).format(java.util.Date(killed))} Android закрыл Бортач в фоне. " +
+                    "Записанное до этого момента сохранено в «Поездках». Чтобы это не повторялось, снимите ограничение батареи.",
+                "Не ограничивать в фоне", { askBattery(); clearKilled() },
+                dismiss = { clearKilled() },
+            )
+            wantsCar && Prefs.device(this) != null && !hasBluetoothPermission() -> HomeView.Problem(
+                "Разрешения", "Нет разрешения на Bluetooth",
+                "Без разрешения «Устройства поблизости» Бортач не может подключиться к адаптеру.",
+                "Разрешить", { requestNeededPermissions() },
+            )
+            wantsCar && bt != null && !bt.isEnabled -> HomeView.Problem(
+                "Bluetooth", "Bluetooth выключен",
+                "Адаптер подключается по Bluetooth. Включите его — запись начнётся сама, когда заведёте мотор.",
+                "Включить Bluetooth", { startActivity(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)) },
+            )
+            s.running && s.link == Lamp.FAIL -> HomeView.Problem(
+                "Адаптер", "Адаптер сопряжён, но молчит",
+                "Bluetooth соединяется, а ELM327 не отвечает на команды. Чаще всего адаптер обесточен: вынут или не держит контакт в разъёме.",
+                "Переподключить", { startService(LoggerService.intent(this, LoggerService.ACTION_POKE)) },
+                hint = "Проверьте, горит ли индикатор на адаптере.",
+            )
+            else -> null
+        }
+    }
+
+    private fun clearKilled() {
+        prefs.edit().remove(Prefs.KILLED_AT).apply()
+        refreshHome()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -410,6 +494,7 @@ class MainActivity : Activity(), SettingsView.Host, TripActions, VersionActions 
             runOnUiThread {
                 homeLoading = false
                 if (model != null) home.bind(model, LoggerState.snapshot)
+                home.problem(currentProblem(LoggerState.snapshot))
             }
         }.start()
     }
@@ -455,6 +540,7 @@ class MainActivity : Activity(), SettingsView.Host, TripActions, VersionActions 
     private fun pop(): Boolean {
         val list = stack[shell.page] ?: return false
         val top = list.removeLastOrNull() ?: return false
+        if (top === checkView) checkView = null
         val box = shell.containers.getValue(shell.page)
         box.removeView(top)
         (list.lastOrNull() ?: box.getChildAt(0))?.visibility = View.VISIBLE
@@ -523,9 +609,57 @@ class MainActivity : Activity(), SettingsView.Host, TripActions, VersionActions 
     override fun openPlan(h: Hypothesis) = push(shell.page, PlanView(this, shell.sc, h, Prefs.vehicle(this), this))
 
     override fun startCheck() {
-        Toast.makeText(this, "Проверочный лог запускается на главном экране, когда мотор прогрет и машина стоит.", Toast.LENGTH_LONG).show()
+        if (shell.page != Shell.Page.OVERVIEW) shell.show(Shell.Page.OVERVIEW)
         while (pop()) Unit
-        shell.show(Shell.Page.OVERVIEW)
+        openCheck()
+    }
+
+    // ---- CheckActions ----
+
+    private var checkView: CheckView? = null
+    private var checkResults: Pair<CheckResult?, CheckResult?>? = null
+    @Volatile private var checkLoading = false
+
+    private fun openCheck() {
+        val v = CheckView(this, shell.sc, this)
+        checkView = v
+        push(Shell.Page.OVERVIEW, v)
+        refreshCheck()
+    }
+
+    private fun refreshCheck() {
+        val v = checkView ?: return
+        val s = LoggerState.snapshot
+        val done = s.check?.phase == CheckTest.Phase.DONE
+        if (done && checkResults == null && !checkLoading && s.checkCsv != null) {
+            checkLoading = true
+            Thread {
+                val f = File(s.checkCsv)
+                val now = try { CheckResult.of(f.nameWithoutExtension, f.readText()) } catch (e: Exception) { null }
+                val prevFile = SessionFiles.checkCsvs(this).lastOrNull { it.name < f.name }
+                val prev = prevFile?.let { pf -> try { CheckResult.of(pf.nameWithoutExtension, pf.readText()) } catch (e: Exception) { null } }
+                runOnUiThread {
+                    checkResults = now to prev
+                    checkLoading = false
+                    checkView?.bind(LoggerState.snapshot, checkResults)
+                }
+            }.start()
+        }
+        v.bind(s, if (done) checkResults else null)
+    }
+
+    override fun startTest() {
+        checkResults = null
+        startService(LoggerService.intent(this, LoggerService.ACTION_CHECK))
+    }
+
+    override fun stopTest() {
+        startService(LoggerService.intent(this, LoggerService.ACTION_CHECK_STOP))
+    }
+
+    override fun closeTest() {
+        checkResults = null
+        LoggerState.update { it.copy(check = null) }
     }
 
     override fun openCompare() {

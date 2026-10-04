@@ -70,9 +70,10 @@ class VersionView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothe
             pair.forEachIndexed { i, card ->
                 val c = column(ctx, dp(8), ctx.text(card.title, if (sc.phone) 15f else 17f, p.t1, 500))
                 card.figures.forEach { e ->
-                    addTo(c, row(ctx, dp(10), Gravity.CENTER_VERTICAL,
-                        ctx.text(e.label, if (sc.phone) 13f else 15f, p.t2),
-                        ctx.text(e.value, if (sc.phone) 17f else 21f, if (e.deviating) p.amb else p.t1, 500, mono = true)))
+                    val label = ctx.text(e.label, if (sc.phone) 13f else 15f, p.t2)
+                    val value = ctx.text(e.value, if (sc.phone) 17f else 21f, if (e.deviating) p.amb else p.t1, 500, mono = true)
+                    // Long values (a trend over trips) go under their label.
+                    addTo(c, if (e.value.length > 10) column(ctx, dp(2), label, value) else row(ctx, dp(10), Gravity.CENTER_VERTICAL, label, value))
                 }
                 card.note?.let { addTo(c, ctx.text(it, if (sc.phone) 12f else 14f, p.t2), dp(4)) }
                 r.addView(card(c, p, dp(16), dp(14)), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply { if (i > 0) leftMargin = dp(12) })

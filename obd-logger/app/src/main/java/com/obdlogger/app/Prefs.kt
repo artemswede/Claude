@@ -16,6 +16,7 @@ object Prefs {
     const val TILES = "tiles"
     const val SETUP_DONE = "setup_done"
     const val KILLED_AT = "killed_at"
+    const val RECORDING_SINCE = "recording_since"
 
     fun of(ctx: Context): SharedPreferences = ctx.getSharedPreferences("settings", Context.MODE_PRIVATE)
     fun device(ctx: Context): String? = of(ctx).getString(DEVICE, null)
@@ -37,4 +38,13 @@ object Prefs {
     fun setupDone(ctx: Context): Boolean = of(ctx).getBoolean(SETUP_DONE, false)
     /** When the system last killed the service mid-recording; 0 = never / acknowledged. */
     fun killedAt(ctx: Context): Long = of(ctx).getLong(KILLED_AT, 0)
+
+    /**
+     * A trip was being written when the process died (the service clears this when it
+     * saves a trip): remember when, so the main screen can say the system stopped it.
+     */
+    fun checkKilled(ctx: Context) {
+        val since = of(ctx).getLong(RECORDING_SINCE, 0)
+        if (since > 0) of(ctx).edit().putLong(KILLED_AT, System.currentTimeMillis()).remove(RECORDING_SINCE).apply()
+    }
 }

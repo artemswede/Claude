@@ -46,7 +46,7 @@ class Norm(val lo: Double, val hi: Double, private val lowWord: String = "ниж
 
     /** «норма 600–800», «норма ±10». */
     val text: String
-        get() = if (lo == -hi) "норма ±${Values.format(hi)}" else "норма ${Values.format(lo)}–${Values.format(hi)}"
+        get() = if (lo == -hi) "норма ±${Values.format(hi)}" else "норма ${Values.format(lo)?.replace("-", "−")}–${Values.format(hi)?.replace("-", "−")}"
 
     /** How far outside, as a share of the band width (0 inside). */
     fun excess(v: Double): Double = when {
@@ -75,7 +75,6 @@ object Norms {
             }
             code == "coolant_c" -> if (mode == LiveMode.COLD) null else Norm(80.0, 100.0, "холодный", "горячо")
             code == "battery_v" -> Norm(13.5, 14.8, "слабая зарядка", "перезаряд")
-            code == "intake_air_c" -> Norm(-40.0, 70.0, "", "горячий воздух")
             else -> null
         }
     }

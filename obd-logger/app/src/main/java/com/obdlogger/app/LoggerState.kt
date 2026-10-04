@@ -39,6 +39,10 @@ object LoggerState {
         val currentCsv: String? = null,
         /** «ISO 9141-2» — for the lamps tooltip. */
         val protocol: String = "",
+        /** Check log in progress (or just finished / aborted). */
+        val check: com.obdlogger.core.CheckTest.State? = null,
+        /** CSV of the last finished check log, for the result screen. */
+        val checkCsv: String? = null,
     )
 
     private val main = Handler(Looper.getMainLooper())

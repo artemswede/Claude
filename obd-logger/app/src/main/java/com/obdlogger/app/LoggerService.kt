@@ -52,6 +52,8 @@ class LoggerService : Service() {
     }
 
     @Volatile private var stopRequested = false
+    @Volatile private var checkRequested = false
+    @Volatile private var checkStopRequested = false
     @Volatile private var recording = false
     @Volatile private var autoMode = false
     @Volatile private var socket: BluetoothSocket? = null
@@ -76,8 +78,13 @@ class LoggerService : Service() {
             ACTION_STOP -> requestStop()
             ACTION_MARK -> if (recording) LoggerState.requestMarker()
             ACTION_POKE -> poke()
-            // Restarted by the system after being killed: resume auto mode if it is on.
-            null -> if (Prefs.auto(this)) start(Intent(this, LoggerService::class.java), auto = true) else stopSelf()
+            ACTION_CHECK -> if (recording) checkRequested = true
+            ACTION_CHECK_STOP -> checkStopRequested = true
+            // Restarted by the system after being killed: note it and resume auto mode if it is on.
+            null -> {
+                if (worker?.isAlive != true) Prefs.checkKilled(this)
+                if (Prefs.auto(this)) start(Intent(this, LoggerService::class.java), auto = true) else stopSelf()
+            }
         }
         return if (autoMode) START_STICKY else START_NOT_STICKY
     }
@@ -304,6 +311,7 @@ class LoggerService : Service() {
         trace("trip start; app ${BuildConfig.VERSION_NAME}; Android ${Build.VERSION.RELEASE} (${Build.MANUFACTURER} ${Build.MODEL}); auto=$auto")
         trace("adapter: $adapterInfo; protocol: ${s.protocolName} (#${s.protocolNumber})")
         tripLock?.acquire(12 * 60 * 60 * 1000L)
+        Prefs.of(this).edit().putLong(Prefs.RECORDING_SINCE, System.currentTimeMillis()).apply()
         LoggerState.resetMarkers()
         LoggerState.update { it.copy(recording = true, rows = 0, markers = 0, exported = emptyList(), status = "Чтение VIN, датчиков и ошибок…") }
         if (auto) openUi()
@@ -341,10 +349,30 @@ class LoggerService : Service() {
         val rpmIndex = logger.columns.indexOfFirst { it.name == "rpm" }
         var silentCycles = 0
         var autoMarker: String? = if (logger.rows > 0) "RECONNECT" else null
+        var check: CheckRun? = null
         while (!stopRequested) {
+            if (checkRequested && check == null) {
+                checkRequested = false
+                checkStopRequested = false
+                check = startCheck(logger)
+            }
             val marker = LoggerState.peekMarker()
-            val r = logger.cycle(elm, listOfNotNull(autoMarker, marker).joinToString(" ").ifEmpty { null })
+            val checkMarker = check?.state?.marker
+            val r = logger.cycle(elm, listOfNotNull(autoMarker, marker, checkMarker).joinToString(" ").ifEmpty { null })
             val now = System.currentTimeMillis()
+            check?.let { c ->
+                if (checkStopRequested) c.test.stop(now)
+                val idx = logger.columns.indexOfFirst { it.name == "speed_kmh" }
+                val speed = logger.lastRow.getOrNull(idx)?.toDoubleOrNull()
+                val rpmNow = if (r.wroteRow) logger.lastRow.getOrNull(rpmIndex)?.toDoubleOrNull() else null
+                val st = c.test.update(now, rpmNow, speed)
+                c.state = st
+                LoggerState.update { it.copy(check = st) }
+                if (st.phase != com.obdlogger.core.CheckTest.Phase.RUNNING) {
+                    finishCheck(logger, c)
+                    check = null
+                }
+            }
             if (r.wroteRow) {
                 LoggerState.consumeMarker(marker)
                 autoMarker = null
@@ -412,7 +440,47 @@ class LoggerService : Service() {
                 pause(1000)
             }
         }
+        check?.let { c ->
+            c.test.stop(System.currentTimeMillis())
+            c.state = c.test.update(System.currentTimeMillis(), null, null)
+            LoggerState.update { it.copy(check = c.state) }
+            finishCheck(logger, c)
+        }
         return false
+    }
+
+    /** A running check log: the test state machine and its own CSV (rows are teed from the trip). */
+    private class CheckRun(val test: com.obdlogger.core.CheckTest, val files: SessionFiles, val writer: Writer) {
+        var state: com.obdlogger.core.CheckTest.State? = null
+    }
+
+    private fun startCheck(logger: DataLogger): CheckRun {
+        val files = SessionFiles.createCheck(this)
+        val w = files.csv.bufferedWriter()
+        logger.tee = w
+        trace("check log start: ${files.csv.name}")
+        val run = CheckRun(com.obdlogger.core.CheckTest(System.currentTimeMillis()), files, w)
+        LoggerState.update { it.copy(check = run.test.update(System.currentTimeMillis(), null, null)) }
+        return run
+    }
+
+    private fun finishCheck(logger: DataLogger, c: CheckRun) {
+        logger.tee = null
+        try {
+            c.writer.close()
+        } catch (_: IOException) {
+        }
+        val ok = c.state?.phase == com.obdlogger.core.CheckTest.Phase.DONE
+        trace("check log end: ${c.state?.phase}")
+        if (ok) {
+            c.files.info.writeText("Проверочный лог Бортача ${BuildConfig.VERSION_NAME}\nМашина: ${Prefs.vehicle(this)}\n" +
+                "Шаги: прогретый холостой 2:00 → 2500 об/мин 1:00 → холостой 1:00 (столбец marker: TEST1…TEST3)\n")
+            SessionFiles.exportToDownloads(this, c.files.csv)
+            LoggerState.update { it.copy(checkCsv = c.files.csv.absolutePath, savedTrips = it.savedTrips + 1) }
+        } else {
+            // An aborted test is not a check log: nothing to compare with.
+            c.files.csv.delete()
+        }
     }
 
     /** Closes a trip: final trouble codes, report with analysis and comparison, export to Downloads. */
@@ -448,6 +516,7 @@ class LoggerService : Service() {
         t.trace.close()
         if (traceTarget === t.trace) traceTarget = null
         tripLock?.let { if (it.isHeld) it.release() }
+        Prefs.of(this).edit().remove(Prefs.RECORDING_SINCE).apply()
 
         if (rows == 0 && autoMode) {
             // Auto mode probed the ECU but nothing was recorded: no empty trip files.
@@ -548,6 +617,8 @@ class LoggerService : Service() {
         const val ACTION_STOP = "com.obdlogger.STOP"
         const val ACTION_MARK = "com.obdlogger.MARK"
         const val ACTION_POKE = "com.obdlogger.POKE"
+        const val ACTION_CHECK = "com.obdlogger.CHECK"
+        const val ACTION_CHECK_STOP = "com.obdlogger.CHECK_STOP"
         const val EXTRA_ADDRESS = "address"
         const val EXTRA_VEHICLE = "vehicle"
         const val EXTRA_DEMO = "demo"

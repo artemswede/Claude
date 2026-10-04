@@ -38,7 +38,7 @@ class TrimChartView(ctx: Context) : View(ctx) {
         invalidate()
     }
 
-    private fun sp(v: Float) = v * resources.displayMetrics.scaledDensity
+    private fun sp(v: Float) = v * resources.displayMetrics.scaledDensityCompat()
 
     override fun onDraw(canvas: Canvas) {
         val t = trace
@@ -50,6 +50,12 @@ class TrimChartView(ctx: Context) : View(ctx) {
         if (plot.width() <= 0 || plot.height() <= 0) return
 
         val pts = t?.let { tr -> tr.minutes.indices.filter { !tr.trimB1[it].isNaN() } } ?: emptyList()
+        // Display only: a short moving average takes out the STFT flicker; the norm crossing stays where it is.
+        val smooth = DoubleArray(t?.trimB1?.size ?: 0) { Double.NaN }
+        if (t != null) pts.forEachIndexed { k, i ->
+            val win = pts.subList(maxOf(0, k - 2), minOf(pts.size, k + 3))
+            smooth[i] = win.sumOf { t.trimB1[it] } / win.size
+        }
         var lo = -15.0
         var hi = 30.0
         if (t != null && pts.isNotEmpty()) {
@@ -124,25 +130,25 @@ class TrimChartView(ctx: Context) : View(ctx) {
 
         // The line, then the out-of-norm parts over it.
         val line = Path()
-        pts.forEachIndexed { k, i -> if (k == 0) line.moveTo(x(t.minutes[i]), y(t.trimB1[i])) else line.lineTo(x(t.minutes[i]), y(t.trimB1[i])) }
+        pts.forEachIndexed { k, i -> if (k == 0) line.moveTo(x(t.minutes[i]), y(smooth[i])) else line.lineTo(x(t.minutes[i]), y(smooth[i])) }
         stroke.color = p.chart
         stroke.strokeWidth = dp(2).toFloat()
         canvas.drawPath(line, stroke)
 
         var k = 0
         while (k < pts.size) {
-            if (t.trimB1[pts[k]] <= 10) {
+            if (smooth[pts[k]] <= 10) {
                 k++
                 continue
             }
             var e = k
-            while (e + 1 < pts.size && t.trimB1[pts[e + 1]] > 10) e++
+            while (e + 1 < pts.size && smooth[pts[e + 1]] > 10) e++
             val dev = Path()
             val area = Path()
             area.moveTo(x(t.minutes[pts[k]]), y(10.0))
             for (q in k..e) {
                 val px = x(t.minutes[pts[q]])
-                val py = y(t.trimB1[pts[q]])
+                val py = y(smooth[pts[q]])
                 if (q == k) dev.moveTo(px, py) else dev.lineTo(px, py)
                 area.lineTo(px, py)
             }
@@ -158,7 +164,7 @@ class TrimChartView(ctx: Context) : View(ctx) {
 
         // Name and value at the end of the line, at its height.
         val last = pts.last()
-        val lv = t.trimB1[last]
+        val lv = smooth[last]
         val ly = y(lv).coerceIn(plot.top + sp(sc.endLbl), plot.bottom - sp(sc.endLbl))
         text.typeface = Bt.sans(context, 400)
         text.textSize = sp(sc.endLbl)

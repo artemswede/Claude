@@ -76,6 +76,17 @@ class DataLogger(
 
     val avgCycleMs get() = if (rows == 0) 0L else totalCycleMs / rows
 
+    /** Second CSV that gets the same rows while set (the check log is cut out of the trip this way). */
+    var tee: Writer? = null
+        set(value) {
+            field = value
+            value?.apply {
+                write(Csv.row(listOf("time", "t_s") + columns.map { it.name } + "marker"))
+                write("\n")
+                flush()
+            }
+        }
+
     /** The adapter was reset (reconnect): its header is the default again. */
     fun onReconnect() {
         currentHeader = defaultHeader
@@ -134,9 +145,15 @@ class DataLogger(
         if (adapterReset) return CycleResult(false, duration, "адаптер перезагрузился", adapterReset = true)
         if (ecuAnswered == 0) return CycleResult(false, duration, lastError)
 
-        out.write(Csv.row(listOf(formatTime(t), Values.format((t - startMs) / 1000.0)) + values + marker))
+        val line = Csv.row(listOf(formatTime(t), Values.format((t - startMs) / 1000.0)) + values + marker)
+        out.write(line)
         out.write("\n")
         out.flush()
+        tee?.apply {
+            write(line)
+            write("\n")
+            flush()
+        }
         rows++
         lastRow = values
         totalCycleMs += duration
