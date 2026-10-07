@@ -56,7 +56,7 @@ class HomeView(
         elevation = dp(2).toFloat()
         setOnClickListener { onCheck() }
     }
-    private val testCap = ctx.text("4 минуты: ХХ → 2500 об/мин → ХХ", sc.cap, p.t3).apply { if (sc === Bt.S1024) visibility = View.GONE }
+    private val testCap = ctx.text("4 минуты: ХХ → 2500 об/мин → ХХ", sc.cap, p.t3).apply { if (sc.compact) visibility = View.GONE }
     private val testBlock = column(ctx, dp(4), testButton, testCap).apply { gravity = Gravity.END }
     private val noTest = ctx.text("", if (sc.phone) 15f else if (sc === Bt.TABLET) 17f else 14f, p.t2).apply { gravity = Gravity.END }
     private val bottomBar = LinearLayout(ctx)
@@ -198,7 +198,7 @@ class HomeView(
             t.top?.headline?.contains("холост") == true -> "Отклонение проявляется только на холостом ходу."
             else -> "Подложкой отмечен прогретый холостой ход."
         }
-        chartCap.visibility = if (sc === Bt.S1024) View.GONE else View.VISIBLE
+        chartCap.visibility = if (sc.compact) View.GONE else View.VISIBLE
 
         lastTrip.text = m.lastTripText
         val tr = m.trend
@@ -236,7 +236,7 @@ class HomeView(
             addTo(head, context.label("Почему Бортач так думает", sc, p), 0, 1f)
             addTo(head, link("Подробнее →") { onDetails() })
             gap(head, 18)
-            f.why.take(if (sc === Bt.S1024) 2 else 3).forEach { gap(evidence(it.label, it.value, it.deviating, it.emphasis), 0) }
+            f.why.take(if (sc.compact) 2 else 3).forEach { gap(evidence(it.label, it.value, it.deviating, it.emphasis), 0) }
         }
     }
 

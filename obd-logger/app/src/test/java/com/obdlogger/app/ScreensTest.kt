@@ -58,6 +58,27 @@ class ScreensTest {
     @Config(qualifiers = "w400dp-h860dp-port-mdpi")
     fun phone() = all("phone")
 
+    /** Car head unit 1024×600 at hdpi: wide and short. */
+    @Test
+    @Config(qualifiers = "w683dp-h400dp-land-mdpi")
+    fun headUnit() = all("headunit")
+
+    /** Regression: a gauge with no room used to hang the app on «Внимание» (head unit). */
+    @Test(timeout = 20_000)
+    @Config(qualifiers = "w683dp-h400dp-land-mdpi")
+    fun tinyGaugeDoesNotHang() {
+        val a = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val store = SeriesStore().also { SessionFiles.loadInto(Samples.realItems.last().csv, it) }
+        val item = com.obdlogger.core.Attention.rank(store).first()
+        for ((w, h) in listOf(120 to 40, 60 to 20, 300 to 1)) {
+            val g = com.obdlogger.app.ui.GaugeView(a, com.obdlogger.app.ui.Bt.DARK)
+            g.set(item, 1, store.series(item.code, 0).second, null)
+            g.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
+            g.layout(0, 0, w, h)
+            g.draw(Canvas(Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)))
+        }
+    }
+
     private fun all(size: String) {
         val a = Robolectric.buildActivity(Activity::class.java).setup().get()
         val scenes = Scenes(a)
@@ -301,6 +322,8 @@ object FakeHost : SettingsView.Host {
     override fun manualText() = "начать запись сейчас, не дожидаясь автозаписи"
     override fun toggleManual() = Unit
     override fun version() = "20261003_2259"
+    override fun crashText(): String? = null
+    override fun shareCrashes() = Unit
     override fun readiness() = listOf("Адаптер выбран" to true, "Автозапись поездок включена" to true, "Запуск при включении планшета" to true,
         "Разрешения Bluetooth и уведомлений" to true, "Система не ограничивает Бортач в фоне" to false, "Открываться при запуске мотора (необязательно)" to false)
 }

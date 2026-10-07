@@ -65,6 +65,7 @@ internal fun android.util.DisplayMetrics.scaledDensityCompat(): Float = scaledDe
 internal fun ellipsize(s: String, p: Paint, w: Float): String {
     if (p.measureText(s) <= w) return s
     var end = s.length
+    if (w <= 0f) return ""
     while (end > 1 && p.measureText(s, 0, end) + p.measureText("…") > w) end--
     return s.substring(0, end).trimEnd() + "…"
 }
@@ -282,7 +283,9 @@ class GaugeView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
         val textBlock = nameP.textSize + noteP.textSize + 14 * d
         val top = pad + bh + 8 * d
         val bottom = h - pad - textBlock
-        val radius = min((bottom - top) / 1.55f, (w - 2 * pad) / 2.4f)
+        // Never zero or negative: on a short head-unit screen the card can be tiny,
+        // and a non-positive radius used to spin the font-fitting loop below forever.
+        val radius = max(min((bottom - top) / 1.55f, (w - 2 * pad) / 2.4f), 14 * d)
         val cx = w / 2
         val cy = top + radius + 4 * d
         val oval = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
@@ -313,7 +316,7 @@ class GaugeView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
 
         val vP = paint(0f, p.t1, 500, mono = true).apply { textSize = radius * 0.42f }
         val v = Num.fmt(it.code, it.last)
-        while (vP.measureText(v) > radius * 1.5f) vP.textSize *= 0.92f
+        while (vP.measureText(v) > radius * 1.5f && vP.textSize > 6 * d) vP.textSize *= 0.92f
         c.drawText(v, cx - vP.measureText(v) / 2, cy + vP.textSize * 0.3f, vP)
         val uP = paint(0f, p.t2).apply { textSize = radius * 0.17f }
         val u = SensorNames.unit(it.code)

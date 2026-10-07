@@ -86,6 +86,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashLog.install(this)
         shell = Shell(this)
         setContentView(shell.root)
 
@@ -441,6 +442,12 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     }
 
     override fun version(): String = BuildConfig.VERSION_NAME
+
+    override fun crashText(): String? = CrashLog.files(this).takeIf { it.isNotEmpty() }?.let { f ->
+        "приложение закрывалось с ошибкой ${f.size} раз(а), последний — ${java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.ROOT).format(java.util.Date(f.first().lastModified()))}. Пришлите разработчику"
+    }
+
+    override fun shareCrashes() = share(CrashLog.files(this).take(5), "Бортач: отчёт об ошибке")
 
     override fun readiness(): List<Pair<String, Boolean>> = listOf(
         "Адаптер выбран" to (Prefs.device(this) != null),

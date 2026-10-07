@@ -59,6 +59,8 @@ object Bt {
         val btnH: Int, val btnFont: Float, val btnBigH: Int, val btnBigFont: Float,
         val endLbl: Float, val axis: Float, val botH: Int, val pad: Int, val gap: Int, val tileValue: Float,
         val phone: Boolean,
+        /** Small landscape screens (1024×600, car head units): fewer secondary lines. */
+        val compact: Boolean = false,
     )
 
     val TABLET = Scale(
@@ -71,7 +73,18 @@ object Bt {
         lbl = 12f, hxl = 32f, hl = 27f, hm = 21f, hs = 17f, pl = 17f, p = 15f, cap = 12f, code = 12f, conf = 14f,
         evLabel = 17f, evValue = 21f, evPad = 8, sbarH = 46, sbarFont = 15f, brandFont = 17f, lamp = 14,
         railW = 84, riH = 72, riFont = 12f, riIcon = 26, btnH = 52, btnFont = 16f, btnBigH = 60, btnBigFont = 18f,
-        endLbl = 14f, axis = 12f, botH = 96, pad = 22, gap = 24, tileValue = 44f, phone = false,
+        endLbl = 14f, axis = 12f, botH = 96, pad = 22, gap = 24, tileValue = 44f, phone = false, compact = true,
+    )
+
+    /**
+     * Car head units: wide but short (e.g. 1024×600 at hdpi ≈ 683×400 dp). Landscape
+     * layout with the side rail like a tablet, but everything a size smaller.
+     */
+    val WIDE = Scale(
+        lbl = 11f, hxl = 26f, hl = 22f, hm = 18f, hs = 15f, pl = 15f, p = 14f, cap = 12f, code = 11f, conf = 13f,
+        evLabel = 15f, evValue = 18f, evPad = 6, sbarH = 40, sbarFont = 13f, brandFont = 15f, lamp = 12,
+        railW = 72, riH = 60, riFont = 11f, riIcon = 22, btnH = 44, btnFont = 14f, btnBigH = 48, btnBigFont = 15f,
+        endLbl = 12f, axis = 11f, botH = 72, pad = 16, gap = 16, tileValue = 36f, phone = false, compact = true,
     )
     val PHONE = Scale(
         lbl = 12f, hxl = 28f, hl = 24f, hm = 20f, hs = 17f, pl = 17f, p = 15f, cap = 13f, code = 12f, conf = 14f,
@@ -81,10 +94,13 @@ object Bt {
     )
 
     fun scaleFor(ctx: Context): Scale {
-        val sw = ctx.resources.configuration.smallestScreenWidthDp
+        val cfg = ctx.resources.configuration
+        val sw = cfg.smallestScreenWidthDp
         return when {
             sw >= 720 -> TABLET
             sw >= 480 -> S1024
+            // A short landscape screen (head unit) is not a phone: keep the side rail.
+            cfg.screenWidthDp >= 600 && cfg.screenWidthDp > cfg.screenHeightDp -> WIDE
             else -> PHONE
         }
     }

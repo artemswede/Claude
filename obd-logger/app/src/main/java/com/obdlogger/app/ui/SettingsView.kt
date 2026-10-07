@@ -44,6 +44,9 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         fun manualText(): String
         fun toggleManual()
         fun version(): String
+        /** «3 отчёта» when crash reports exist, else null. */
+        fun crashText(): String?
+        fun shareCrashes()
         /** What automatic start and recording need, and whether it is in place. */
         fun readiness(): List<Pair<String, Boolean>>
     }
@@ -100,6 +103,7 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         chevron("Запись вручную", h.manualText()) { h.toggleManual() }
 
         section("О приложении")
+        h.crashText()?.let { chevron("Отправить отчёт об ошибке", it) { h.shareCrashes() } }
         addTo(list, context.text("Бортач ${h.version()}", sc.p, p.t3).apply { setPadding(0, dp(14), 0, 0) })
     }
 
