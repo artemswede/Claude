@@ -588,7 +588,8 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     }
 
     private fun makeHome(night: Boolean) = HomeView(this, shell.sc, onDetails = { openHomeVersion() }, onSettings = { shell.show(Shell.Page.SETTINGS) },
-        onCheck = { openCheck() }, onOpenLast = { openLastTrip() }, p = if (night) Bt.DARK else Bt.LIGHT, onCodes = { openCodes() })
+        onCheck = { openCheck() }, onOpenLast = { openLastTrip() }, p = if (night) Bt.DARK else Bt.LIGHT, onCodes = { openCodes() },
+        onReconnect = { if (LoggerState.snapshot.running) startService(LoggerService.intent(this, LoggerService.ACTION_POKE)) else if (Prefs.device(this) != null && hasBluetoothPermission()) startAuto() else shell.show(Shell.Page.SETTINGS) })
 
     // ---- trouble codes ----
 

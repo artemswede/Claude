@@ -106,7 +106,7 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         addTo(chartsRight, chartPageText)
         // Short screens: one button that cycles the window instead of a three-part switch.
         if (sc.compact) addTo(chartsRight, windowText, dp(4)) else addTo(chartsRight, windowSeg, dp(8))
-        addTo(charts, ctx.text("точка = реальный замер · подпись у конца линии · подложка — норма", 13f, p.t3).apply { gravity = Gravity.END }, dp(4))
+        if (!sc.compact) addTo(charts, ctx.text("точка = реальный замер · подпись у конца линии · подложка — норма", 13f, p.t3).apply { gravity = Gravity.END }, dp(4))
         // Short screens: the mode is written on the tiles anyway; the room goes to pages and «Датчики».
         if (!sc.compact) addTo(panelRight, modeText)
         addTo(panelRight, pageText, dp(4))
@@ -362,7 +362,7 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
                 val from = attnPage * 6
                 attnCount.text = when {
                     ranked.isEmpty() -> "данных пока нет"
-                    else -> "${from + 1}–${minOf(from + 6, ranked.size)} из ${ranked.size} · нестабильных $unstable" + if (pagesN > 1) "   ${attnPage + 1}/$pagesN ›" else ""
+                    else -> "нестабильных $unstable" + if (pagesN > 1) " · стр. ${attnPage + 1}/$pagesN ›" else ""
                 }
                 val end = last ?: 0L
                 gauges.forEachIndexed { i, g ->
@@ -383,7 +383,8 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             }
             2 -> {
                 val all = (LANES.filter { it in codes } + codes).distinct()
-                val per = if (sc.phone) 4 else 6
+                // Short screens: 4 taller lanes a page, the rest by swipe.
+                val per = if (sc.phone || sc.compact) 4 else 6
                 val n = maxOf(1, (all.size + per - 1) / per)
                 chartPage = ((chartPage % n) + n) % n
                 chartPageText.text = if (n > 1) "${chartPage + 1}/$n ›" else ""

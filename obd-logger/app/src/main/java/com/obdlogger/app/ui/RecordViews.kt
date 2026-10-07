@@ -131,6 +131,14 @@ class TileView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
             else -> NormState.NONE
         }
         val out = state == NormState.LOW || state == NormState.HIGH
+        if (out && staleAt == null) {
+            // Out of norm reads at a glance: an amber frame, not only the words under the number.
+            fill.color = p.amb
+            fill.style = Paint.Style.STROKE
+            fill.strokeWidth = 2 * d
+            c.drawRoundRect(d, d, w - d, h - d, r, r, fill)
+            fill.style = Paint.Style.FILL
+        }
         if (staleAt == null && (norm != null || front)) {
             fill.color = if (out) p.amb else p.acc
             c.save()

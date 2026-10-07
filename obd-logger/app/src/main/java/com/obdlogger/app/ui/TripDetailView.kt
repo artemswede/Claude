@@ -39,6 +39,8 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
     private val body = FrameLayout(ctx)
     private var focused: String? = null
     private var sort = AttentionSort.DEVIATION
+    /** Head unit (≈730 dp wide): one column like a phone, sizes like a small tablet. */
+    private val narrow = sc.phone || sc === Bt.WIDE
     private val tabs = Tabs(ctx, sc, p, listOf("Итог", "Статистика", "Рейтинг", "Графики")) { render() }
     private val s = item.summary
 
@@ -97,7 +99,7 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
             "длительность" to "${s.durationMin.toInt()} мин",
             s.metrics[com.obdlogger.core.Metric.COOLANT_MAX]?.let { "мотор прогрет до" to "${it.toInt()} °C" },
             "холостой" to "${idleMin.toInt()} мин",
-            "строк · опрос" to "${s.rows} · $poll",
+            "замеров · раз в" to "${s.rows} · $poll",
             "коды ЭБУ" to (s.dtcs?.let { if (it.isEmpty()) "нет" else it.joinToString(", ") } ?: "—"),
         )
         val shown = if (sc.phone) list.take(3) else list
@@ -108,20 +110,20 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
 
         val top = s.top
         val watch = s.findings.firstOrNull { it.severity == Severity.WATCH }
-        val cards = LinearLayout(context).apply { orientation = if (sc.phone) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL }
+        val cards = LinearLayout(context).apply { orientation = if (narrow) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL }
         val versionCard = when {
             item.isCheck -> versionBox("Проверочный лог", item.check?.idleTrim?.let { "Коррекция Б1 на ХХ ${TripAnalyzer.pct(it)}" } ?: "Записан", null, p.line2)
             top != null && s.durationMin >= com.obdlogger.core.HomeLogic.NEED_TRIP_MIN -> versionBox("Версия по этой поездке", top.headline, top, p.acc)
             s.durationMin < com.obdlogger.core.HomeLogic.NEED_TRIP_MIN -> versionBox("Недостаточно данных", "Поездка короче ${com.obdlogger.core.HomeLogic.NEED_TRIP_MIN.toInt()} минут — вывод не делается", null, p.line2)
             else -> versionBox("Разбор готов", "Отклонений не найдено", null, p.acc)
         }
-        if (sc.phone) addTo(cards, versionCard) else cards.addView(versionCard, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+        if (narrow) addTo(cards, versionCard) else cards.addView(versionCard, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
         watch?.let { w ->
             val obs = card(column(context, dp(8),
                 context.label("Наблюдаем", sc, p),
                 context.text(w.headline, if (sc.phone) 17f else 21f, p.t1, 600),
                 context.text(w.evidence + " — пока не версия", if (sc.phone) 14f else 16f, p.t2)), p, dp(20), dp(16), p.line2, dashed = true)
-            if (sc.phone) addTo(cards, obs, dp(12)) else cards.addView(obs, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply { leftMargin = dp(16) })
+            if (narrow) addTo(cards, obs, dp(12)) else cards.addView(obs, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply { leftMargin = dp(16) })
         }
         addTo(box, cards, dp(18))
 
@@ -210,7 +212,7 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
             bg?.let { setBackgroundColor(it) }
             cells.forEachIndexed { i, v -> addView(v, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, cols[i])) }
         }
-        val headers = if (sc.phone) listOf("Режим", "Доля", "N", "Мед.", "Мин…макс", "Оценка") else listOf("Режим", "Доля", "Замеров", "Медиана", "Мин…макс", "Оценка")
+        val headers = if (narrow) listOf("Режим", "Доля", "N", "Мед.", "Мин…макс", "Оценка") else listOf("Режим", "Доля", "Замеров", "Медиана", "Мин…макс", "Оценка")
         table.addView(tr(headers.mapIndexed { i, h ->
             context.label(h, sc, p).apply {
                 letterSpacing = 0.04f
@@ -219,7 +221,7 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
             }
         }))
         table.addView(hline(context, p.line2))
-        val fs = if (sc.phone) 13f else 17f
+        val fs = if (narrow) 13f else 17f
         for (m in f.byMode.sortedByDescending { it.mode == DriveMode.WARM_IDLE }) {
             val (fg, bg) = when (m.verdict) {
                 Verdict.OUT -> p.amb to p.ambT
@@ -244,8 +246,8 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
         if (idleMed?.verdict == Verdict.OUT && overallIn) {
             addTo(right, context.text("Средняя за поездку ${Num.fmt(f.code, f.mean)} выглядит нормой, но скрывает проблему: отклонение только на холостом.", if (sc.phone) 14f else 17f, p.t2), dp(14))
         }
-        val root = LinearLayout(context).apply { orientation = if (sc.phone) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL; setPadding(dp(sc.pad), dp(16), dp(sc.pad), dp(16)) }
-        if (sc.phone) {
+        val root = LinearLayout(context).apply { orientation = if (narrow) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL; setPadding(dp(sc.pad), dp(16), dp(sc.pad), dp(16)) }
+        if (narrow) {
             val wrap = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
             addTo(wrap, right)
             addTo(wrap, context.label("Другие датчики", sc, p), dp(22))
@@ -278,11 +280,11 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
             r.addView(context.text("${i + 1}", 17f, p.t2, 400, mono = true), LinearLayout.LayoutParams(dp(40), ViewGroup.LayoutParams.WRAP_CONTENT))
             r.addView(column(context, dp(2),
                 context.text(SensorNames.label(x.code), if (sc.phone) 15f else 19f, p.t1, 600, maxLines = 1),
-                context.text("${SensorNames.source(x.code)} · ${x.note}", if (sc.phone) 12f else 14f, p.t2, maxLines = 2)),
+                context.text(if (narrow) x.note else "${SensorNames.source(x.code)} · ${x.note}", if (sc.phone) 12f else 14f, p.t2, maxLines = 2)),
                 LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             val bar = HomeView.Progress(context, ((sc0 ?: 0.0) / maxScore).toFloat().coerceIn(0f, 1f),
                 if ((sc0 ?: 0.0) > 30 && sort == AttentionSort.DEVIATION) p.amb else p.t2, p.s3)
-            r.addView(bar, LinearLayout.LayoutParams(dp(if (sc.phone) 70 else 150), dp(12)).apply { leftMargin = dp(12) })
+            r.addView(bar, LinearLayout.LayoutParams(dp(if (sc.phone) 70 else if (narrow) 110 else 150), dp(12)).apply { leftMargin = dp(12) })
             r.addView(context.text(sc0?.let { "${it.toInt()} %" } ?: "—", 18f, p.t1, 400, mono = true).apply { gravity = Gravity.END },
                 LinearLayout.LayoutParams(dp(70), ViewGroup.LayoutParams.WRAP_CONTENT))
             left.addView(r)
@@ -305,7 +307,7 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
             context.text(s.dtcs?.let { if (it.isEmpty()) "Кодов нет" else it.joinToString(", ") } ?: "Коды не прочитаны", if (sc.phone) 15f else 18f, p.t1)),
             p, dp(18), dp(14)), dp(12))
 
-        if (sc.phone) {
+        if (narrow) {
             val wrap = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(24)) }
             addTo(wrap, left)
             addTo(wrap, right, dp(20))
@@ -330,7 +332,7 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
         t.rows.forEachIndexed { i, r -> store.add(t.ms[i] + startMs(), idx.map { r.getOrNull(it)?.ifEmpty { null } }) }
         val lanes = LanesView(context, p)
         lanes.windowMs = (t.ms.lastOrNull() ?: 60_000L).coerceAtLeast(60_000L) + 1000
-        val codes = (RecordView.LANES + d.rating(AttentionSort.DEVIATION).map { it.code }).filter { it in store.columns }.distinct().take(if (sc.phone) 4 else 6)
+        val codes = (RecordView.LANES + d.rating(AttentionSort.DEVIATION).map { it.code }).filter { it in store.columns }.distinct().take(if (narrow) 4 else 6)
         lanes.set(store, codes, false, com.obdlogger.core.LiveMode.IDLE)
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL

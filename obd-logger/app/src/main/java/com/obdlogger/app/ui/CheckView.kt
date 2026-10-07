@@ -111,7 +111,11 @@ class CheckView(ctx: Context, private val sc: Bt.Scale, private val actions: Che
         val left = column(context, dp(8),
             context.label("Шаг ${st.step.n} из 3", sc, p),
             context.text(st.step.title, if (sc.phone) 24f else 34f, p.t1, 700),
-            row(context, dp(10), Gravity.BOTTOM,
+            // Short screens: the unit under the number, so the number can stay big.
+            if (sc.compact) column(context, 0,
+                context.text(st.rpm?.toInt()?.toString() ?: "—", 80f, p.t1, 400, mono = true),
+                context.text("об/мин", 16f, p.t2))
+            else row(context, dp(10), Gravity.BOTTOM,
                 context.text(st.rpm?.toInt()?.toString() ?: "—", if (sc.phone) 72f else 120f, p.t1, 400, mono = true),
                 context.text("об/мин", if (sc.phone) 16f else 22f, p.t2)),
             Corridor(context, p, st).apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)) },
@@ -215,15 +219,22 @@ class CheckView(ctx: Context, private val sc: Bt.Scale, private val actions: Che
             table.addView(r0)
             table.addView(hline(context, p.line))
         }
-        addTo(page, table, dp(16))
+        // The answer first — did the repair help — then the numbers behind it.
         val idle = now.idleTrim
+        val was = prev?.idleTrim
+        val good = idle != null && abs(idle) <= 10 && (now.rearO2Idle ?: 1.0) >= 0.45
+        val better = idle != null && was != null && abs(idle) < abs(was) - 3
         val verdict = when {
             idle == null -> "На холостом не хватило данных о коррекции."
-            abs(idle) <= 10 && (now.rearO2Idle ?: 1.0) >= 0.45 -> "Коррекция на ХХ в норме, задняя лямбда не падает — смесь в порядке."
-            prev?.idleTrim != null && abs(idle) < abs(prev.idleTrim!!) - 3 -> "Стало лучше, но коррекция на ХХ ещё за нормой."
-            else -> "Коррекция на ХХ за нормой."
+            good && was != null && abs(was) > 10 -> "Ремонт помог: коррекция на ХХ ${TripAnalyzer.pct(was)} → ${TripAnalyzer.pct(idle)}, в норме."
+            good -> "Смесь в порядке: коррекция на ХХ ${TripAnalyzer.pct(idle)}, задняя лямбда не падает."
+            better -> "Стало лучше (${TripAnalyzer.pct(was!!)} → ${TripAnalyzer.pct(idle)}), но коррекция на ХХ ещё за нормой."
+            was != null -> "Без улучшения: коррекция на ХХ ${TripAnalyzer.pct(was)} → ${TripAnalyzer.pct(idle)}, за нормой."
+            else -> "Коррекция на ХХ ${TripAnalyzer.pct(idle)} — за нормой."
         }
-        addTo(page, card(context.text(verdict, if (sc.phone) 16f else 20f, p.t1, 600), p, dp(18), dp(14)), dp(16))
+        addTo(page, card(context.text(verdict, if (sc.phone) 18f else 22f, if (good) p.acc else if (better) p.t1 else p.amb, 700), p, dp(18), dp(14),
+            border = if (good) p.acc else p.amb), dp(14))
+        addTo(page, table, dp(12))
         addTo(page, context.button("Готово", sc, p, primary = true) { actions.closeTest(); actions.back() }, dp(18), width = ViewGroup.LayoutParams.WRAP_CONTENT)
         return ScrollView(context).apply { addView(page) }
     }

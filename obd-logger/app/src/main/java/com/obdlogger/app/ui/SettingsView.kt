@@ -127,7 +127,8 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             else "Ниже — чего не хватает. Нажмите на нужную строку настроек.", sc.cap, p.t2), dp(6))
         for ((title, done) in items) {
             addTo(box, row(context, dp(10), Gravity.CENTER_VERTICAL,
-                context.text(if (done) "✓" else "✗", sc.p, if (done) p.acc else p.amb, 700),
+                // An optional item that is off is not a problem: a grey dash, not an amber cross.
+                context.text(if (done) "✓" else if (title.contains("необязательно")) "–" else "✗", sc.p, if (done) p.acc else if (title.contains("необязательно")) p.t3 else p.amb, 700),
                 context.text(title, sc.p, p.t1)), dp(8))
         }
         box.setPadding(dp(18), dp(16), dp(18), dp(16))
@@ -138,7 +139,8 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
     // ---- rows ----
 
     private fun section(title: String) {
-        addTo(list, context.label(title, sc, p).apply { setPadding(0, dp(28), 0, dp(10)) })
+        // Sentence case and a size you can read from the driver's seat.
+        addTo(list, context.text(title.lowercase().replaceFirstChar { it.uppercase() }, if (sc.phone) 16f else 18f, p.t2, 600).apply { setPadding(0, dp(28), 0, dp(10)) })
         addTo(list, divider())
     }
 

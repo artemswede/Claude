@@ -36,7 +36,10 @@ class HomeView(
     private val p: Bt.Palette = Bt.LIGHT,
     /** The codes screen (codes, freeze frame, reset). */
     private val onCodes: () -> Unit = {},
+    /** «Нет связи»: try the adapter again now. */
+    private val onReconnect: () -> Unit = {},
 ) : FrameLayout(ctx) {
+    private val chartCol = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
     private val leftCol = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
     private val chartTitle = ctx.label("", sc, p)
     private val chartNorm = ctx.text("", sc.cap, p.t3)
@@ -65,7 +68,6 @@ class HomeView(
 
     init {
         setBackgroundColor(p.bg)
-        val chartCol = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
         val head = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         addTo(head, chartTitle, 0, 1f)
         addTo(head, chartNorm)
@@ -82,11 +84,12 @@ class HomeView(
             cornerRadii = floatArrayOf(dp(20).toFloat(), dp(20).toFloat(), dp(20).toFloat(), dp(20).toFloat(), 0f, 0f, 0f, 0f)
         }
         bottomBar.elevation = dp(6).toFloat()
-        val c1 = column(ctx, dp(4), ctx.label("Последняя поездка", sc, p), lastTrip)
+        // Head unit: no caption, the two lines of the trip itself instead (the caption cost the text its room).
+        val c1 = if (sc === Bt.WIDE) column(ctx, 0, lastTrip) else column(ctx, dp(4), ctx.label("Последняя поездка", sc, p), lastTrip)
         val c2 = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         c2.addView(spark, LinearLayout.LayoutParams(dp(if (wide) 72 else 104), dp(if (wide) 30 else 40)))
         // Head units: one line per column, the bar must not eat the short screen.
-        if (wide) { lastTrip.maxLines = 1; trendTitle.maxLines = 1; trendValues.visibility = View.GONE }
+        if (wide) { lastTrip.maxLines = 2; trendTitle.maxLines = 2; trendValues.visibility = View.GONE }
         addTo(c2, column(ctx, dp(2), trendTitle, trendValues), dp(16), 1f)
         val c3 = FrameLayout(ctx)
         c3.addView(testBlock, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.END or Gravity.CENTER_VERTICAL))
@@ -218,12 +221,21 @@ class HomeView(
         trendTitle.text = tr?.title ?: "Тренд появится после 2 поездок"
         trendValues.text = tr?.valuesText ?: ""
 
+        // Nothing recorded yet: the instructions get the whole screen (an empty chart and trend are noise).
+        val empty = m.state == HomeState.NO_TRIPS
+        chartCol.visibility = if (empty) View.GONE else View.VISIBLE
+        bottomBar.visibility = if (empty) View.GONE else View.VISIBLE
         val speed = s.values.firstOrNull { it.first == "speed_kmh" }?.second?.toDoubleOrNull() ?: 0.0
         val moving = s.recording && speed > 0
-        val canTest = s.recording && !moving
+        // The check log compares with a result: offered once there is one, not while data is still being collected.
+        val canTest = s.recording && !moving && m.state != HomeState.COLLECTING
         testBlock.visibility = if (canTest) View.VISIBLE else View.GONE
         noTest.visibility = if (canTest) View.GONE else View.VISIBLE
-        noTest.text = if (moving) "Проверочный лог доступен на стоянке" else "Проверочный лог — после запуска двигателя"
+        noTest.text = when {
+            moving -> "Проверочный лог доступен на стоянке"
+            m.state == HomeState.COLLECTING -> "Проверочный лог — когда будет вывод"
+            else -> "Проверочный лог — после запуска двигателя"
+        }
     }
 
     // ---- left column per state ----
@@ -381,6 +393,7 @@ class HomeView(
         gap(row(context, dp(8), Gravity.CENTER_VERTICAL, dot, context.label("Связь", sc, p)), 0)
         gap(headline("Нет связи с адаптером"), 12)
         gap(context.text("Адаптер не отвечает по Bluetooth. Чаще всего выключено зажигание или адаптер вынут из разъёма.", sc.pl, p.t2, lineHeight = sc.pl * 1.35f), 12)
+        gap(button("Переподключить") { onReconnect() }, 14)
         pastVersion(m)
     }
 

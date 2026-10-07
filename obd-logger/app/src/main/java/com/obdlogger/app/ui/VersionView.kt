@@ -38,6 +38,8 @@ private fun Context.sectionTitle(n: Int, title: String, sc: Bt.Scale, p: Bt.Pale
  */
 class VersionView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothesis, backTitle: String, private val actions: VersionActions) : FrameLayout(ctx) {
     private val p = Bt.LIGHT
+    /** Head unit (≈730 dp wide): one column, as on a phone. */
+    private val narrow = sc.phone || sc === Bt.WIDE
 
     init {
         setBackgroundColor(p.bg)
@@ -49,7 +51,7 @@ class VersionView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothe
         val head = LinearLayout(ctx).apply { orientation = if (sc.phone) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL }
         val left = column(ctx, dp(8),
             ctx.label("Есть версия · наблюдение по записям, не код ЭБУ", sc, p, p.acc),
-            HomeView.FitText(ctx, f.headline, if (sc.phone) 28f else 44f, if (sc.phone) 22f else 30f, 2, p.t1))
+            HomeView.FitText(ctx, f.headline, if (sc.phone) 28f else if (narrow) 32f else 44f, if (narrow) 22f else 30f, 2, p.t1))
         val right = column(ctx, dp(4), Confidence(ctx, f.confidence, sc, p))
         span?.let { addTo(right, ctx.text(it, sc.cap, p.t2).apply { gravity = Gravity.END }) }
         if (sc.phone) {
@@ -59,18 +61,19 @@ class VersionView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothe
             head.addView(right, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { leftMargin = dp(24) })
         }
         addTo(page, head, dp(12))
-        addTo(page, ctx.text(h.explanation, if (sc.phone) 16f else 21f, p.t2, lineHeight = if (sc.phone) 22f else 30f), dp(10))
+        addTo(page, ctx.text(h.explanation, if (narrow) 16f else 21f, p.t2, lineHeight = if (narrow) 22f else 30f), dp(10))
 
         // Left column: proof + alternatives. Right: next step, how to tell, where it shows.
         val l = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
         addTo(l, ctx.sectionTitle(1, "Доказательства из лога", sc, p))
-        val cols = if (sc.phone) 1 else 2
+        val cols = if (narrow) 1 else 2
         h.proofs.chunked(cols).forEach { pair ->
             val r = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
             pair.forEachIndexed { i, card ->
                 val c = column(ctx, dp(8), ctx.text(card.title, if (sc.phone) 15f else 17f, p.t1, 500))
                 card.figures.forEach { e ->
-                    val label = ctx.text(e.label, if (sc.phone) 13f else 15f, p.t2)
+                    // The label takes the rest of the row, so the number always stays in view.
+                    val label = ctx.text(e.label, if (sc.phone) 13f else 15f, p.t2).apply { layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) }
                     val value = ctx.text(e.value, if (sc.phone) 17f else 21f, if (e.deviating) p.amb else p.t1, 500, mono = true)
                     // Long values (a trend over trips) go under their label.
                     addTo(c, if (e.value.length > 10) column(ctx, dp(2), label, value) else row(ctx, dp(10), Gravity.CENTER_VERTICAL, label, value))
@@ -87,11 +90,21 @@ class VersionView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothe
         if (h.alternatives.isNotEmpty()) {
             addTo(l, ctx.sectionTitle(2, "Чем это не объясняется", sc, p), dp(24))
             h.alternatives.forEach { a ->
-                val r = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(14), 0, dp(14)) }
-                r.addView(ctx.text(a.name, if (sc.phone) 15f else 17f, p.t1, 600), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-                r.addView(ctx.text(a.why, if (sc.phone) 13f else 15f, p.t2), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.6f).apply { leftMargin = dp(12) })
-                r.addView(ctx.chip(a.verdict, p.t2, p.s3, 13f), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { leftMargin = dp(12) })
-                addTo(l, r)
+                if (narrow) {
+                    // Name and verdict on one line, the reason under them in full.
+                    val top = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+                    top.addView(ctx.text(a.name, if (sc.phone) 15f else 17f, p.t1, 600), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                    addTo(top, ctx.chip(a.verdict, p.t2, p.s3, 13f), dp(12))
+                    val c = column(ctx, dp(6), top, ctx.text(a.why, if (sc.phone) 13f else 15f, p.t2))
+                    c.setPadding(dp(8), dp(12), 0, dp(12))
+                    addTo(l, c)
+                } else {
+                    val r = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(14), 0, dp(14)) }
+                    r.addView(ctx.text(a.name, if (sc.phone) 15f else 17f, p.t1, 600), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                    r.addView(ctx.text(a.why, if (sc.phone) 13f else 15f, p.t2), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.6f).apply { leftMargin = dp(12) })
+                    r.addView(ctx.chip(a.verdict, p.t2, p.s3, 13f), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { leftMargin = dp(12) })
+                    addTo(l, r)
+                }
                 addTo(l, hline(ctx, p.line))
             }
         }
@@ -127,7 +140,7 @@ class VersionView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothe
             addTo(rcol, ctx.text("Сравнить поездки →", if (sc.phone) 16f else 18f, p.acc, 600).apply { setOnClickListener { actions.openCompare() } }.tap(), dp(12))
         }
 
-        if (sc.phone) {
+        if (narrow) {
             addTo(page, rcol, dp(24))
             addTo(page, l, dp(24))
         } else {
@@ -146,6 +159,8 @@ class VersionView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothe
  */
 class PlanView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothesis, car: String, private val actions: VersionActions) : FrameLayout(ctx) {
     private val p = Bt.LIGHT
+    /** Head unit: a card per step instead of a five-column table. */
+    private val narrow = sc.phone || sc === Bt.WIDE
 
     init {
         setBackgroundColor(p.bg)
@@ -155,7 +170,7 @@ class PlanView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothesis
         val f = h.finding
         val n = h.seenIn.size
         val title = column(ctx, dp(8),
-            ctx.text("План проверки для мастера", if (sc.phone) 26f else 38f, p.t1, 700),
+            ctx.text("План проверки для мастера", if (sc.phone) 26f else if (narrow) 28f else 38f, p.t1, 700),
             ctx.text("Составлен ${java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd.MM"))}" +
                 (if (n > 0) " по $n ${if (n in 2..4) "поездкам" else if (n == 1) "поездке" else "поездкам"}" else "") +
                 " · версия: ${f.headline.replaceFirstChar { it.lowercase() }} · уверенность ${f.confidence}", if (sc.phone) 14f else 18f, p.t2))
@@ -196,7 +211,7 @@ class PlanView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothesis
             setPadding(dp(8), dp(14), dp(8), dp(14))
             cells.forEachIndexed { i, v -> addView(v, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, weights[i]).apply { if (i > 0) leftMargin = dp(12) }) }
         }
-        if (!sc.phone) {
+        if (!narrow) {
             addTo(page, tr(listOf("№", "Что проверить", "Чем", "Ожидаемый результат", "Сделано · результат").map { ctx.label(it, sc, p) }), dp(16))
             addTo(page, hline(ctx, p.line2))
         }
@@ -212,11 +227,13 @@ class PlanView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothesis
                 buttonTintList = android.content.res.ColorStateList.valueOf(p.acc)
                 setOnCheckedChangeListener { b, on -> prefs.edit().putBoolean(key, on).apply(); b.text = if (on) "сделано" else "результат…" }
             }
-            if (sc.phone) {
+            if (narrow) {
+                val fs = if (sc.phone) 14f else 16f
+                what.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 val c = column(ctx, dp(6),
                     row(ctx, dp(10), Gravity.TOP, ctx.text("${i + 1}", 16f, p.t3, 400, mono = true), what),
-                    ctx.text("Чем: ${st.how}", 14f, p.t1),
-                    ctx.text("Ожидаем: ${st.expected}", 14f, p.t2), done)
+                    ctx.text("Чем: ${st.how}", fs, p.t1),
+                    ctx.text("Ожидаем: ${st.expected}", fs, p.t2), done)
                 c.setPadding(0, dp(14), 0, dp(14))
                 addTo(page, c)
             } else {

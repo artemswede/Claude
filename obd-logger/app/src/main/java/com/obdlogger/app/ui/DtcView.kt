@@ -55,7 +55,7 @@ class DtcView(ctx: Context, private val sc: Bt.Scale, private val actions: DtcAc
         shownKey = key
         page.removeAllViews()
         val ctx = context
-        addTo(page, ctx.text("← Назад", if (sc.phone) 16f else 19f, p.t1, 500).apply { setOnClickListener { actions.closeCodes() } }.tap())
+        addTo(page, ctx.button("←  Назад", sc, p, primary = false) { actions.closeCodes() }, width = ViewGroup.LayoutParams.WRAP_CONTENT)
         addTo(page, ctx.text("Коды ошибок", if (sc.phone) 24f else sc.hl, p.t1, 700), dp(10))
 
         val snap = s.dtcSnap
@@ -73,10 +73,25 @@ class DtcView(ctx: Context, private val sc: Bt.Scale, private val actions: DtcAc
         s.dtcResult?.let { addTo(page, card(ctx.text(it, sc.p, p.t1), p, dp(16), dp(12), border = p.amb), dp(12)) }
         if (!online && s.dtcBusy == null) addTo(page, ctx.text("Нет связи с ЭБУ: включите зажигание — Бортач подключится сам. Пока показано то, что прочитано раньше.", sc.cap, p.amb), dp(10))
 
+        val ff = s.freeze
+        // Actions.
+        val buttons = LinearLayout(ctx).apply { orientation = if (sc.phone) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL }
+        val busy = s.dtcBusy != null
+        val read = ctx.button(if (ff == null) "Прочитать со стоп-кадром" else "Прочитать заново", sc, p, primary = all.isEmpty() || ff == null) { actions.readCodes() }
+        read.isEnabled = online && !busy
+        read.alpha = if (read.isEnabled) 1f else 0.5f
+        addTo(buttons, read)
+        if (all.isNotEmpty()) {
+            val clear = ctx.button("Сбросить ошибки…", sc, p, primary = false) { confirmClear(all) }
+            clear.isEnabled = online && !busy
+            clear.alpha = if (clear.isEnabled) 1f else 0.5f
+            addTo(buttons, clear, dp(12))
+        }
+        s.dtcReportFile?.let { path -> addTo(buttons, ctx.button("Отправить отчёт", sc, p, primary = false) { actions.shareCodes(path) }, dp(12)) }
+        addTo(page, buttons, dp(14))
         if (all.isEmpty()) {
             addTo(page, ctx.text(if (stored == null) "Коды ещё не читались." else "Кодов нет.", sc.hs, p.t1, 600), dp(20))
         }
-        val ff = s.freeze
         val st = store()
         fun codeCard(code: String, kind: String) {
             val box = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
@@ -102,21 +117,6 @@ class DtcView(ctx: Context, private val sc: Bt.Scale, private val actions: DtcAc
 
         ff?.let { addTo(page, freezeCard(it), dp(14)) }
 
-        // Actions.
-        val buttons = LinearLayout(ctx).apply { orientation = if (sc.phone) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL }
-        val busy = s.dtcBusy != null
-        val read = ctx.button(if (ff == null) "Прочитать со стоп-кадром" else "Прочитать заново", sc, p, primary = all.isEmpty() || ff == null) { actions.readCodes() }
-        read.isEnabled = online && !busy
-        read.alpha = if (read.isEnabled) 1f else 0.5f
-        addTo(buttons, read)
-        if (all.isNotEmpty()) {
-            val clear = ctx.button("Сбросить ошибки…", sc, p, primary = false) { confirmClear(all) }
-            clear.isEnabled = online && !busy
-            clear.alpha = if (clear.isEnabled) 1f else 0.5f
-            addTo(buttons, clear, dp(12))
-        }
-        s.dtcReportFile?.let { path -> addTo(buttons, ctx.button("Отправить отчёт", sc, p, primary = false) { actions.shareCodes(path) }, dp(12)) }
-        addTo(page, buttons, dp(20))
         addTo(page, ctx.text("Каждое чтение и сброс сохраняются в отчёт dtc_….txt (Загрузки / OBD-Logger) вместе со стоп-кадром и разбором.", sc.cap, p.t3), dp(10))
     }
 

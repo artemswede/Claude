@@ -41,7 +41,10 @@ class SetupView(ctx: Context, private val sc: Bt.Scale, private val host: Host) 
     private val titles = listOf("Сопряжение адаптера", "Bluetooth и уведомления", "Экономия батареи", "Поверх других окон", "Автозапись", "Профиль машины")
     private val rail = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
     private val content = FrameLayout(ctx)
-    private val stepText = ctx.text("", if (sc.phone) 13f else 17f, p.t2)
+    private val stepText = ctx.text("", if (sc.phone) 13f else if (sc.compact) 15f else 17f, p.t2)
+    /** Short screens: a segmented progress line instead of the column of steps. */
+    private val progress = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
+    private val sideRail = !sc.phone && !sc.compact
     private var carInput: EditText? = null
 
     init {
@@ -60,8 +63,12 @@ class SetupView(ctx: Context, private val sc: Bt.Scale, private val host: Host) 
         addTo(bar, ctx.text("Пропустить", if (sc.phone) 13f else 17f, p.acc, 600).apply { setOnClickListener { host.finishSetup() } }.tap(), dp(18))
         root.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(sc.sbarH)))
         root.addView(hline(ctx, p.line))
+        if (!sideRail) {
+            progress.setPadding(dp(16), dp(8), dp(16), 0)
+            root.addView(progress, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
         val body = LinearLayout(ctx).apply { orientation = if (sc.phone) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL }
-        if (!sc.phone) {
+        if (sideRail) {
             body.addView(rail, LinearLayout.LayoutParams(dp(if (sc === Bt.TABLET) 330 else 260), ViewGroup.LayoutParams.MATCH_PARENT))
             body.addView(View(ctx).apply { setBackgroundColor(p.line) }, LinearLayout.LayoutParams(dp(1), ViewGroup.LayoutParams.MATCH_PARENT))
         }
@@ -89,7 +96,12 @@ class SetupView(ctx: Context, private val sc: Bt.Scale, private val host: Host) 
     }
 
     private fun render() {
-        stepText.text = "шаг ${step + 1} из ${titles.size}"
+        stepText.text = if (sideRail) "шаг ${step + 1} из ${titles.size}" else "шаг ${step + 1} из ${titles.size} · ${titles[step]}"
+        progress.removeAllViews()
+        titles.indices.forEach { i ->
+            val seg = View(context).apply { background = roundRect(if (i < step && done(i)) p.acc else if (i == step) p.acc else p.s3, dp(3).toFloat()); alpha = if (i == step) 1f else if (i < step) 0.7f else 1f }
+            progress.addView(seg, LinearLayout.LayoutParams(0, dp(6), 1f).apply { if (i > 0) leftMargin = dp(6) })
+        }
         rail.removeAllViews()
         rail.setPadding(0, dp(20), 0, 0)
         titles.forEachIndexed { i, t ->
@@ -107,9 +119,10 @@ class SetupView(ctx: Context, private val sc: Bt.Scale, private val host: Host) 
             rail.addView(r, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
         content.removeAllViews()
-        val page = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(if (sc.phone) 16 else 48), dp(if (sc.phone) 16 else 36), dp(if (sc.phone) 16 else 48), dp(24)) }
-        fun title(s: String) = addTo(page, context.text(s, if (sc.phone) 26f else if (sc === Bt.TABLET) 40f else 30f, p.t1, 700))
-        fun lead(s: String) = addTo(page, context.text(s, if (sc.phone) 16f else if (sc === Bt.TABLET) 23f else 18f, p.t2, lineHeight = if (sc.phone) 22f else 29f), dp(14))
+        val padH = if (sc.phone) 16 else if (sc.compact) 24 else 48
+        val page = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(padH), dp(if (sc.phone || sc.compact) 14 else 36), dp(padH), dp(24)) }
+        fun title(s: String) = addTo(page, context.text(s, if (sc.phone) 26f else if (sc === Bt.TABLET) 40f else if (sc.compact) 24f else 30f, p.t1, 700))
+        fun lead(s: String) = addTo(page, context.text(s, if (sc.phone) 16f else if (sc === Bt.TABLET) 23f else if (sc.compact) 16f else 18f, p.t2, lineHeight = if (sc.phone || sc.compact) 22f else 29f), dp(if (sc.compact) 8 else 14))
         fun state(ok: Boolean, s: String) = addTo(page, context.chip(if (ok) "✓ $s" else s, if (ok) p.acc else p.amb, if (ok) p.accT else p.ambT, 16f), dp(16), width = ViewGroup.LayoutParams.WRAP_CONTENT)
         when (step) {
             0 -> {

@@ -97,6 +97,8 @@ class TripsView(
     private val compareFilter = Segment(ctx, sc, p, listOf("Поездки", "Проверочные логи"), 0) { compareChecks = it == 1; render() }
     private val tabs = Tabs(ctx, sc, p, listOf("Журнал", "Сравнение")) { render() }
     private val dayFmt = DateTimeFormatter.ofPattern("dd.MM")
+    /** Journal columns: date, time, modes, verdict — on short screens the verdict gets the most room. */
+    private val colW = if (sc.compact) floatArrayOf(1.1f, 0.9f, 2f, 3f) else floatArrayOf(1.3f, 1f, 3f, 2.4f)
     private val timeFmt = DateTimeFormatter.ofPattern("EE · HH:mm", Locale.forLanguageTag("ru"))
 
     init {
@@ -195,10 +197,10 @@ class TripsView(
         }
         if (!sc.phone) {
             val head = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(sc.pad), dp(14), dp(sc.pad), dp(10)) }
-            head.addView(context.label("Дата", sc, p), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.3f))
-            head.addView(context.label("Время", sc, p), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            head.addView(context.label("Режимы", sc, p), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 3f))
-            head.addView(context.label("Вывод", sc, p), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 2.4f).apply { leftMargin = dp(20) })
+            head.addView(context.label("Дата", sc, p), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, colW[0]))
+            head.addView(context.label("Время", sc, p), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, colW[1]))
+            head.addView(context.label("Режимы", sc, p), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, colW[2]))
+            head.addView(context.label("Вывод", sc, p), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, colW[3]).apply { leftMargin = dp(20) })
             list.addView(head)
             list.addView(hline(context, p.line))
         }
@@ -240,11 +242,12 @@ class TripsView(
             addTo(row, modes, dp(10))
             addTo(row, chip, dp(10), width = ViewGroup.LayoutParams.WRAP_CONTENT)
         } else {
-            row.addView(date, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.3f))
-            row.addView(context.text(dur, 20f, p.t1, 400, mono = true), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            row.addView(modes, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 3f))
-            val chipBox = FrameLayout(context).apply { addView(chip, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)) }
-            row.addView(chipBox, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 2.4f).apply { leftMargin = dp(20) })
+            row.addView(date, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, colW[0]))
+            row.addView(context.text(dur, if (sc.compact) 17f else 20f, p.t1, 400, mono = true), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, colW[1]))
+            row.addView(modes, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, colW[2]))
+            // The verdict is what the row is for: it may take two lines, never an ellipsis.
+            val chipBox = FrameLayout(context).apply { addView(chip, FrameLayout.LayoutParams(if (sc.compact) ViewGroup.LayoutParams.MATCH_PARENT else ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)) }
+            row.addView(chipBox, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, colW[3]).apply { leftMargin = dp(20) })
         }
         return column(context, 0, row, hline(context, p.line))
     }
@@ -268,10 +271,15 @@ class TripsView(
         addTo(box, context.text("Сверху — самое проблемное сейчас: устраните одно — поднимется следующее. Значения на прогретом холостом стоя, если не указано иное; для точного «до / после» — проверочный лог.", if (sc.phone) 13f else 15f, p.t2))
         val days = t.trips.map { it.start?.format(dayFmt) ?: "?" }
         // Several trips on one day: add the time so the columns differ.
-        val dates = if (days.toSet().size < days.size) t.trips.map { it.start?.format(DateTimeFormatter.ofPattern("dd.MM HH:mm")) ?: "?" } else days
+        val dates = when {
+            // All on one day: the time alone tells the columns apart.
+            days.toSet().size == 1 && days.size > 1 -> t.trips.map { it.start?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: "?" }
+            days.toSet().size < days.size -> t.trips.map { it.start?.format(DateTimeFormatter.ofPattern("dd.MM HH:mm")) ?: "?" }
+            else -> days
+        }
         val table = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        val nameW = dp(if (sc.phone) 170 else 300)
-        val valW = dp(if (sc.phone) 80 else 124)
+        val nameW = dp(if (sc.phone) 170 else if (sc.compact) 200 else 300)
+        val valW = dp(if (sc.phone) 80 else if (sc.compact) 96 else 124)
         fun rowOf(cells: List<View>, name: View): LinearLayout = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -289,7 +297,7 @@ class TripsView(
         for (r in t.rows) {
             val name = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
             name.addView(context.text(r.title, if (sc.phone) 15f else 19f, p.t1, 600, maxLines = 2))
-            if (r.code.isNotEmpty()) addTo(name, context.text(r.code, if (sc.phone) 12f else 13f, p.t3, 400, mono = true), dp(2))
+            if (r.code.isNotEmpty() && !sc.compact) addTo(name, context.text(r.code, if (sc.phone) 12f else 13f, p.t3, 400, mono = true), dp(2))
             val last = r.values.lastOrNull()
             val cells = r.values.mapIndexed { i, v ->
                 context.text(v?.let { x -> fmtMetric(r.unit, x) } ?: "—", if (sc.phone) 14f else 18f, p.t1, if (i == r.values.lastIndex && last != null) 600 else 400, mono = true).apply { gravity = Gravity.END }

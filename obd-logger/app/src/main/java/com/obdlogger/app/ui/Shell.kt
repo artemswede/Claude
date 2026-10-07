@@ -95,7 +95,8 @@ class Shell(private val activity: Activity) {
         lampPill.orientation = LinearLayout.HORIZONTAL
         lampPill.gravity = Gravity.CENTER_VERTICAL
         lampPill.setPadding(ctx.dp(14), ctx.dp(14), ctx.dp(14), ctx.dp(14))
-        lampPill.minimumHeight = ctx.dp(44)
+        lampPill.minimumHeight = ctx.dp(48)
+        lampPill.minimumWidth = ctx.dp(64)
         // Left to right as the chain goes: ECU sees the engine → Бортач sees the ECU → Бортач writes.
         for ((i, l) in listOf(lamp1, lamp2).withIndex()) {
             lampPill.addView(l, LinearLayout.LayoutParams(ctx.dp(sc.lamp), ctx.dp(sc.lamp)).apply { if (i > 0) leftMargin = ctx.dp(10) })
@@ -106,7 +107,11 @@ class Shell(private val activity: Activity) {
         addTo(bar, lampPill, ctx.dp(14))
         // The writing lamp blinks right at «REC»: chain reads engine · ECU link → ● REC.
         lamp3.layoutParams = LinearLayout.LayoutParams(ctx.dp(sc.lamp), ctx.dp(sc.lamp))
-        addTo(bar, row(ctx, ctx.dp(8), Gravity.CENTER_VERTICAL, lamp3, rec).apply { setOnClickListener { showLampTip() } }, ctx.dp(14))
+        addTo(bar, row(ctx, ctx.dp(8), Gravity.CENTER_VERTICAL, lamp3, rec).apply {
+            setPadding(ctx.dp(6), 0, ctx.dp(6), 0)
+            setOnClickListener { showLampTip() }
+            tap()
+        }, ctx.dp(8))
         // «обновлено N с назад» is in the lamp tip; short screens keep the room for the rest.
         if (!sc.phone && !sc.compact) addTo(bar, upd, ctx.dp(14))
         root.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ctx.dp(sc.sbarH)))
