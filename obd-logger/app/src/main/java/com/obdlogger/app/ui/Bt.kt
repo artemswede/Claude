@@ -197,6 +197,9 @@ fun <T : View> T.tap(): T = apply {
 }
 
 /** Flexible gap in a horizontal row; zero height so it never stretches the row. */
+/** coerceIn that never throws: on a view too small for both margins (head units) it takes the middle. */
+fun Float.clamp(lo: Float, hi: Float): Float = if (lo > hi) (lo + hi) / 2 else coerceIn(lo, hi)
+
 fun spacer(ctx: Context): View = View(ctx).apply { layoutParams = LinearLayout.LayoutParams(0, 0, 1f) }
 
 fun column(ctx: Context, gap: Int = 0, vararg children: View): LinearLayout =

@@ -18,6 +18,16 @@ import java.util.Locale
  * («Система остановила запись»), because it means background limits are on.
  */
 object Recovery {
+    /** Changes on every boot of the device; null where the kernel does not show it. */
+    fun bootId(): String? = try {
+        File("/proc/sys/kernel/random/boot_id").readText().trim().ifEmpty { null }
+    } catch (_: Exception) {
+        null
+    }
+
+    /** Total time the device has spent in deep sleep since boot. */
+    fun slept(): Long = SystemClock.elapsedRealtime() - SystemClock.uptimeMillis()
+
     @Synchronized
     fun run(ctx: Context) {
         if (LoggerState.snapshot.recording) return
@@ -25,11 +35,19 @@ object Recovery {
         val since = prefs.getLong(Prefs.RECORDING_SINCE, 0)
         val path = prefs.getString(Prefs.RECORDING_FILE, null)
         if (since == 0L && path == null) return
-        prefs.edit().remove(Prefs.RECORDING_SINCE).remove(Prefs.RECORDING_FILE).apply()
+        val boot = prefs.getString(Prefs.RECORDING_BOOT, null)
+        val sleptThen = prefs.getLong(Prefs.RECORDING_SLEEP, -1)
+        val shutdown = prefs.getBoolean(Prefs.RECORDING_SHUTDOWN, false)
+        prefs.edit().remove(Prefs.RECORDING_SINCE).remove(Prefs.RECORDING_FILE)
+            .remove(Prefs.RECORDING_BOOT).remove(Prefs.RECORDING_SLEEP).remove(Prefs.RECORDING_SHUTDOWN).apply()
 
-        // Booted after the trip started → the tablet was switched off (with the car). Otherwise killed.
-        val bootedAt = System.currentTimeMillis() - SystemClock.elapsedRealtime()
-        val powerLoss = since > 0 && bootedAt > since
+        // The car switched the device off, and that is normal, if it rebooted, announced a shutdown, or went to deep sleep
+        // (head units sleep on ignition off and close apps). Wall clocks are not used: head units without a clock
+        // battery wake up in a wrong year (21.02) and only later get the time from GPS or the network.
+        val bootNow = bootId()
+        val rebooted = if (boot != null && bootNow != null) boot != bootNow else since > 0 && System.currentTimeMillis() - SystemClock.elapsedRealtime() > since
+        val sleptSince = sleptThen >= 0 && slept() - sleptThen > 30_000
+        val powerLoss = shutdown || rebooted || sleptSince
         if (since > 0 && !powerLoss) prefs.edit().putLong(Prefs.KILLED_AT, System.currentTimeMillis()).apply()
 
         val csv = path?.let(::File)?.takeIf { it.exists() && it.length() > 0 } ?: return
@@ -45,7 +63,7 @@ object Recovery {
             return
         }
         val stamp = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.ROOT).format(Date(csv.lastModified()))
-        val why = if (powerLoss) "питание планшета пропало (скорее всего, вместе с машиной)" else "Android остановил приложение в фоне"
+        val why = if (powerLoss) "устройство выключилось или уснуло (скорее всего, вместе с машиной)" else "Android остановил приложение в фоне"
         try {
             info.appendText("\n\n=== ЗАПИСЬ ПРЕРВАНА ===\nПоследняя строка записана около $stamp: $why. " +
                 "Данные до этого момента сохранены; итоговые коды ЭБУ в конце поездки не прочитаны.\n")

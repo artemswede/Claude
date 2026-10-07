@@ -42,14 +42,16 @@ jobs:
         id: screens
         continue-on-error: true
         run: |
-          ./gradlew --no-daemon :app:testDebugUnitTest
+          # Publish the screenshots even if a scene fails: the failure and its stack are in ux-report.txt.
+          ok=0; ./gradlew --no-daemon :app:testDebugUnitTest || ok=1
           # The trip report and the plan as PDF, printed by Chrome like the app's WebView does.
           R="$PWD/app/build/screens/report"
           cp -r app/src/main/assets/fonts "$R/"
           for f in trip_report plan; do
             google-chrome --headless --no-sandbox --disable-gpu --no-pdf-header-footer --print-to-pdf="$R/$f.pdf" "file://$R/$f.html" || true
           done
-          cd app/build/screens && zip -qr "../../../screens-${BORTACH_VERSION}.zip" .
+          (cd app/build/screens && zip -qr "../../../screens-${BORTACH_VERSION}.zip" .)
+          exit $ok
 
       - name: Name the APK
         run: cp app/build/outputs/apk/debug/app-debug.apk "Bortach-${BORTACH_VERSION}.apk"
@@ -83,7 +85,7 @@ jobs:
           files: obd-logger/Bortach-${{ env.BORTACH_VERSION }}.apk
 
       - name: Publish screenshots
-        if: steps.screens.outcome == 'success'
+        if: hashFiles(format('obd-logger/screens-{0}.zip', env.BORTACH_VERSION)) != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

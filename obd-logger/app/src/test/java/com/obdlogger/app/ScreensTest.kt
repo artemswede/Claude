@@ -83,15 +83,23 @@ class ScreensTest {
         val a = Robolectric.buildActivity(Activity::class.java).setup().get()
         val scenes = Scenes(a)
         val report = StringBuilder()
+        val failed = mutableListOf<String>()
         for ((name, build) in scenes.list()) {
-            val root = build()
-            shot(a, size, name, root)
+            // One broken scene must not hide the others: its stack goes to the report, the test fails at the end.
+            val root = try {
+                build().also { shot(a, size, name, it) }
+            } catch (e: Throwable) {
+                failed += name
+                report.append("== $name: ПАДЕНИЕ\n").append(e.stackTraceToString().lines().take(25).joinToString("\n")).append('\n')
+                continue
+            }
             val issues = UxAudit.check(root)
             report.append("== $name: ${if (issues.isEmpty()) "ok" else "${issues.size} замечаний"}\n")
             issues.forEach { report.append("   - ").append(it).append('\n') }
         }
         val dir = File(System.getProperty("screens.dir") ?: "build/screens", size).apply { mkdirs() }
         File(dir, "ux-report.txt").writeText(report.toString())
+        if (failed.isNotEmpty()) throw AssertionError("$size: сцены упали: $failed\n$report")
     }
 
     private fun shot(a: Activity, size: String, name: String, view: View) {

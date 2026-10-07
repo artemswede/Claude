@@ -422,7 +422,7 @@ class LanesView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
             fill.color = p.t1
             if (v.size < 400) for (i in v.indices) c.drawCircle(x(t[i]), y(v[i]), 2.2f * d, fill)
             // Label at the end of the line.
-            val ly = y(v.last()).coerceIn(top + nameP.textSize + 2 * d, bottom - valP.textSize - 2 * d)
+            val ly = y(v.last()).clamp(top + nameP.textSize + 2 * d, bottom - valP.textSize - 2 * d)
             fill.color = p.line2
             c.drawRect(right + 8 * d, ly - nameP.textSize, right + 10 * d, ly + valP.textSize + 4 * d, fill)
             val lx = right + 16 * d

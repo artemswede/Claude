@@ -136,7 +136,8 @@ class TripsView(
     /** «Машина: …» — trips of one car only; another car is picked here. */
     private fun carBar(m: TripsModel): View? {
         val car = m.car ?: return null
-        val name = com.obdlogger.app.Prefs.carName(context, car.key)?.takeIf { it.isNotBlank() } ?: car.name
+        val own = com.obdlogger.app.Prefs.carName(context, car.key)?.takeIf { it.isNotBlank() }
+        val name = own ?: car.name
         val many = m.cars.size > 1
         val t = context.text(if (many) "Машина: $name · другая ▾" else "Машина: $name", if (sc.phone) 14f else 16f, if (many) p.acc else p.t2, 600)
         if (many) t.tap()
@@ -147,8 +148,27 @@ class TripsView(
                 .setItems(names.toTypedArray()) { _, i -> onPickCar(m.cars[i].key) }
                 .show()
         }
-        t.setPadding(dp(sc.pad), dp(12), dp(sc.pad), dp(4))
-        return t
+        // The app is meant for several cars: an unnamed one is asked for a name right here, prominently.
+        val rename = context.text(if (own == null) "Назвать машину" else "Переименовать", if (sc.phone) 14f else 16f, if (own == null) p.acc else p.t3, 600).tap()
+        rename.setPadding(dp(12), dp(8), dp(12), dp(8))
+        if (own == null) rename.background = roundRect(p.accZ, dp(14).toFloat())
+        rename.setOnClickListener {
+            val field = android.widget.EditText(context).apply { setText(own.orEmpty()); hint = "Например: Avensis 2.0 D-4"; setSingleLine() }
+            android.app.AlertDialog.Builder(context)
+                .setTitle("Название машины")
+                .setMessage("По нему поездки разных машин не перепутаются ни в журнале, ни в отчётах.")
+                .setView(field)
+                .setPositiveButton("Сохранить") { _, _ ->
+                    com.obdlogger.app.Prefs.setCarName(context, car.key, field.text.toString().trim())
+                    onPickCar(car.key)
+                }
+                .setNegativeButton("Отмена", null)
+                .show()
+        }
+        t.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        val bar = row(context, dp(12), Gravity.CENTER_VERTICAL, t, rename)
+        bar.setPadding(dp(sc.pad), dp(10), dp(sc.pad), dp(4))
+        return bar
     }
 
     private fun journal(m: TripsModel): View {

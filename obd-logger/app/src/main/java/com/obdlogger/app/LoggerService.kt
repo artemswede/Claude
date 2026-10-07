@@ -73,6 +73,7 @@ class LoggerService : Service() {
             // Tablet shutting down (often together with the car): get the trip onto storage now.
             if (intent.action == Intent.ACTION_SHUTDOWN || intent.action == "android.intent.action.QUICKBOOT_POWEROFF") {
                 trace("shutdown broadcast: syncing the trip")
+                Prefs.of(context).edit().putBoolean(Prefs.RECORDING_SHUTDOWN, true).commit()
                 currentTrip?.let { syncTrip(it, force = true) }
                 return
             }
@@ -325,7 +326,9 @@ class LoggerService : Service() {
         trace("trip start; app ${BuildConfig.VERSION_NAME}; Android ${Build.VERSION.RELEASE} (${Build.MANUFACTURER} ${Build.MODEL}); auto=$auto")
         trace("adapter: $adapterInfo; protocol: ${s.protocolName} (#${s.protocolNumber})")
         tripLock?.acquire(12 * 60 * 60 * 1000L)
-        Prefs.of(this).edit().putLong(Prefs.RECORDING_SINCE, System.currentTimeMillis()).apply()
+        Prefs.of(this).edit().putLong(Prefs.RECORDING_SINCE, System.currentTimeMillis())
+            .putString(Prefs.RECORDING_BOOT, Recovery.bootId()).putLong(Prefs.RECORDING_SLEEP, Recovery.slept())
+            .remove(Prefs.RECORDING_SHUTDOWN).apply()
         LoggerState.resetMarkers()
         LoggerState.update { it.copy(recording = true, rows = 0, markers = 0, exported = emptyList(), status = "Чтение VIN, датчиков и ошибок…") }
         if (auto) openUi()
@@ -528,6 +531,7 @@ class LoggerService : Service() {
             t.csvStream?.fd?.sync()
         } catch (_: Exception) {
         }
+        Prefs.of(this).edit().putLong(Prefs.RECORDING_SLEEP, Recovery.slept()).apply()
     }
 
     /** Closes a trip: final trouble codes, report with analysis and comparison, export to Downloads. */
@@ -563,7 +567,8 @@ class LoggerService : Service() {
         if (traceTarget === t.trace) traceTarget = null
         tripLock?.let { if (it.isHeld) it.release() }
         if (currentTrip === t) currentTrip = null
-        Prefs.of(this).edit().remove(Prefs.RECORDING_SINCE).remove(Prefs.RECORDING_FILE).apply()
+        Prefs.of(this).edit().remove(Prefs.RECORDING_SINCE).remove(Prefs.RECORDING_FILE)
+            .remove(Prefs.RECORDING_BOOT).remove(Prefs.RECORDING_SLEEP).remove(Prefs.RECORDING_SHUTDOWN).apply()
 
         if (rows == 0 && autoMode) {
             // Auto mode probed the ECU but nothing was recorded: no empty trip files.

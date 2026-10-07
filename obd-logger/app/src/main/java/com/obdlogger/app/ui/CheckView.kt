@@ -250,7 +250,7 @@ class CheckView(ctx: Context, private val sc: Bt.Scale, private val actions: Che
             val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = p.t2; textSize = 14 * d; typeface = Bt.sans(context) }
             for (v in listOf(lo, st.step.lo.toDouble(), st.step.hi.toDouble(), hi)) {
                 val s = v.toInt().toString()
-                c.drawText(s, (x(v) - t.measureText(s) / 2).coerceIn(0f, w - t.measureText(s)), barH + 18 * d, t)
+                c.drawText(s, (x(v) - t.measureText(s) / 2).clamp(0f, w - t.measureText(s)), barH + 18 * d, t)
             }
         }
     }

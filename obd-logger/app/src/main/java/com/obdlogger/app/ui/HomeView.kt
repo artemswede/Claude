@@ -144,8 +144,8 @@ class HomeView(
         val actions = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         addTo(actions, button(pr.action) { pr.onAction() })
         pr.dismiss?.let { d -> addTo(actions, context.text("Понятно", sc.btnFont, p.acc, 600).apply { setPadding(dp(16), dp(12), dp(16), dp(12)); setOnClickListener { d() } }.tap(), dp(12)) }
-        pr.hint?.let { addTo(actions, context.text(it, sc.cap, p.t2).apply { maxWidth = dp(300) }, dp(16)) }
         addTo(box, actions, dp(18))
+        pr.hint?.let { addTo(box, context.text(it, sc.cap, p.t2), dp(4)) }
         val cardView = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             background = roundRect(p.s1, dp(18).toFloat())
@@ -154,12 +154,17 @@ class HomeView(
         cardView.addView(View(context).apply { setBackgroundColor(p.amb) }, LinearLayout.LayoutParams(dp(6), ViewGroup.LayoutParams.MATCH_PARENT))
         box.setPadding(dp(if (sc.phone) 20 else 40), dp(if (sc.phone) 20 else 36), dp(if (sc.phone) 20 else 40), dp(if (sc.phone) 20 else 36))
         cardView.addView(box, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        val veil = FrameLayout(context).apply {
+        // Scrolls: on a 400 dp head unit the text alone can push the buttons off the screen.
+        val holder = FrameLayout(context).apply {
+            addView(cardView, LayoutParams(if (sc.phone) ViewGroup.LayoutParams.MATCH_PARENT else dp(820), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER).apply {
+                setMargins(dp(16), dp(16), dp(16), dp(16))
+            })
+        }
+        val veil = android.widget.ScrollView(context).apply {
             setBackgroundColor(p.bg)
             isClickable = true
-            addView(cardView, LayoutParams(if (sc.phone) ViewGroup.LayoutParams.MATCH_PARENT else dp(820), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER).apply {
-                leftMargin = dp(16); rightMargin = dp(16)
-            })
+            isFillViewport = true
+            addView(holder, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
         problemView = veil
         addView(veil)

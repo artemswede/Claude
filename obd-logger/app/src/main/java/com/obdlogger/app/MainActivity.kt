@@ -186,13 +186,24 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         val killed = Prefs.killedAt(this)
         val wantsCar = Prefs.auto(this) || s.running
         return when {
-            killed > 0 -> HomeView.Problem(
-                "Запись", "Система остановила запись",
-                "В ${java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.ROOT).format(java.util.Date(killed))} Android закрыл Бортач в фоне. " +
-                    "Записанное до этого момента сохранено в «Поездках». Чтобы это не повторялось, снимите ограничение батареи.",
-                "Снять ограничение", { askBattery(); clearKilled() },
-                dismiss = { clearKilled() },
-            )
+            // Not while a trip is being recorded: then it already works, the notice waits for the stop.
+            killed > 0 && !s.recording -> {
+                // A crash left its report: that is our fault, not a background limit.
+                val crashed = CrashLog.files(this).firstOrNull()?.let { it.lastModified() > killed - 12 * 60 * 60 * 1000L } == true
+                if (crashed) HomeView.Problem(
+                    "Запись", "Бортач закрылся с ошибкой",
+                    "Прошлая запись оборвалась из-за ошибки в приложении. Записанное до этого момента сохранено в «Поездках». " +
+                        "Отправьте отчёт об ошибке — по нему её исправят.",
+                    "Отправить отчёт", { shareCrashes(); clearKilled() },
+                    dismiss = { clearKilled() },
+                ) else HomeView.Problem(
+                    "Запись", "Система остановила запись",
+                    "Прошлая запись оборвалась, хотя устройство оставалось включённым: Android закрыл Бортач в фоне. " +
+                        "Записанное до этого момента сохранено в «Поездках». Чтобы это не повторялось, снимите ограничение батареи.",
+                    "Снять ограничение", { askBattery(); clearKilled() },
+                    dismiss = { clearKilled() },
+                )
+            }
             wantsCar && Prefs.device(this) != null && !hasBluetoothPermission() -> HomeView.Problem(
                 "Разрешения", "Нет разрешения на Bluetooth",
                 "Без разрешения «Устройства поблизости» Бортач не может подключиться к адаптеру.",

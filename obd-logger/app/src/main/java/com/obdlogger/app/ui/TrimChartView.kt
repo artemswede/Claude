@@ -134,7 +134,7 @@ class TrimChartView(ctx: Context) : View(ctx) {
                 val m = tMax * k / 4
                 val label = start.plusSeconds((m * 60).toLong()).format(clock)
                 val w = text.measureText(label)
-                val cx = (x(m) - w / 2).coerceIn(plot.left - dp(4), plot.right - w)
+                val cx = (x(m) - w / 2).clamp(plot.left - dp(4), plot.right - w)
                 canvas.drawText(label, cx, height - dp(4).toFloat(), text)
             }
         }
@@ -181,7 +181,7 @@ class TrimChartView(ctx: Context) : View(ctx) {
 
         // Name and value at the end of the line, at its height.
         val lv = v[pts.last()]
-        val ly = y(lv).coerceIn(plot.top + sp(sc.endLbl), plot.bottom - sp(sc.endLbl))
+        val ly = y(lv).clamp(plot.top + sp(sc.endLbl), plot.bottom - sp(sc.endLbl))
         text.typeface = Bt.sans(context, 400)
         text.textSize = sp(sc.endLbl)
         text.color = p.t1

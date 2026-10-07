@@ -18,6 +18,11 @@ object Prefs {
     const val KILLED_AT = "killed_at"
     const val RECORDING_SINCE = "recording_since"
     const val RECORDING_FILE = "recording_file"
+    /** Boot of the device the trip started in, and its deep-sleep total at the last sync (see [Recovery]). */
+    const val RECORDING_BOOT = "recording_boot"
+    const val RECORDING_SLEEP = "recording_sleep"
+    /** Set by the shutdown broadcast: the device is going off together with the car. */
+    const val RECORDING_SHUTDOWN = "recording_shutdown"
     const val SEEN_TRIP = "seen_trip"
 
     fun of(ctx: Context): SharedPreferences = ctx.getSharedPreferences("settings", Context.MODE_PRIVATE)

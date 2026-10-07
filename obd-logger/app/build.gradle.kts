@@ -50,7 +50,10 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
-            all { it.systemProperty("screens.dir", layout.buildDirectory.dir("screens").get().asFile.absolutePath) }
+            all {
+                it.systemProperty("screens.dir", layout.buildDirectory.dir("screens").get().asFile.absolutePath)
+                it.testLogging { exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
+            }
         }
     }
 
