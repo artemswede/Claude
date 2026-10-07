@@ -84,7 +84,8 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         charts.setPadding(dp(if (sc.phone) 8 else 16), dp(8), dp(if (sc.phone) 8 else 16), dp(8))
         charts.addView(lanes, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         addTo(charts, ctx.text("точка = реальный замер · подпись у конца линии · подложка — норма", 13f, p.t3).apply { gravity = Gravity.END }, dp(4))
-        addTo(panelRight, modeText)
+        // Short screens: the mode is written on the tiles anyway; the room goes to pages and «Датчики».
+        if (!sc.compact) addTo(panelRight, modeText)
         addTo(panelRight, pageText, dp(4))
         addTo(panelRight, menuText, dp(4))
         for (v in listOf(panel, attn, charts)) pages.addView(v, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -154,7 +155,7 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             else -> modeText
         }
         if (i != 0 && modeText.parent === panelRight) panelRight.removeView(modeText)
-        if (i == 0 && modeText.parent !== panelRight) { (modeText.parent as? ViewGroup)?.removeView(modeText); panelRight.addView(modeText, 0) }
+        if (i == 0 && !sc.compact && modeText.parent !== panelRight) { (modeText.parent as? ViewGroup)?.removeView(modeText); panelRight.addView(modeText, 0) }
         (right.parent as? ViewGroup)?.removeView(right)
         tabs.setRight(right)
         refresh()
