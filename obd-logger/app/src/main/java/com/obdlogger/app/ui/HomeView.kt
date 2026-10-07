@@ -159,7 +159,9 @@ class HomeView(
         cardView.addView(box, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         // Scrolls: on a 400 dp head unit the text alone can push the buttons off the screen.
         val holder = FrameLayout(context).apply {
-            addView(cardView, LayoutParams(if (sc.phone) ViewGroup.LayoutParams.MATCH_PARENT else dp(820), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER).apply {
+            // 820 dp on a tablet; on a narrower screen (head unit next to the rail) the full width.
+            val narrow = sc.phone || resources.configuration.screenWidthDp < 820 + sc.railW + 64
+            addView(cardView, LayoutParams(if (narrow) ViewGroup.LayoutParams.MATCH_PARENT else dp(820), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER).apply {
                 setMargins(dp(16), dp(16), dp(16), dp(16))
             })
         }
