@@ -63,6 +63,11 @@ class ScreensTest {
     @Config(qualifiers = "w683dp-h400dp-land-mdpi")
     fun headUnit() = all("headunit")
 
+    /** The owner's head unit: 1024×600 at 1.4 after the Android bars and [com.obdlogger.app.UiScale] ≈ 731×400 dp. */
+    @Test
+    @Config(qualifiers = "w731dp-h400dp-land-mdpi")
+    fun headUnitWide() = all("headunit731")
+
     /** Regression: a gauge with no room used to hang the app on «Внимание» (head unit). */
     @Test(timeout = 20_000)
     @Config(qualifiers = "w683dp-h400dp-land-mdpi")

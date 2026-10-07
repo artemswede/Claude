@@ -139,7 +139,7 @@ class TileView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
             c.restore()
         }
 
-        val pad = 18 * d
+        val pad = (if (h < 170 * d) 12 else 18) * d
         // Sizes follow the tile, so 8 tiles fit on 1024×600 and on a phone alike.
         val base = min(h / 9.5f, w / 11f)
         val name = paint(0f, p.t1, 500).apply { textSize = base * 0.95f }
@@ -148,10 +148,16 @@ class TileView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
         val unitP = paint(0f, p.t2, 400).apply { textSize = base * 1.0f }
         val note = paint(0f, if (out) p.amb else p.t3, 400).apply { textSize = base * 0.78f }
 
+        // Short tile (head unit): no code line, and the value never runs into the note below it.
+        val short = h < 170 * d
         var y = pad + name.textSize
         c.drawText(ellipsize(SensorNames.label(code), name, w - 2 * pad), pad, y, name)
-        y += sub.textSize + 4 * d
-        c.drawText(ellipsize(SensorNames.source(code), sub, w - 2 * pad), pad, y, sub)
+        if (!short) {
+            y += sub.textSize + 4 * d
+            c.drawText(ellipsize(SensorNames.source(code), sub, w - 2 * pad), pad, y, sub)
+        }
+        val noteTop = h - pad - h * 0.12f - 10 * d - note.textSize - 4 * d
+        big.textSize = min(big.textSize, ((noteTop - y - 6 * d) / 0.95f).coerceAtLeast(10 * d))
 
         val v = Num.fmt(code, value)
         val unit = SensorNames.unit(code)
@@ -252,19 +258,24 @@ class GaugeView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
         c.drawRoundRect(fill.strokeWidth / 2, fill.strokeWidth / 2, w - fill.strokeWidth / 2, h - fill.strokeWidth / 2, r, r, fill)
         fill.style = Paint.Style.FILL
 
-        val pad = 16 * d
-        val base = min(h / 12f, w / 14f)
+        // A short wide card (head unit): gauge on the left, words on the right, instead of a squeezed column.
+        val side = h < 190 * d && w > h * 1.5f
+        val pad = (if (side) 12 else 16) * d
+        val base = if (side) min(h / 8f, w / 20f) else min(h / 12f, w / 14f)
+        val sideR = if (side) max((h - 2 * pad) / 1.55f, 14 * d) else 0f
+        // Left edge of the text column.
+        val tx = if (side) pad + 2 * sideR + 16 * d else pad
         // Rank badge and chip.
         val badge = paint(0f, p.bg, 600, mono = true).apply { textSize = base * 0.9f }
         val bt = "№$rank"
         val bw = badge.measureText(bt) + 16 * d
         val bh = badge.textSize + 12 * d
         fill.color = p.t1
-        c.drawRoundRect(pad, pad, pad + bw, pad + bh, 6 * d, 6 * d, fill)
-        c.drawText(bt, pad + 8 * d, pad + bh - 6 * d - badge.descent() / 2, badge)
+        c.drawRoundRect(tx, pad, tx + bw, pad + bh, 6 * d, 6 * d, fill)
+        c.drawText(bt, tx + 8 * d, pad + bh - 6 * d - badge.descent() / 2, badge)
         moved?.let { m ->
             val mp = paint(0f, p.acc, 600).apply { textSize = base * 0.8f }
-            c.drawText(m, pad + bw + 10 * d, pad + bh - 6 * d, mp)
+            c.drawText(m, tx + bw + 10 * d, pad + bh - 6 * d, mp)
         }
         val chipText = when {
             it.norm == null && !Norms.isFrontO2(it.code) -> "без нормы"
@@ -285,9 +296,9 @@ class GaugeView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
         val bottom = h - pad - textBlock
         // Never zero or negative: on a short head-unit screen the card can be tiny,
         // and a non-positive radius used to spin the font-fitting loop below forever.
-        val radius = max(min((bottom - top) / 1.55f, (w - 2 * pad) / 2.4f), 14 * d)
-        val cx = w / 2
-        val cy = top + radius + 4 * d
+        val radius = if (side) sideR else max(min((bottom - top) / 1.55f, (w - 2 * pad) / 2.4f), 14 * d)
+        val cx = if (side) pad + radius else w / 2
+        val cy = if (side) pad + radius + 2 * d else top + radius + 4 * d
         val oval = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
         val stroke = radius * 0.13f
         arc.strokeWidth = stroke
@@ -324,11 +335,13 @@ class GaugeView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
 
         val codeP = paint(0f, p.t3, 500, mono = true).apply { textSize = base * 0.7f }
         val name = SensorNames.label(it.code)
+        val tw = w - pad - tx
         val ny = h - pad - noteP.textSize - 8 * d
-        val nameShown = ellipsize(name, nameP, w - 2 * pad - codeP.measureText(" · ${it.code}"))
-        c.drawText(nameShown, pad, ny, nameP)
-        c.drawText(" · ${SensorNames.source(it.code)}".let { s -> ellipsize(s, codeP, w - 2 * pad - nameP.measureText(nameShown)) }, pad + nameP.measureText(nameShown), ny, codeP)
-        c.drawText(ellipsize(it.note, noteP, w - 2 * pad), pad, h - pad, noteP)
+        val nameShown = ellipsize(name, nameP, tw - (if (side) 0f else codeP.measureText(" · ${it.code}")))
+        c.drawText(nameShown, tx, ny, nameP)
+        // The code line is for the specialist: dropped when the card is short.
+        if (!side) c.drawText(" · ${SensorNames.source(it.code)}".let { s -> ellipsize(s, codeP, tw - nameP.measureText(nameShown)) }, tx + nameP.measureText(nameShown), ny, codeP)
+        c.drawText(ellipsize(it.note, noteP, tw), tx, h - pad, noteP)
     }
 }
 

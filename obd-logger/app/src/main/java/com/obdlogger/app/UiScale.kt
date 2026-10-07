@@ -28,8 +28,12 @@ object UiScale {
         var d = density
         if (wPx > hPx && hPx / d < MIN_HEIGHT_DP) d = hPx / MIN_HEIGHT_DP
         d /= factor(base)
-        if (kotlin.math.abs(d - density) < 0.01f) return base
+        // Head units often ship with a large system font; sizes here are already set for the car,
+        // and an extra 1.3× makes values run into labels. The owner's size is «Масштаб интерфейса».
+        val font = minOf(cfg.fontScale, 1f)
+        if (kotlin.math.abs(d - density) < 0.01f && font == cfg.fontScale) return base
         val c = Configuration(cfg)
+        c.fontScale = font
         c.densityDpi = (d * 160).toInt()
         c.screenWidthDp = (wPx / d).toInt()
         c.screenHeightDp = (hPx / d).toInt()

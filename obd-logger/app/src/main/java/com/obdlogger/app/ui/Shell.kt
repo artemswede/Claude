@@ -88,20 +88,23 @@ class Shell(private val activity: Activity) {
         addTo(bar, spacer(ctx))
         dtcChip.setPadding(ctx.dp(12), ctx.dp(4), ctx.dp(12), ctx.dp(4))
         addTo(bar, dtcChip, ctx.dp(12))
-        addTo(bar, rec, ctx.dp(16))
         lampPill.orientation = LinearLayout.HORIZONTAL
         lampPill.gravity = Gravity.CENTER_VERTICAL
         lampPill.setPadding(ctx.dp(14), ctx.dp(14), ctx.dp(14), ctx.dp(14))
         lampPill.minimumHeight = ctx.dp(44)
         // Left to right as the chain goes: ECU sees the engine → Бортач sees the ECU → Бортач writes.
-        for ((i, l) in listOf(lamp1, lamp2, lamp3).withIndex()) {
+        for ((i, l) in listOf(lamp1, lamp2).withIndex()) {
             lampPill.addView(l, LinearLayout.LayoutParams(ctx.dp(sc.lamp), ctx.dp(sc.lamp)).apply { if (i > 0) leftMargin = ctx.dp(10) })
         }
         lampPill.elevation = ctx.dp(1).toFloat()
         lampPill.contentDescription = "Лампы: двигатель, связь с ЭБУ, запись — подробнее"
         lampPill.setOnClickListener { showLampTip() }
         addTo(bar, lampPill, ctx.dp(14))
-        if (!sc.phone) addTo(bar, upd, ctx.dp(14))
+        // The writing lamp blinks right at «REC»: chain reads engine · ECU link → ● REC.
+        lamp3.layoutParams = LinearLayout.LayoutParams(ctx.dp(sc.lamp), ctx.dp(sc.lamp))
+        addTo(bar, row(ctx, ctx.dp(8), Gravity.CENTER_VERTICAL, lamp3, rec).apply { setOnClickListener { showLampTip() } }, ctx.dp(14))
+        // «обновлено N с назад» is in the lamp tip; short screens keep the room for the rest.
+        if (!sc.phone && !sc.compact) addTo(bar, upd, ctx.dp(14))
         root.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ctx.dp(sc.sbarH)))
 
         // Navigation + pages.
@@ -189,7 +192,7 @@ class Shell(private val activity: Activity) {
         snapshot = s
         val name = Prefs.vehicle(ctx)
         val unnamed = name.isBlank() && Prefs.currentCar(ctx) != null
-        car.text = if (unnamed) "Новая машина · указать название" else name
+        car.text = if (unnamed) (if (sc.compact) "Назвать машину" else "Новая машина · указать название") else name
         val showCar = !sc.phone && car.text.isNotEmpty()
         car.visibility = if (showCar) View.VISIBLE else View.GONE
         sep.visibility = car.visibility
@@ -199,6 +202,7 @@ class Shell(private val activity: Activity) {
         lamp2.background = roundRect(lampColor(s.link), ctx.dp(sc.lamp).toFloat())
         val writing = writeLamp(s)
         lamp3.background = roundRect(lampColor(writing), ctx.dp(sc.lamp).toFloat())
+        lamp3.visibility = if (s.recording) View.VISIBLE else View.GONE
         if (writing == Lamp.OK) {
             if (!blink.isStarted) blink.start()
         } else {
@@ -219,7 +223,7 @@ class Shell(private val activity: Activity) {
             else -> "данные от " + java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.ROOT).format(java.util.Date(s.lastDataMs))
         }
         val codes = Regex("Ошибки: ([^\\n]+)").find(s.dtcInfo)?.groupValues?.get(1)?.takeIf { it.contains(Regex("[PCBU][0-9A-F]{4}")) }
-        dtcChip.text = codes?.let { "$it · Check Engine" } ?: ""
+        dtcChip.text = codes?.let { if (sc.compact) it else "$it · Check Engine" } ?: ""
         dtcChip.visibility = if (codes != null) View.VISIBLE else View.GONE
     }
 
