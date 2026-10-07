@@ -122,7 +122,7 @@ class TripsView(
         body.removeAllViews()
         if (tabs.selected == 0) {
             val withVersion = m.trips.count { it.summary.top != null && it.summary.durationMin >= HomeLogic.NEED_TRIP_MIN }
-            journalFilter.setTitles(listOf("Все · ${m.items.size}", "С версией · $withVersion", "Проверочные · ${m.checks.size}"))
+            journalFilter.setTitles(listOf("Все · ${m.items.size}", "С версией · $withVersion", (if (sc.compact) "Провер. · " else "Проверочные · ") + m.checks.size))
             tabs.setRight(if (sc.phone) null else journalFilter.detached())
             body.addView(ScrollView(context).apply { addView(journal(m)) })
         } else {

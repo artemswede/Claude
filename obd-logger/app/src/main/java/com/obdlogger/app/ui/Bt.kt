@@ -83,7 +83,7 @@ object Bt {
     val WIDE = Scale(
         lbl = 13f, hxl = 24f, hl = 20f, hm = 17f, hs = 15f, pl = 15f, p = 14f, cap = 13f, code = 12f, conf = 13f,
         evLabel = 15f, evValue = 18f, evPad = 6, sbarH = 48, sbarFont = 14f, brandFont = 15f, lamp = 12,
-        railW = 80, riH = 64, riFont = 13f, riIcon = 26, btnH = 48, btnFont = 15f, btnBigH = 52, btnBigFont = 16f,
+        railW = 88, riH = 64, riFont = 13f, riIcon = 26, btnH = 48, btnFont = 15f, btnBigH = 52, btnBigFont = 16f,
         endLbl = 13f, axis = 12f, botH = 56, pad = 16, gap = 16, tileValue = 36f, phone = false, compact = true,
     )
     val PHONE = Scale(

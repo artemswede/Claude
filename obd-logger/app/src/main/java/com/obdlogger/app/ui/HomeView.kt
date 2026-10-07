@@ -49,9 +49,10 @@ class HomeView(
     private val spark = Sparkline(ctx)
     private val trendTitle = ctx.text("", if (sc.phone) 15f else if (sc === Bt.TABLET) 17f else 14f, p.t1, 600, maxLines = 2)
     private val trendValues = ctx.text("", if (sc.phone) 13f else if (sc === Bt.TABLET) 15f else 13f, p.t2, 400, mono = true, maxLines = 1)
-    private val testButton = ctx.text("Записать проверочный лог", sc.btnBigFont, p.accInk, 600).apply {
+    // Head unit: the short label leaves the trip and trend lines their room.
+    private val testButton = ctx.text(if (sc === Bt.WIDE) "Проверочный лог" else "Записать проверочный лог", sc.btnBigFont, p.accInk, 600).apply {
         gravity = Gravity.CENTER
-        setPadding(dp(28), 0, dp(28), 0)
+        setPadding(dp(if (sc === Bt.WIDE) 18 else 28), 0, dp(if (sc === Bt.WIDE) 18 else 28), 0)
         background = roundRect(p.acc, dp(16).toFloat())
         val ic = context.getDrawable(R.drawable.ic_timer)!!.tinted(p.accInk)
         val s = dp(if (sc === Bt.TABLET) 28 else 22)
