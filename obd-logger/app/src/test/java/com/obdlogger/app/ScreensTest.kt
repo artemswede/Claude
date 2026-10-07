@@ -239,6 +239,7 @@ class Scenes(private val a: Activity) {
             "D_notrips" to { home(LoggerState.Snapshot(), emptyList(), null) },
             "G1_panel" to { record(0, recording) },
             "G3_attention" to { record(1, recording) },
+            "G1b_panel_page2" to { shell(Shell.Page.RECORD, recording) { sh -> RecordView(a, sh.sc).apply { bind(liveStore, recording); showTab(0); showPanelPage(1) } } },
             "G2_charts" to { record(2, recording) },
             "N2_stale" to { record(0, off) },
             "V1_journal" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc, {}).apply { bind(TripsModel.from(Samples.realItems)) } } },

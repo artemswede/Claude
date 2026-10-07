@@ -25,6 +25,8 @@ object Prefs {
     const val RECORDING_SHUTDOWN = "recording_shutdown"
     const val SEEN_TRIP = "seen_trip"
     const val UI_SCALE = "ui_scale"
+    const val PANEL_SORT = "panel_sort"
+    const val PANEL_HIDDEN = "panel_hidden"
 
     fun of(ctx: Context): SharedPreferences = ctx.getSharedPreferences("settings", Context.MODE_PRIVATE)
     fun device(ctx: Context): String? = of(ctx).getString(DEVICE, null)
@@ -59,6 +61,13 @@ object Prefs {
     /** Sensors on the record panel tiles, in order; empty = default set. */
     fun tiles(ctx: Context): List<String> = of(ctx).getString(TILES, null)?.split(",")?.filter { it.isNotBlank() }.orEmpty()
     fun setTiles(ctx: Context, codes: List<String>) = of(ctx).edit().putString(TILES, codes.joinToString(",")).apply()
+    /** Panel order: [com.obdlogger.core.PanelSort] name. */
+    fun panelSort(ctx: Context): com.obdlogger.core.PanelSort =
+        of(ctx).getString(PANEL_SORT, null)?.let { n -> com.obdlogger.core.PanelSort.entries.firstOrNull { it.name == n } } ?: com.obdlogger.core.PanelSort.PROBLEM
+    fun setPanelSort(ctx: Context, s: com.obdlogger.core.PanelSort) = of(ctx).edit().putString(PANEL_SORT, s.name).apply()
+    /** Sensors switched off on the panel; null = never chosen (raw bytes off). */
+    fun panelHidden(ctx: Context): Set<String>? = of(ctx).getString(PANEL_HIDDEN, null)?.split(",")?.filter { it.isNotBlank() }?.toSet()
+    fun setPanelHidden(ctx: Context, codes: Set<String>) = of(ctx).edit().putString(PANEL_HIDDEN, codes.joinToString(",")).apply()
     /** The first-run wizard was finished (or skipped). */
     fun setupDone(ctx: Context): Boolean = of(ctx).getBoolean(SETUP_DONE, false)
     /** When the system last killed the service mid-recording; 0 = never / acknowledged. */

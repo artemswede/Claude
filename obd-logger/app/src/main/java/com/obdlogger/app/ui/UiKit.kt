@@ -140,3 +140,40 @@ fun hline(ctx: Context, color: Int): View = View(ctx).apply {
     setBackgroundColor(color)
     layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ctx.dp(1))
 }
+
+/**
+ * Pages by a horizontal swipe while leaving taps, long presses and vertical scrolling
+ * to the children: [onPage] gets +1 (swipe left) or −1 (swipe right).
+ */
+class SwipePager(ctx: Context, private val onPage: (Int) -> Unit) : FrameLayout(ctx) {
+    private val slop = android.view.ViewConfiguration.get(ctx).scaledTouchSlop
+    private var x0 = 0f
+    private var y0 = 0f
+    private var dragging = false
+
+    override fun onInterceptTouchEvent(e: android.view.MotionEvent): Boolean {
+        when (e.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> { x0 = e.x; y0 = e.y; dragging = false }
+            android.view.MotionEvent.ACTION_MOVE -> {
+                val dx = e.x - x0
+                val dy = e.y - y0
+                if (!dragging && kotlin.math.abs(dx) > slop * 2 && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.5f) dragging = true
+            }
+        }
+        return dragging
+    }
+
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(e: android.view.MotionEvent): Boolean {
+        when (e.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> { x0 = e.x; y0 = e.y }
+            android.view.MotionEvent.ACTION_UP -> {
+                val dx = e.x - x0
+                if (kotlin.math.abs(dx) > width / 8f) onPage(if (dx < 0) 1 else -1)
+                dragging = false
+            }
+            android.view.MotionEvent.ACTION_CANCEL -> dragging = false
+        }
+        return true
+    }
+}

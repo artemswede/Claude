@@ -35,6 +35,30 @@ class ScreensLogicTest {
     }
 
     @Test
+    fun panelShowsEverySensorWithTheProblemFirst() {
+        val s = store(CarProfile.LEAN_IDLE, 13.3)
+        val all = Panel.order(s, PanelSort.PROBLEM, emptyList(), null)
+        assertEquals("trim_b1", all.first())
+        // All decoded sensors, more than one page; raw bytes are off by default.
+        assertTrue(all.size > Panel.PER_PAGE, all.toString())
+        assertTrue(all.none { Panel.isRaw(it) || it == "t_s" || it == "time" }, all.toString())
+        assertTrue("speed_kmh" in all && "intake_air_c" in all, all.toString())
+        assertEquals(all.toSet(), Panel.order(s, PanelSort.JUMPS, emptyList(), null).toSet())
+    }
+
+    @Test
+    fun panelKeepsTheOwnersOrderAndHidesSwitchedOff() {
+        val s = store(CarProfile.LEAN_IDLE, 13.3)
+        val hidden = setOf("trim_b2", "speed_kmh")
+        val custom = Panel.order(s, PanelSort.CUSTOM, listOf("coolant_c", "rpm", "trim_b2"), hidden)
+        assertEquals(listOf("coolant_c", "rpm"), custom.take(2))
+        assertTrue(hidden.none { it in custom })
+        assertTrue(hidden.none { it in Panel.order(s, PanelSort.PROBLEM, emptyList(), hidden) })
+        assertEquals(1, Panel.pages(0))
+        assertEquals(2, Panel.pages(9))
+    }
+
+    @Test
     fun healthyCarHasNothingOutOfNormOnIdle() {
         val s = store(CarProfile.HEALTHY, 13.3)
         val ranked = Attention.rank(s)

@@ -14,11 +14,15 @@ import com.obdlogger.app.R
 import com.obdlogger.core.Attention
 import com.obdlogger.core.AttentionSort
 import com.obdlogger.core.LiveMode
+import com.obdlogger.core.Panel
+import com.obdlogger.core.PanelSort
 import com.obdlogger.core.SensorNames
 import com.obdlogger.core.SeriesStore
 
 /**
- * «Запись» (Г1–Г3, Н2), dark theme: panel of 8 tiles, «Внимание» with arc gauges of
+ * «Запись» (Г1–Г3, Н2), dark theme: panel of every sensor, 8 tiles a page (swipe for
+ * the next; problem sensors first, by jumps or in the owner's order, minus the ones
+ * switched off), «Внимание» with arc gauges of
  * the most unstable sensors, and lane charts. When nothing is being recorded the
  * last recording is shown greyed with a banner saying when it stopped.
  */
@@ -36,7 +40,21 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
     }
     private val modeText = ctx.text("", if (sc.phone) 12f else 15f, p.t2, maxLines = 1)
     private val pages = FrameLayout(ctx)
-    private val panel = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+    private val panel = SwipePager(ctx) { step -> panelPage += step; refresh() }
+    private var panelPage = 0
+    /** Sensors in the order the panel shows them, all pages. */
+    private var panelCodes: List<String> = emptyList()
+    private var orderAt = 0L
+    private var orderDirty = true
+    private val pageText = ctx.text("", if (sc.phone) 13f else 15f, p.t2, 600, maxLines = 1).apply {
+        setPadding(dp(10), dp(8), dp(10), dp(8))
+        setOnClickListener { panelPage++; refresh() }
+    }.tap()
+    private val menuText = ctx.text("Датчики ▾", if (sc.phone) 13f else 15f, p.acc, 600, maxLines = 1).apply {
+        setPadding(dp(10), dp(8), dp(10), dp(8))
+        setOnClickListener { panelMenu() }
+    }.tap()
+    private val panelRight = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
     private val attn = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
     private val charts = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
     private val tiles = ArrayList<TileView>()
@@ -66,20 +84,16 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         charts.setPadding(dp(if (sc.phone) 8 else 16), dp(8), dp(if (sc.phone) 8 else 16), dp(8))
         charts.addView(lanes, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         addTo(charts, ctx.text("точка = реальный замер · подпись у конца линии · подложка — норма", 13f, p.t3).apply { gravity = Gravity.END }, dp(4))
+        addTo(panelRight, modeText)
+        addTo(panelRight, pageText, dp(4))
+        addTo(panelRight, menuText, dp(4))
         for (v in listOf(panel, attn, charts)) pages.addView(v, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         tabs.select(0)
     }
 
-    private fun tileCodes(columns: List<String>): List<String> {
-        val saved = Prefs.tiles(context)
-        val base = saved.ifEmpty { DEFAULT_TILES }
-        val chosen = base.filter { it in columns }.toMutableList()
-        // Fill up with what this car has, most useful first.
-        for (c in Attention.INTERESTING + columns) {
-            if (chosen.size >= 8) break
-            if (c !in chosen && c in columns && !c.startsWith("pid01_") && !c.startsWith("m21_")) chosen += c
-        }
-        return chosen.take(8)
+    private fun panelOrder(s: SeriesStore): List<String> {
+        val custom = Prefs.tiles(context).ifEmpty { DEFAULT_TILES }
+        return Panel.order(s, Prefs.panelSort(context), custom, Prefs.panelHidden(context))
     }
 
     private fun buildPanel() {
@@ -92,13 +106,13 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
             for (c in 0 until cols) {
                 val t = TileView(context, p)
-                t.onLongPick = { code -> pickSensor(tiles.indexOf(t), code) }
+                t.onLongPick = { code -> tileMenu(code) }
                 tiles += t
                 row.addView(t, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply { if (c > 0) leftMargin = gap })
             }
             grid.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, if (sc.phone) dp(176) else 0, if (sc.phone) 0f else 1f).apply { if (r > 0) topMargin = gap })
         }
-        if (sc.phone) panel.addView(ScrollView(context).apply { addView(grid) }) else panel.addView(grid, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        if (sc.phone) panel.addView(ScrollView(context).apply { addView(grid) }) else panel.addView(grid, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
     }
 
     private fun buildAttention() {
@@ -134,21 +148,125 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         panel.visibility = if (i == 0) VISIBLE else GONE
         attn.visibility = if (i == 1) VISIBLE else GONE
         charts.visibility = if (i == 2) VISIBLE else GONE
-        tabs.setRight(if (i == 2) windowSeg.also { (it.parent as? ViewGroup)?.removeView(it) } else modeText.also { (it.parent as? ViewGroup)?.removeView(it) })
+        val right: View = when (i) {
+            0 -> panelRight
+            2 -> windowSeg
+            else -> modeText
+        }
+        if (i != 0 && modeText.parent === panelRight) panelRight.removeView(modeText)
+        if (i == 0 && modeText.parent !== panelRight) { (modeText.parent as? ViewGroup)?.removeView(modeText); panelRight.addView(modeText, 0) }
+        (right.parent as? ViewGroup)?.removeView(right)
+        tabs.setRight(right)
         refresh()
     }
 
-    private fun pickSensor(index: Int, current: String) {
-        val s = store ?: return
-        val cols = s.columns.filter { s.values(it).isNotEmpty() && it != "t_s" }
-        val names = cols.map { "${SensorNames.label(it)}  ·  ${SensorNames.source(it)}" }
+    private fun label(code: String) = "${SensorNames.label(code)}  ·  ${SensorNames.source(code)}"
+
+    /** «Датчики ▾»: order of the panel and which sensors it shows. */
+    private fun panelMenu() {
+        val st = store ?: return
+        val sort = Prefs.panelSort(context)
+        val items = arrayOf("Порядок: ${sort.ru}", "Какие датчики показывать…", "Сбросить свой порядок")
         AlertDialog.Builder(context)
-            .setTitle("Датчик для плитки")
-            .setSingleChoiceItems(names.toTypedArray(), cols.indexOf(current)) { dlg, i ->
-                val codes = tiles.map { it.code }.toMutableList()
-                if (index in codes.indices) codes[index] = cols[i]
-                Prefs.setTiles(context, codes)
+            .setTitle("Датчики панели")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> pickSort()
+                    1 -> pickVisible(st)
+                    2 -> { Prefs.setTiles(context, emptyList()); orderDirty = true; refresh() }
+                }
+            }
+            .setNegativeButton("Закрыть", null)
+            .show()
+    }
+
+    private fun pickSort() {
+        val all = PanelSort.entries
+        AlertDialog.Builder(context)
+            .setTitle("Порядок плиток")
+            .setSingleChoiceItems(all.map { it.ru }.toTypedArray(), all.indexOf(Prefs.panelSort(context))) { dlg, i ->
+                setSort(all[i])
                 dlg.dismiss()
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    private fun setSort(sort: PanelSort) {
+        // Own order starts from what is on the screen now, so nothing jumps.
+        if (sort == PanelSort.CUSTOM && Prefs.panelSort(context) != PanelSort.CUSTOM) Prefs.setTiles(context, panelCodes)
+        Prefs.setPanelSort(context, sort)
+        panelPage = 0
+        orderDirty = true
+        refresh()
+    }
+
+    /** Ticks: what the panel shows. Raw bytes are off until ticked. */
+    private fun pickVisible(st: SeriesStore) {
+        val all = Panel.sensors(st)
+        val hidden = Prefs.panelHidden(context) ?: all.filter { Panel.isRaw(it) }.toSet()
+        val checked = BooleanArray(all.size) { all[it] !in hidden }
+        AlertDialog.Builder(context)
+            .setTitle("Показывать на панели")
+            .setMultiChoiceItems(all.map(::label).toTypedArray(), checked) { _, i, on -> checked[i] = on }
+            .setPositiveButton("Готово") { _, _ ->
+                Prefs.setPanelHidden(context, all.filterIndexed { i, _ -> !checked[i] }.toSet())
+                panelPage = 0
+                orderDirty = true
+                refresh()
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    /** Long press on a tile: move it, swap the sensor or switch it off. Moving turns on the own order. */
+    private fun tileMenu(code: String) {
+        val st = store ?: return
+        val items = arrayOf("Поставить первым", "Сдвинуть раньше", "Сдвинуть позже", "Заменить другим датчиком…", "Не показывать")
+        AlertDialog.Builder(context)
+            .setTitle(SensorNames.label(code))
+            .setItems(items) { _, which ->
+                val order = panelCodes.toMutableList()
+                val i = order.indexOf(code)
+                if (i < 0) return@setItems
+                when (which) {
+                    0 -> { order.removeAt(i); order.add(0, code) }
+                    1 -> if (i > 0) { order.removeAt(i); order.add(i - 1, code) }
+                    2 -> if (i < order.lastIndex) { order.removeAt(i); order.add(i + 1, code) }
+                    3 -> { replaceSensor(st, code, order); return@setItems }
+                    4 -> {
+                        val hidden = (Prefs.panelHidden(context) ?: Panel.sensors(st).filter { Panel.isRaw(it) }.toSet()) + code
+                        Prefs.setPanelHidden(context, hidden)
+                        orderDirty = true
+                        refresh()
+                        return@setItems
+                    }
+                }
+                Prefs.setTiles(context, order)
+                Prefs.setPanelSort(context, PanelSort.CUSTOM)
+                orderDirty = true
+                refresh()
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    private fun replaceSensor(st: SeriesStore, code: String, order: MutableList<String>) {
+        val cols = Panel.sensors(st)
+        AlertDialog.Builder(context)
+            .setTitle("Датчик вместо «${SensorNames.label(code)}»")
+            .setSingleChoiceItems(cols.map(::label).toTypedArray(), cols.indexOf(code)) { dlg, i ->
+                val pick = cols[i]
+                val at = order.indexOf(code)
+                order.remove(pick)
+                order.add(at.coerceIn(0, order.size), pick)
+                order.remove(code)
+                order.add(code)
+                Prefs.setTiles(context, order)
+                Prefs.setPanelSort(context, PanelSort.CUSTOM)
+                Prefs.panelHidden(context)?.let { if (pick in it) Prefs.setPanelHidden(context, it - pick) }
+                dlg.dismiss()
+                orderDirty = true
                 refresh()
             }
             .setNegativeButton("Отмена", null)
@@ -156,6 +274,9 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
     }
 
     fun showTab(i: Int) = tabs.select(i)
+
+    /** Shows the panel page [i] (0-based), as a swipe would. */
+    fun showPanelPage(i: Int) { panelPage = i; refresh() }
 
     fun bind(store: SeriesStore, s: LoggerState.Snapshot) {
         this.store = store
@@ -183,14 +304,28 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             last == null -> "данных пока нет"
             stale -> "последняя точка ${Num.clock(last)}"
             sc.phone -> "режим: ${mode.ru}"
-            else -> "режим: ${mode.ru} · долгое нажатие на плитку — выбрать датчик"
+            sc.compact -> "режим: ${mode.ru}"
+            else -> "режим: ${mode.ru} · долгое нажатие на плитку — порядок"
         }
-        val codes = tileCodes(s.columns)
+        // Problem order is recounted every 10 s, not every second: tiles must not jump under the finger.
+        if (orderDirty || panelCodes.isEmpty() || now - orderAt > 10_000) {
+            panelCodes = panelOrder(s)
+            orderAt = now
+            orderDirty = false
+        }
+        val codes = panelCodes
         when (tabs.selected) {
-            0 -> tiles.forEachIndexed { i, t ->
-                val code = codes.getOrNull(i)
-                t.visibility = if (code == null) INVISIBLE else VISIBLE
-                if (code != null) t.set(code, s, mode, if (stale) last else null, if (stale) last!! else now)
+            0 -> {
+                val n = Panel.pages(codes.size)
+                panelPage = ((panelPage % n) + n) % n
+                pageText.text = if (n > 1) "${panelPage + 1}/$n ›" else ""
+                pageText.visibility = if (n > 1) VISIBLE else GONE
+                val from = panelPage * Panel.PER_PAGE
+                tiles.forEachIndexed { i, t ->
+                    val code = codes.getOrNull(from + i)
+                    t.visibility = if (code == null) INVISIBLE else VISIBLE
+                    if (code != null) t.set(code, s, mode, if (stale) last else null, if (stale) last!! else now)
+                }
             }
             1 -> {
                 val ranked = Attention.rank(s, sort = sort)

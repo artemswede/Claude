@@ -114,12 +114,17 @@ object Attention {
         "coolant_c", "battery_v", "map_kpa", "timing_deg", "intake_air_c", "engine_load_pct", "throttle_pct",
     )
 
-    fun rank(store: SeriesStore, windowMs: Long = 60_000, sort: AttentionSort = AttentionSort.DEVIATION): List<AttentionItem> {
+    fun rank(
+        store: SeriesStore,
+        windowMs: Long = 60_000,
+        sort: AttentionSort = AttentionSort.DEVIATION,
+        codes: List<String> = INTERESTING,
+    ): List<AttentionItem> {
         val end = store.lastTime() ?: return emptyList()
         val from = end - windowMs
         val mode = LiveMode.of(store.last("rpm"), store.last("speed_kmh"), store.last("coolant_c"))
         val stats = store.stats().associateBy { it.name }
-        val items = INTERESTING.filter { it in store.columns }.mapNotNull { code ->
+        val items = codes.filter { it in store.columns }.mapNotNull { code ->
             val (t, v) = store.series(code, from)
             if (v.isEmpty()) return@mapNotNull null
             val total = ((t.last() - t.first()) / 1000.0).coerceAtLeast(1.0)
