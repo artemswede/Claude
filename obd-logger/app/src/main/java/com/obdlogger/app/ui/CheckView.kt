@@ -187,7 +187,7 @@ class CheckView(ctx: Context, private val sc: Bt.Scale, private val actions: Che
             addTo(page, context.text("Считаю результат…", sc.p, p.t3), dp(12))
             return page
         }
-        addTo(page, context.text(if (prev == null) "Это первый проверочный лог — он станет эталоном «до». Следующий сравнится с ним." else "Сравнение с проверочным логом ${prev.start?.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM HH:mm")) ?: ""}.",
+        addTo(page, context.text(if (prev == null) "Это первый проверочный лог — он станет эталоном «до». Следующий сравнится с ним." else "Сравнение с проверочным логом ${prev.start?.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM HH:mm")) ?: "«до»"}.",
             if (sc.phone) 16f else 20f, p.t2), dp(10))
         val rows = listOf<Triple<String, Double?, Double?>>(
             Triple("Коррекция Б1 на ХХ", now.idleTrim, prev?.idleTrim),
