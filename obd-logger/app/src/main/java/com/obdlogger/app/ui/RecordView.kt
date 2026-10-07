@@ -75,6 +75,17 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         lanes.windowMs = listOf(1, 5, 15)[i] * 60_000L
         refresh()
     }
+    private var windowIdx = 1
+    private val windowText = ctx.text("окно 5 мин ▾", if (sc.phone) 13f else 15f, p.acc, 600, maxLines = 1).apply {
+        setPadding(dp(10), dp(8), dp(10), dp(8))
+        setOnClickListener {
+            windowIdx = (windowIdx + 1) % 3
+            val m = listOf(1, 5, 15)[windowIdx]
+            lanes.windowMs = m * 60_000L
+            text = "окно $m мин ▾"
+            refresh()
+        }
+    }.tap()
     private var store: SeriesStore? = null
     private var snapshot = LoggerState.Snapshot()
     private val tabs = Tabs(ctx, sc, p, listOf("Панель", "Внимание", "Графики")) { show(it) }
@@ -93,7 +104,8 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         charts.addView(SwipePager(ctx) { step -> chartPage += step; refresh() }.apply { addView(lanes) },
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         addTo(chartsRight, chartPageText)
-        addTo(chartsRight, windowSeg, dp(8))
+        // Short screens: one button that cycles the window instead of a three-part switch.
+        if (sc.compact) addTo(chartsRight, windowText, dp(4)) else addTo(chartsRight, windowSeg, dp(8))
         addTo(charts, ctx.text("точка = реальный замер · подпись у конца линии · подложка — норма", 13f, p.t3).apply { gravity = Gravity.END }, dp(4))
         // Short screens: the mode is written on the tiles anyway; the room goes to pages and «Датчики».
         if (!sc.compact) addTo(panelRight, modeText)

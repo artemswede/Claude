@@ -158,12 +158,16 @@ object DtcExplain {
         when {
             // Rear O2 (after the catalyst): circuit / low / high / slow / heater.
             n in 136..141 || n in 156..161 -> {
-                val v = vals("o2_b${b}s2_v")
-                if (v.size >= 10) {
-                    when {
-                        v.max() < 0.1 -> out += "В записи датчик после катализатора Б$b всё время ≈${f(v.average())} В (максимум ${f(v.max())} В): сигнала нет. Живой датчик на прогретом моторе держит 0.45–0.85 В."
-                        v.max() - v.min() < 0.05 -> out += "В записи датчик после катализатора Б$b стоит на ${f(v.average())} В и не меняется — сигнал «замёрз»."
-                        else -> out += "В записи датчик после катализатора Б$b меняется ${f(v.min())}–${f(v.max())} В: сигнал есть, возможно, ошибка была временной (разъём, провод)."
+                // Warm engine only, and percentiles: a cold start or one spike must not decide.
+                val warm = store?.valuesWhere("o2_b${b}s2_v", "coolant_c") { it >= 70 }?.takeIf { it.size >= 10 } ?: vals("o2_b${b}s2_v")
+                if (warm.size >= 10) {
+                    val sorted = warm.sorted()
+                    val lo = sorted[(sorted.size * 0.05).toInt()]
+                    val hi = sorted[(sorted.size * 0.95).toInt().coerceAtMost(sorted.size - 1)]
+                    out += when {
+                        hi < 0.1 -> "В записи (прогретый мотор) датчик после катализатора Б$b почти всё время ≈${f(sorted[sorted.size / 2])} В: сигнала нет. Живой датчик держит 0.45–0.85 В."
+                        hi - lo < 0.05 -> "В записи датчик после катализатора Б$b стоит на ${f(sorted[sorted.size / 2])} В и не меняется — сигнал «замёрз»."
+                        else -> "В записи датчик после катализатора Б$b обычно ${f(lo)}–${f(hi)} В: сигнал есть, возможно, ошибка была временной (разъём, провод)."
                     }
                 }
                 val pair = if (b == 1) "P0156" else "P0136"
