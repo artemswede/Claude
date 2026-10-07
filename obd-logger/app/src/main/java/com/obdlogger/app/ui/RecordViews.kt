@@ -262,7 +262,8 @@ class GaugeView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
         val side = h < 190 * d && w > h * 1.5f
         val pad = (if (side) 12 else 16) * d
         val base = if (side) min(h / 8f, w / 20f) else min(h / 12f, w / 14f)
-        val sideR = if (side) max((h - 2 * pad) / 1.55f, 14 * d) else 0f
+        // The words need more than half of the card.
+        val sideR = if (side) max(min((h - 2 * pad) / 1.55f, w * 0.19f), 14 * d) else 0f
         // Left edge of the text column.
         val tx = if (side) pad + 2 * sideR + 16 * d else pad
         // Rank badge and chip.
@@ -284,9 +285,12 @@ class GaugeView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
         }
         val chip = paint(0f, if (out) p.amb else if (it.norm == null && !Norms.isFrontO2(it.code)) p.t2 else p.acc, 600).apply { textSize = base * 0.8f }
         val cw = chip.measureText(chipText) + 20 * d
-        fill.color = if (out) p.ambT else if (it.norm == null && !Norms.isFrontO2(it.code)) p.s2 else p.accT
-        c.drawRoundRect(w - pad - cw, pad, w - pad, pad + bh, bh / 2, bh / 2, fill)
-        c.drawText(chipText, w - pad - cw + 10 * d, pad + bh - 6 * d - chip.descent() / 2, chip)
+        // In a narrow text column the chip would sit on the badge; the frame colour says the same.
+        if (!side || w - pad - cw > tx + bw + 8 * d) {
+            fill.color = if (out) p.ambT else if (it.norm == null && !Norms.isFrontO2(it.code)) p.s2 else p.accT
+            c.drawRoundRect(w - pad - cw, pad, w - pad, pad + bh, bh / 2, bh / 2, fill)
+            c.drawText(chipText, w - pad - cw + 10 * d, pad + bh - 6 * d - chip.descent() / 2, chip)
+        }
 
         // Arc: 240° sweep starting at 150°.
         val nameP = paint(0f, p.t1, 600).apply { textSize = base * 1.05f }
