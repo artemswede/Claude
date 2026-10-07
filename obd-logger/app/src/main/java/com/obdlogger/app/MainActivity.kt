@@ -52,7 +52,7 @@ import com.obdlogger.core.Hypotheses
 import com.obdlogger.core.Hypothesis
 import java.io.File
 
-class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions, VersionActions, CheckActions {
+class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions, VersionActions, CheckActions, com.obdlogger.app.ui.DtcActions {
     private lateinit var shell: Shell
     private lateinit var home: HomeView
     private lateinit var settings: SettingsView
@@ -116,6 +116,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         shell.containers.getValue(Shell.Page.SETTINGS).addView(settings)
 
         shell.onCar = { editCar() }
+        shell.onDtc = { openCodes() }
         shell.onPage = { pg ->
             when (pg) {
                 Shell.Page.OVERVIEW -> refreshHome()
@@ -571,6 +572,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         val list = stack[shell.page] ?: return false
         val top = list.removeLastOrNull() ?: return false
         if (top === checkView) checkView = null
+        if (top === dtcView) dtcView = null
         val box = shell.containers.getValue(shell.page)
         box.removeView(top)
         (list.lastOrNull() ?: box.getChildAt(0))?.visibility = View.VISIBLE
@@ -586,7 +588,36 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     }
 
     private fun makeHome(night: Boolean) = HomeView(this, shell.sc, onDetails = { openHomeVersion() }, onSettings = { shell.show(Shell.Page.SETTINGS) },
-        onCheck = { openCheck() }, onOpenLast = { openLastTrip() }, p = if (night) Bt.DARK else Bt.LIGHT)
+        onCheck = { openCheck() }, onOpenLast = { openLastTrip() }, p = if (night) Bt.DARK else Bt.LIGHT, onCodes = { openCodes() })
+
+    // ---- trouble codes ----
+
+    private var dtcView: com.obdlogger.app.ui.DtcView? = null
+
+    /** «Коды ошибок» over the current section; reads the codes with the freeze frame when the ECU is on line. */
+    override fun openCodes() {
+        if (dtcView != null) return
+        val v = com.obdlogger.app.ui.DtcView(this, shell.sc, this) { LiveData.store.takeIf { it.size() > 0 } }
+        dtcView = v
+        v.bind(LoggerState.snapshot)
+        push(if (shell.page == Shell.Page.RECORD) Shell.Page.OVERVIEW else shell.page, v)
+        val s = LoggerState.snapshot
+        if (s.running && s.link == Lamp.OK && s.dtcSnap == null) readCodes()
+    }
+
+    override fun closeCodes() {
+        pop()
+    }
+
+    override fun readCodes() {
+        startService(LoggerService.intent(this, LoggerService.ACTION_DTC_READ))
+    }
+
+    override fun clearCodes() {
+        startService(LoggerService.intent(this, LoggerService.ACTION_DTC_CLEAR))
+    }
+
+    override fun shareCodes(path: String) = share(listOf(File(path)), "Бортач: коды ошибок")
 
     /** Д7: dark main screen from 21:00 to 7:00 while driving, so it does not glare. */
     private fun updateNight() {
@@ -824,6 +855,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
 
     private fun render(s: LoggerState.Snapshot) {
         shell.render(s)
+        dtcView?.bind(s)
         if (shell.page == Shell.Page.TRIPS) refreshTrips()
         if (shell.page == Shell.Page.SETTINGS) refreshSettings()
         if (s.recording) {

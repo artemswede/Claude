@@ -42,6 +42,15 @@ object LoggerState {
         val check: com.obdlogger.core.CheckTest.State? = null,
         /** CSV of the last finished check log, for the result screen. */
         val checkCsv: String? = null,
+        /** Codes screen: what is being done with the ECU now («Читаю коды…»), null when idle. */
+        val dtcBusy: String? = null,
+        /** Last full read of the codes (stored, pending, permanent, MIL). */
+        val dtcSnap: com.obdlogger.core.DtcSnapshot? = null,
+        /** Freeze frame of that read; null when the ECU keeps none. */
+        val freeze: com.obdlogger.core.FreezeFrame? = null,
+        /** Saved report of that read (dtc_<time>.txt) and the outcome of a reset, if one was done. */
+        val dtcReportFile: String? = null,
+        val dtcResult: String? = null,
     )
 
     private val main = Handler(Looper.getMainLooper())

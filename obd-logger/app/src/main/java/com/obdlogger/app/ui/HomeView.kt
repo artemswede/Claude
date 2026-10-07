@@ -34,6 +34,8 @@ class HomeView(
     private val onOpenLast: () -> Unit = {},
     /** Д7: the dark palette at night while driving. */
     private val p: Bt.Palette = Bt.LIGHT,
+    /** The codes screen (codes, freeze frame, reset). */
+    private val onCodes: () -> Unit = {},
 ) : FrameLayout(ctx) {
     private val leftCol = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
     private val chartTitle = ctx.label("", sc, p)
@@ -285,7 +287,7 @@ class HomeView(
             gap(obs, 14)
         }
         gap(context.text("Ехать можно, если мотор работает ровно. Проверьте в ближайшие дни.", sc.p, p.t2), 14)
-        gap(link("Подробнее →") { onDetails() }, 8)
+        gap(link("Коды, причины и сброс →") { onCodes() }, 8)
     }
 
     private fun collecting(m: HomeModel) {

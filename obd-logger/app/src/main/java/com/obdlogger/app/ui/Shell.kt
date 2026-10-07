@@ -37,6 +37,8 @@ class Shell(private val activity: Activity) {
     var onPage: (Page) -> Unit = {}
     /** Tap on the car name: edit this car's profile. */
     var onCar: () -> Unit = {}
+    /** Tap on the trouble-code chip: the codes screen. */
+    var onDtc: () -> Unit = {}
     /** Д7: the main screen is dark at night while a trip is recorded. */
     var nightHome = false
         set(value) {
@@ -87,6 +89,8 @@ class Shell(private val activity: Activity) {
         }
         addTo(bar, spacer(ctx))
         dtcChip.setPadding(ctx.dp(12), ctx.dp(4), ctx.dp(12), ctx.dp(4))
+        dtcChip.setOnClickListener { onDtc() }
+        dtcChip.tap()
         addTo(bar, dtcChip, ctx.dp(12))
         lampPill.orientation = LinearLayout.HORIZONTAL
         lampPill.gravity = Gravity.CENTER_VERTICAL

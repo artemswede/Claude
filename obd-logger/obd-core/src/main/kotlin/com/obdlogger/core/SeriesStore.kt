@@ -105,6 +105,15 @@ class SeriesStore(private val capacity: Int = 20_000) {
         return rows.map { it.values[i] }.filterNot { it.isNaN() }.toDoubleArray()
     }
 
+    /** Values of [name] in the rows where [by] satisfies [where] (e.g. trims at idle rpm), gaps skipped. */
+    @Synchronized
+    fun valuesWhere(name: String, by: String, where: (Double) -> Boolean): DoubleArray {
+        val i = columns.indexOf(name)
+        val j = columns.indexOf(by)
+        if (i < 0 || j < 0) return DoubleArray(0)
+        return rows.filter { !it.values[j].isNaN() && where(it.values[j]) && !it.values[i].isNaN() }.map { it.values[i] }.toDoubleArray()
+    }
+
     /** Statistics of every numeric column that has data, in column order. */
     fun stats(jitterWindow: Int = 300): List<SensorStats> = columns.mapNotNull { stats(it, jitterWindow) }
 

@@ -53,6 +53,7 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         fun uiScale(): Int = 100
         fun setUiScale(percent: Int) {}
         fun screenText(): String = ""
+        fun openCodes() {}
     }
 
     private val p = Bt.LIGHT
@@ -91,6 +92,8 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         chevron("Профиль машины", h.carText()) { h.editCar() }
         toggle("Искать скрытые параметры производителя", "Toyota / Lexus: блоки режима 21, старт дольше на ~1 мин. У других марок просто пропускается", h.extendedOn()) { h.setExtended(it) }
         toggle("Метки водителя", "необязательно: разбор работает без них. Кнопка «Метка» в уведомлении во время записи", h.marksOn()) { h.setMarks(it) }
+
+        chevron("Коды ошибок ЭБУ", "прочитать со стоп-кадром, посмотреть причины, сбросить") { h.openCodes() }
 
         section("Фон и запуск")
         toggle("Запускать при включении планшета", "после включения или перезагрузки Бортач сам ждёт запуска двигателя — открывать приложение не нужно", h.bootOn()) { h.setBoot(it) }

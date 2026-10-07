@@ -124,6 +124,13 @@ class ScreensTest {
  * Sample data: only real recorded trips (test fixtures of one car). Trips without
  * an info file borrow the previous trip's, so all belong to the same car.
  */
+object NoDtc : com.obdlogger.app.ui.DtcActions {
+    override fun closeCodes() {}
+    override fun readCodes() {}
+    override fun clearCodes() {}
+    override fun shareCodes(path: String) {}
+}
+
 object Samples {
     private val dir = File("../obd-core/src/test/resources/trips")
     private val csvs by lazy { dir.listFiles().orEmpty().filter { it.name.endsWith(".csv") }.sortedBy { it.name } }
@@ -246,6 +253,24 @@ class Scenes(private val a: Activity) {
             "G3_attention" to { record(1, recording) },
             "G1b_panel_page2" to { shell(Shell.Page.RECORD, recording) { sh -> RecordView(a, sh.sc).apply { bind(liveStore, recording); showTab(0); showPanelPage(1) } } },
             "G2_charts" to { record(2, recording) },
+            // Codes screen with what the owner's car reported: both rear O2 sensors, flat at 0.02 V.
+            "C1_codes" to {
+                val ff = com.obdlogger.core.FreezeFrame("P0136", listOf(
+                    com.obdlogger.core.FreezeFrame.Value("rpm", "об/мин", "", 1650.0),
+                    com.obdlogger.core.FreezeFrame.Value("speed_kmh", "км/ч", "", 42.0),
+                    com.obdlogger.core.FreezeFrame.Value("coolant_c", "°C", "", 88.0),
+                    com.obdlogger.core.FreezeFrame.Value("engine_load_pct", "%", "", 31.0),
+                    com.obdlogger.core.FreezeFrame.Value("stft_b1_pct", "%", "", 6.3),
+                    com.obdlogger.core.FreezeFrame.Value("ltft_b1_pct", "%", "", 13.3),
+                    com.obdlogger.core.FreezeFrame.Value("o2_b1s2_v", "В", "", 0.02),
+                ))
+                val s = recording.copy(
+                    dtcSnap = com.obdlogger.core.DtcSnapshot(true, 2, listOf("P0136", "P0156"), emptyList(), null),
+                    freeze = ff, dtcReportFile = "/x/dtc_20261007_1700.txt",
+                    dtcInfo = "Check Engine: горит\nОшибки: P0136, P0156\nОжидающие: нет",
+                )
+                shell(Shell.Page.OVERVIEW, s) { sh -> com.obdlogger.app.ui.DtcView(a, sh.sc, NoDtc, { liveStore }).apply { bind(s) } }
+            },
             "N2_stale" to { record(0, off) },
             "V1_journal" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc, {}).apply { bind(TripsModel.from(Samples.realItems)) } } },
             "V1a_empty" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc, {}).apply { bind(TripsModel.from(emptyList())) } } },

@@ -159,6 +159,40 @@ class ObdSession(private val elm: ElmIo, private val resetDelayMs: Long = 1_000)
         )
     }
 
+    /**
+     * Mode 02 frame 0: the sensor values the ECU stored at the moment it set a code
+     * (the «freeze frame»). Null if the ECU keeps none (no codes, or not supported).
+     */
+    fun readFreezeFrame(supported: Set<Int> = readSupportedPids()): FreezeFrame? {
+        fun frame(pid: Int): ByteArray? = query("02%02X00".format(pid), 3_000)?.let { raw ->
+            ElmResponse.messages(raw).firstOrNull { it.size > 3 && it.u(0) == 0x42 && it.u(1) == pid }?.let { it.copyOfRange(3, it.size) }
+        }
+        val cause = frame(0x02)?.takeIf { it.size >= 2 && (it.u(0) != 0 || it.u(1) != 0) }?.let { Dtc.decode(it.u(0), it.u(1)) }
+        val values = ArrayList<FreezeFrame.Value>()
+        for (def in Pids.ALL) {
+            if (def.pid !in supported || def.pid == 0x03) continue
+            val d = frame(def.pid) ?: continue
+            if (d.size < def.minBytes) continue
+            val decoded = def.decode(IntArray(d.size) { d.u(it) })
+            def.columns.forEachIndexed { i, col ->
+                val v = decoded.getOrNull(i)
+                if (v is Number) values += FreezeFrame.Value(col.name, col.unit, col.description, v.toDouble())
+            }
+        }
+        if (cause == null && values.isEmpty()) return null
+        return FreezeFrame(cause, values)
+    }
+
+    /**
+     * Mode 04: clears stored and pending codes, the freeze frame and the readiness
+     * monitors, and turns the MIL off. True if the ECU confirmed (44).
+     */
+    fun clearDtcs(): Boolean {
+        val raw = query("04", 10_000) ?: return false
+        // The positive reply is the single byte 44, which the message parser skips as too short.
+        return ElmResponse.lines(raw).any { line -> ElmResponse.parseHex(line)?.let { it.isNotEmpty() && it.u(0) == 0x44 } == true }
+    }
+
     fun readVehicleInfo(): VehicleInfo {
         val supported = readSupportedPids()
         val obd = if (0x1C in supported) {

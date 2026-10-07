@@ -62,6 +62,13 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
     private val lanes = LanesView(ctx, p)
     private var sort = AttentionSort.DEVIATION
     private var attnPage = 0
+    private var chartPage = 0
+    /** «2/4 ›» next to the time window on «Графики». */
+    private val chartPageText = ctx.text("", if (sc.phone) 13f else 15f, p.t2, 600, maxLines = 1).apply {
+        setPadding(dp(10), dp(8), dp(10), dp(8))
+        setOnClickListener { chartPage++; refresh() }
+    }.tap()
+    private val chartsRight = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
     private var lastRanks: Map<String, Int> = emptyMap()
     private val attnCount = ctx.text("", if (sc.phone) 13f else 16f, p.t2)
     private val windowSeg = Segment(ctx, sc, p, listOf("1 мин", "5 мин", "15 мин"), 1) { i ->
@@ -82,7 +89,11 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         buildPanel()
         buildAttention()
         charts.setPadding(dp(if (sc.phone) 8 else 16), dp(8), dp(if (sc.phone) 8 else 16), dp(8))
-        charts.addView(lanes, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        // Swipe through every sensor, 6 lanes a page (4 on a phone).
+        charts.addView(SwipePager(ctx) { step -> chartPage += step; refresh() }.apply { addView(lanes) },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        addTo(chartsRight, chartPageText)
+        addTo(chartsRight, windowSeg, dp(8))
         addTo(charts, ctx.text("точка = реальный замер · подпись у конца линии · подложка — норма", 13f, p.t3).apply { gravity = Gravity.END }, dp(4))
         // Short screens: the mode is written on the tiles anyway; the room goes to pages and «Датчики».
         if (!sc.compact) addTo(panelRight, modeText)
@@ -126,7 +137,7 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             refresh()
         })
         addTo(head, spacer(context))
-        attnCount.setOnClickListener { attnPage = 1 - attnPage; refresh() }
+        attnCount.setOnClickListener { attnPage++; refresh() }
         attnCount.tap()
         addTo(head, attnCount)
         attn.addView(head)
@@ -142,7 +153,9 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             }
             grid.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f).apply { if (r > 0) topMargin = gap })
         }
-        attn.addView(grid, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f).apply { topMargin = gap })
+        // Swipe through every sensor of the panel, 6 a page.
+        attn.addView(SwipePager(context) { step -> attnPage += step; refresh() }.apply { addView(grid) },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f).apply { topMargin = gap })
     }
 
     private fun show(i: Int) {
@@ -151,7 +164,7 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         charts.visibility = if (i == 2) VISIBLE else GONE
         val right: View = when (i) {
             0 -> panelRight
-            2 -> windowSeg
+            2 -> chartsRight
             else -> modeText
         }
         if (i != 0 && modeText.parent === panelRight) panelRight.removeView(modeText)
@@ -329,14 +342,15 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
                 }
             }
             1 -> {
-                val ranked = Attention.rank(s, sort = sort)
+                // Every sensor the panel shows (minus the switched-off ones), ranked.
+                val ranked = Attention.rank(s, sort = sort, codes = codes)
                 val unstable = Attention.unstableCount(ranked)
-                val pagesN = if (ranked.size > 6) 2 else 1
-                if (attnPage >= pagesN) attnPage = 0
+                val pagesN = maxOf(1, (ranked.size + 5) / 6)
+                attnPage = ((attnPage % pagesN) + pagesN) % pagesN
                 val from = attnPage * 6
                 attnCount.text = when {
                     ranked.isEmpty() -> "данных пока нет"
-                    else -> "${from + 1}–${minOf(from + 6, ranked.size)} из ${ranked.size} · нестабильных $unstable" + if (pagesN > 1) "   ${if (attnPage == 0) "●○" else "○●"}" else ""
+                    else -> "${from + 1}–${minOf(from + 6, ranked.size)} из ${ranked.size} · нестабильных $unstable" + if (pagesN > 1) "   ${attnPage + 1}/$pagesN ›" else ""
                 }
                 val end = last ?: 0L
                 gauges.forEachIndexed { i, g ->
@@ -355,7 +369,15 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
                 }
                 if (sort == AttentionSort.DEVIATION) lastRanks = ranked.withIndex().associate { (i, x) -> x.code to i + 1 }
             }
-            2 -> lanes.set(s, (LANES.filter { it in s.columns } + codes).distinct().take(if (sc.phone) 4 else 6), !stale, mode)
+            2 -> {
+                val all = (LANES.filter { it in codes } + codes).distinct()
+                val per = if (sc.phone) 4 else 6
+                val n = maxOf(1, (all.size + per - 1) / per)
+                chartPage = ((chartPage % n) + n) % n
+                chartPageText.text = if (n > 1) "${chartPage + 1}/$n ›" else ""
+                chartPageText.visibility = if (n > 1) VISIBLE else GONE
+                lanes.set(s, all.drop(chartPage * per).take(per), !stale, mode)
+            }
         }
     }
 

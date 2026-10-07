@@ -57,6 +57,8 @@ class LoggerService : Service() {
     /** Info file of the trip being recorded (its header is copied into check logs). */
     @Volatile private var tripInfoFile: File? = null
     @Volatile private var checkStopRequested = false
+    /** Codes screen: [ACTION_DTC_READ] or [ACTION_DTC_CLEAR], done between poll cycles. */
+    @Volatile private var dtcRequest: String? = null
     @Volatile private var recording = false
     @Volatile private var autoMode = false
     @Volatile private var socket: BluetoothSocket? = null
@@ -97,6 +99,10 @@ class LoggerService : Service() {
             ACTION_POKE -> poke()
             ACTION_CHECK -> if (recording) checkRequested = true
             ACTION_CHECK_STOP -> checkStopRequested = true
+            ACTION_DTC_READ, ACTION_DTC_CLEAR -> {
+                dtcRequest = intent.action
+                LoggerState.update { it.copy(dtcBusy = "Жду связи с ЭБУ…", dtcResult = null) }
+            }
             // Restarted by the system after being killed: note it and resume auto mode if it is on.
             null -> {
                 if (Prefs.auto(this)) start(Intent(this, LoggerService::class.java), auto = true) else stopSelf()
@@ -311,6 +317,8 @@ class LoggerService : Service() {
                 else -> {
                     lamps(link = Lamp.OK, linkText = "ЭБУ на связи", engine = Lamp.OFF, engineText = "заглушен")
                     status("Автозапись: зажигание включено, жду запуска двигателя")
+                    // Ignition on, engine off: the right moment to read or clear codes.
+                    handleDtc(s)
                     pause(5_000)
                 }
             }
@@ -380,6 +388,7 @@ class LoggerService : Service() {
         var autoMarker: String? = if (logger.rows > 0) "RECONNECT" else null
         var check: CheckRun? = null
         while (!stopRequested) {
+            handleDtc(s)
             if (checkRequested && check == null) {
                 checkRequested = false
                 checkStopRequested = false
@@ -620,6 +629,57 @@ class LoggerService : Service() {
         )
     }
 
+    /**
+     * Codes screen request: reads the codes and the freeze frame, saves them with the
+     * reasons the app sees to dtc_<time>.txt (and Downloads), and for a reset clears the
+     * codes only after that and reads them back.
+     */
+    private fun handleDtc(s: ObdSession) {
+        val req = dtcRequest ?: return
+        dtcRequest = null
+        val clear = req == ACTION_DTC_CLEAR
+        LoggerState.update { it.copy(dtcBusy = if (clear) "Сохраняю стоп-кадр и сбрасываю ошибки…" else "Читаю коды и стоп-кадр…") }
+        var done = false
+        try {
+            val before = s.readDtcs()
+            val ff = s.readFreezeFrame()
+            val car = Prefs.vehicle(this)
+            val store = LiveData.store
+            val clock = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm:ss", java.util.Locale.ROOT).format(java.util.Date())
+            val text = StringBuilder(com.obdlogger.core.DtcReport.render(if (clear) "Коды перед сбросом · $clock" else "Коды ошибок · $clock", car, before, ff, store))
+            var snap = before
+            var result: String? = null
+            if (clear) {
+                val ok = s.clearDtcs()
+                trace("dtc clear: ${if (ok) "confirmed" else "no 44"}")
+                val after = s.readDtcs()
+                snap = after
+                val left = after.stored.orEmpty() + after.pending.orEmpty()
+                result = when {
+                    !ok -> "ЭБУ не подтвердил сброс. Попробуйте при включённом зажигании и заглушенном моторе."
+                    left.isNotEmpty() -> "Сброс выполнен, но коды сразу вернулись: ${left.joinToString(", ")}. Причина есть прямо сейчас."
+                    else -> "Ошибки сброшены. Если причина не устранена, код вернётся через 1–3 поездки."
+                }
+                text.append("\n\n=== После сброса ===\n").append(result).append('\n')
+                    .append("Сохранённые: ${after.stored?.joinToString(", ")?.ifEmpty { "нет" } ?: "—"}; ожидающие: ${after.pending?.joinToString(", ")?.ifEmpty { "нет" } ?: "—"}\n")
+            }
+            val stamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.ROOT).format(java.util.Date())
+            val file = File(SessionFiles.dir(this), "dtc_$stamp.txt").apply { writeText(text.toString()) }
+            SessionFiles.exportToDownloads(this, file)
+            val protocol = LoggerState.snapshot.protocol
+            LoggerState.update {
+                it.copy(
+                    dtcBusy = null, dtcSnap = snap, freeze = if (clear) null else ff,
+                    dtcReportFile = file.absolutePath, dtcResult = result,
+                    dtcInfo = dtcSummary(snap) + if (protocol.isNotBlank()) "\nПротокол: $protocol" else "",
+                )
+            }
+            done = true
+        } finally {
+            if (!done) LoggerState.update { it.copy(dtcBusy = null, dtcResult = "Не удалось: связь с ЭБУ прервалась. Повторите.") }
+        }
+    }
+
     private fun dtcSummary(d: DtcSnapshot): String {
         fun codes(list: List<String>?) = when {
             list == null -> "—"
@@ -728,6 +788,8 @@ class LoggerService : Service() {
         const val ACTION_POKE = "com.obdlogger.POKE"
         const val ACTION_CHECK = "com.obdlogger.CHECK"
         const val ACTION_CHECK_STOP = "com.obdlogger.CHECK_STOP"
+        const val ACTION_DTC_READ = "com.obdlogger.DTC_READ"
+        const val ACTION_DTC_CLEAR = "com.obdlogger.DTC_CLEAR"
         const val EXTRA_ADDRESS = "address"
         const val EXTRA_VEHICLE = "vehicle"
         const val EXTRA_EXTENDED = "extended"

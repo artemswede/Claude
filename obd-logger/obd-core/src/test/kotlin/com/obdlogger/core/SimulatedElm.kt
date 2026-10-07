@@ -62,6 +62,8 @@ class SimulatedElm(
     private val profile: CarProfile = CarProfile.DEMO,
 ) : ElmIo {
     private val startMs = clock()
+    /** Stored codes; mode 04 clears them. */
+    private var codes = profile.dtcs
     private val rnd = Random(42)
 
     override fun command(cmd: String, timeoutMs: Long): String {
@@ -73,7 +75,18 @@ class SimulatedElm(
             c == "ATDPN" -> if (profile.can) "A6" else "A4"
             c == "ATDP" -> if (profile.can) "AUTO, ISO 15765-4 (CAN 11/500)" else "AUTO, ISO 14230-4 (KWP 5BAUD)"
             c.startsWith("AT") -> "OK"
-            c == "03" -> dtcReply(0x43, profile.dtcs)
+            c == "03" -> dtcReply(0x43, codes)
+            c == "04" -> { codes = emptyList(); "44" }
+            // Freeze frame 0: what the PID read now, as if stored when the first code was set.
+            c.startsWith("02") && c.length == 6 -> {
+                val p = c.substring(2, 4).toInt(16)
+                if (codes.isEmpty()) "NO DATA"
+                else if (p == 0x02) codes.first().let { code ->
+                    val hi = "PCBU".indexOf(code[0]) shl 6 or (code[1].digitToInt() shl 4) or code[2].digitToInt(16)
+                    "42 02 00 %02X %02X".format(hi, code.substring(3).toInt(16))
+                }
+                else pid(p).let { r -> if (r.startsWith("41")) "42 %02X 00".format(p) + r.substring(5) else r }
+            }
             c == "07" -> dtcReply(0x47, emptyList())
             c == "0A" -> "NO DATA"
             c == "0902" -> vinFrames()
@@ -161,7 +174,7 @@ class SimulatedElm(
         if (p !in supported) return "NO DATA"
         val st = state()
         return when (p) {
-            0x01 -> reply(p, if (profile.dtcs.isEmpty()) 0x00 else 0x80 or profile.dtcs.size, 0x07, 0x65, 0x00)
+            0x01 -> reply(p, if (codes.isEmpty()) 0x00 else 0x80 or codes.size, 0x07, 0x65, 0x00)
             0x03 -> reply(p, if (st.heavyAccel) 4 else if (st.closedLoop) 2 else 1, 0)
             0x04 -> reply(p, pct(st.load))
             0x05 -> reply(p, (st.coolant + 40).roundToInt())
