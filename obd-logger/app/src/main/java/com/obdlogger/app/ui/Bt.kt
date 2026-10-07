@@ -81,10 +81,10 @@ object Bt {
      * layout with the side rail like a tablet, but everything a size smaller.
      */
     val WIDE = Scale(
-        lbl = 11f, hxl = 26f, hl = 22f, hm = 18f, hs = 15f, pl = 15f, p = 14f, cap = 12f, code = 11f, conf = 13f,
+        lbl = 11f, hxl = 24f, hl = 20f, hm = 17f, hs = 15f, pl = 15f, p = 14f, cap = 12f, code = 11f, conf = 13f,
         evLabel = 15f, evValue = 18f, evPad = 6, sbarH = 40, sbarFont = 13f, brandFont = 15f, lamp = 12,
         railW = 72, riH = 60, riFont = 11f, riIcon = 22, btnH = 44, btnFont = 14f, btnBigH = 48, btnBigFont = 15f,
-        endLbl = 12f, axis = 11f, botH = 72, pad = 16, gap = 16, tileValue = 36f, phone = false, compact = true,
+        endLbl = 12f, axis = 11f, botH = 56, pad = 16, gap = 16, tileValue = 36f, phone = false, compact = true,
     )
     val PHONE = Scale(
         lbl = 12f, hxl = 28f, hl = 24f, hm = 20f, hs = 17f, pl = 17f, p = 15f, cap = 13f, code = 12f, conf = 14f,
@@ -100,7 +100,7 @@ object Bt {
             sw >= 720 -> TABLET
             sw >= 480 -> S1024
             // A short landscape screen (head unit) is not a phone: keep the side rail.
-            cfg.screenWidthDp >= 600 && cfg.screenWidthDp > cfg.screenHeightDp -> WIDE
+            cfg.screenWidthDp >= 560 && cfg.screenWidthDp > cfg.screenHeightDp -> WIDE
             else -> PHONE
         }
     }

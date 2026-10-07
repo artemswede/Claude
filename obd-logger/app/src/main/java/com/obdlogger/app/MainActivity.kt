@@ -7,6 +7,7 @@ import android.app.AlertDialog
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -83,6 +84,18 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     private val listener: (LoggerState.Snapshot) -> Unit = { render(it) }
 
     private val prefs by lazy { Prefs.of(this) }
+
+    // Head units: smaller density on short landscape screens and the owner's size from Settings.
+    override fun attachBaseContext(newBase: Context) = super.attachBaseContext(UiScale.wrap(newBase))
+
+    override fun uiScale(): Int = (UiScale.factor(this) * 100).toInt()
+
+    override fun setUiScale(percent: Int) {
+        prefs.edit().putFloat(Prefs.UI_SCALE, percent / 100f).apply()
+        recreate()
+    }
+
+    override fun screenText(): String = UiScale.describe(this)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

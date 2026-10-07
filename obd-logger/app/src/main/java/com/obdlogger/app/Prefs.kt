@@ -24,6 +24,7 @@ object Prefs {
     /** Set by the shutdown broadcast: the device is going off together with the car. */
     const val RECORDING_SHUTDOWN = "recording_shutdown"
     const val SEEN_TRIP = "seen_trip"
+    const val UI_SCALE = "ui_scale"
 
     fun of(ctx: Context): SharedPreferences = ctx.getSharedPreferences("settings", Context.MODE_PRIVATE)
     fun device(ctx: Context): String? = of(ctx).getString(DEVICE, null)

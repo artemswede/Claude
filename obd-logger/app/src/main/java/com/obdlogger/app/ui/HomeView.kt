@@ -74,14 +74,17 @@ class HomeView(
         // Bottom panel: last trip · trend · check log.
         bottomBar.orientation = if (sc.phone) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
         bottomBar.gravity = Gravity.CENTER_VERTICAL
-        bottomBar.setPadding(dp(sc.pad), dp(14), dp(sc.pad), dp(14))
+        val wide = sc === Bt.WIDE
+        bottomBar.setPadding(dp(sc.pad), dp(if (wide) 8 else 14), dp(sc.pad), dp(if (wide) 8 else 14))
         bottomBar.background = roundRect(p.s1, 0f).apply {
             cornerRadii = floatArrayOf(dp(20).toFloat(), dp(20).toFloat(), dp(20).toFloat(), dp(20).toFloat(), 0f, 0f, 0f, 0f)
         }
         bottomBar.elevation = dp(6).toFloat()
         val c1 = column(ctx, dp(4), ctx.label("Последняя поездка", sc, p), lastTrip)
         val c2 = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        c2.addView(spark, LinearLayout.LayoutParams(dp(104), dp(40)))
+        c2.addView(spark, LinearLayout.LayoutParams(dp(if (wide) 72 else 104), dp(if (wide) 30 else 40)))
+        // Head units: one line per column, the bar must not eat the short screen.
+        if (wide) { lastTrip.maxLines = 1; trendTitle.maxLines = 1; trendValues.visibility = View.GONE }
         addTo(c2, column(ctx, dp(2), trendTitle, trendValues), dp(16), 1f)
         val c3 = FrameLayout(ctx)
         c3.addView(testBlock, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.END or Gravity.CENTER_VERTICAL))
@@ -106,7 +109,7 @@ class HomeView(
         } else {
             val top = LinearLayout(ctx).apply {
                 orientation = LinearLayout.HORIZONTAL
-                setPadding(dp(sc.pad), dp(28), dp(sc.pad), dp(18))
+                setPadding(dp(sc.pad), dp(if (wide) 12 else 28), dp(sc.pad), dp(if (wide) 8 else 18))
             }
             top.addView(ScrollView(ctx).apply { addView(leftCol); isVerticalScrollBarEnabled = false },
                 LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 0.42f))

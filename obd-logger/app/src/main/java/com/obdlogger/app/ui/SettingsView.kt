@@ -49,6 +49,10 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         fun shareCrashes()
         /** What automatic start and recording need, and whether it is in place. */
         fun readiness(): List<Pair<String, Boolean>>
+        /** Interface size in percent (100 = automatic) and the screen it is applied to. */
+        fun uiScale(): Int = 100
+        fun setUiScale(percent: Int) {}
+        fun screenText(): String = ""
     }
 
     private val p = Bt.LIGHT
@@ -92,6 +96,10 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         toggle("Запускать при включении планшета", "после включения или перезагрузки Бортач сам ждёт запуска двигателя — открывать приложение не нужно", h.bootOn()) { h.setBoot(it) }
         chevron("Не ограничивать в фоне", h.batteryText()) { h.askBattery() }
         chevron("Открывать при запуске двигателя", h.overlayText()) { h.askOverlay() }
+
+        section("Экран")
+        segment("Масштаб интерфейса", "для магнитол и маленьких экранов · ${h.screenText()}",
+            com.obdlogger.app.UiScale.LEVELS.map { it.second to (it.first * 100).toInt() }, h.uiScale()) { h.setUiScale(it) }
 
         section("Файлы")
         segment("Хранение", "Загрузки / OBD-Logger · ${h.storageText()}", listOf("30 дней" to 30, "90 дней" to 90, "Всегда" to 0), h.keepDays()) { h.setKeepDays(it) }

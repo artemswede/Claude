@@ -56,6 +56,13 @@ class Shell(private val activity: Activity) {
     private val lampPill = LinearLayout(ctx)
     private val lamp1 = View(ctx)
     private val lamp2 = View(ctx)
+    /** Third lamp: the trip is being written — green and blinking while rows arrive. */
+    private val lamp3 = View(ctx)
+    private val blink = android.animation.ObjectAnimator.ofFloat(lamp3, View.ALPHA, 1f, 0.25f).apply {
+        duration = 600
+        repeatMode = android.animation.ValueAnimator.REVERSE
+        repeatCount = android.animation.ValueAnimator.INFINITE
+    }
     private val upd = ctx.text("", sc.sbarFont - 1, p.t3, maxLines = 1)
     private val nav = LinearLayout(ctx)
     private val navItems = LinkedHashMap<Page, LinearLayout>()
@@ -86,11 +93,12 @@ class Shell(private val activity: Activity) {
         lampPill.gravity = Gravity.CENTER_VERTICAL
         lampPill.setPadding(ctx.dp(14), ctx.dp(14), ctx.dp(14), ctx.dp(14))
         lampPill.minimumHeight = ctx.dp(44)
-        for ((i, l) in listOf(lamp1, lamp2).withIndex()) {
+        // Left to right as the chain goes: ECU sees the engine → Бортач sees the ECU → Бортач writes.
+        for ((i, l) in listOf(lamp1, lamp2, lamp3).withIndex()) {
             lampPill.addView(l, LinearLayout.LayoutParams(ctx.dp(sc.lamp), ctx.dp(sc.lamp)).apply { if (i > 0) leftMargin = ctx.dp(10) })
         }
         lampPill.elevation = ctx.dp(1).toFloat()
-        lampPill.contentDescription = "Лампы связи: подробнее"
+        lampPill.contentDescription = "Лампы: двигатель, связь с ЭБУ, запись — подробнее"
         lampPill.setOnClickListener { showLampTip() }
         addTo(bar, lampPill, ctx.dp(14))
         if (!sc.phone) addTo(bar, upd, ctx.dp(14))
@@ -187,11 +195,20 @@ class Shell(private val activity: Activity) {
         sep.visibility = car.visibility
         car.setTextColor(if (unnamed) p.acc else p.t2)
         car.setOnClickListener { onCar() }
-        lamp1.background = roundRect(lampColor(s.link), ctx.dp(sc.lamp).toFloat())
-        lamp2.background = roundRect(lampColor(s.engine), ctx.dp(sc.lamp).toFloat())
+        lamp1.background = roundRect(lampColor(s.engine), ctx.dp(sc.lamp).toFloat())
+        lamp2.background = roundRect(lampColor(s.link), ctx.dp(sc.lamp).toFloat())
+        val writing = writeLamp(s)
+        lamp3.background = roundRect(lampColor(writing), ctx.dp(sc.lamp).toFloat())
+        if (writing == Lamp.OK) {
+            if (!blink.isStarted) blink.start()
+        } else {
+            blink.cancel()
+            lamp3.alpha = 1f
+        }
         val min = s.elapsedSec / 60
+        rec.typeface = if (s.recording) Bt.mono(ctx, 600) else Bt.sans(ctx, 400)
         rec.text = when {
-            s.recording -> "Запись идёт · $min мин"
+            s.recording -> if (min >= 60) "REC · ${min / 60} ч %02d мин".format(min % 60) else "REC · $min мин"
             s.auto -> "Жду запуска двигателя"
             s.running -> "Подключение…"
             else -> "Запись выключена"
@@ -204,6 +221,15 @@ class Shell(private val activity: Activity) {
         val codes = Regex("Ошибки: ([^\\n]+)").find(s.dtcInfo)?.groupValues?.get(1)?.takeIf { it.contains(Regex("[PCBU][0-9A-F]{4}")) }
         dtcChip.text = codes?.let { "$it · Check Engine" } ?: ""
         dtcChip.visibility = if (codes != null) View.VISIBLE else View.GONE
+    }
+
+    private fun dataAgeSec(s: LoggerState.Snapshot) = ((System.currentTimeMillis() - s.lastDataMs) / 1000).coerceAtLeast(0)
+
+    /** Green while rows keep coming, amber when the trip is open but nothing arrives for 5 s, grey otherwise. */
+    private fun writeLamp(s: LoggerState.Snapshot): Lamp = when {
+        !s.recording -> Lamp.OFF
+        s.lastDataMs > 0 && dataAgeSec(s) <= 5 -> Lamp.OK
+        else -> Lamp.WAIT
     }
 
     private fun showLampTip() {
@@ -220,8 +246,14 @@ class Shell(private val activity: Activity) {
             val texts = column(ctx, 0, ctx.text(title, sc.p, p.t1, 600), ctx.text(state, sc.p, p.t2))
             addTo(box, row(ctx, ctx.dp(10), Gravity.CENTER_VERTICAL, dot, texts), ctx.dp(if (box.childCount > 0) 10 else 0))
         }
-        line(s.link, "Планшет ↔ ЭБУ", s.linkText)
         line(s.engine, "ЭБУ ↔ двигатель", s.engineText)
+        line(s.link, "Бортач ↔ ЭБУ", s.linkText)
+        val ago = dataAgeSec(s)
+        line(writeLamp(s), "Запись", when {
+            !s.recording -> "не идёт"
+            writeLamp(s) == Lamp.OK -> "пишется: ${s.rows} строк, последняя ${ago} с назад"
+            else -> "запись открыта, но строк нет уже ${ago} с"
+        })
         val cap = listOfNotNull(
             s.protocol.takeIf { it.isNotBlank() },
             if (s.cycleMs > 0) "1 строка / %.1f с".format(s.cycleMs / 1000.0) else null,
