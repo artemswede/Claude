@@ -128,7 +128,8 @@ object NoChat : com.obdlogger.app.ui.ChatActions {
     override fun sendQuestion(text: String) {}
     override fun voiceQuestion() {}
     override fun editAiKey() {}
-    override fun clearChat() {}
+    override fun resetChat() {}
+    override fun chartView(req: com.obdlogger.core.ChartRequest): android.view.View? = null
 }
 
 object NoDtc : com.obdlogger.app.ui.DtcActions {
@@ -265,13 +266,16 @@ class Scenes(private val a: Activity) {
             "G1b_panel_page2" to { shell(Shell.Page.RECORD, recording) { sh -> RecordView(a, sh.sc).apply { if (!sh.sc.phone) sh.setPageBar(Shell.Page.RECORD, header); bind(liveStore, recording); showTab(0); showPanelPage(1) } } },
             "G2_charts" to { record(2, recording) },
             "H1_chat_nokey" to { shell(Shell.Page.CHAT, recording) { sh -> com.obdlogger.app.ui.ChatView(a, sh.sc, NoChat).apply {
-                bind(emptyList(), false, false, "Ответы — по данным этой машины: Avensis 2.0 D-4 · поездок 4 · проверочных логов 1", null) } } },
-            "H2_chat" to { shell(Shell.Page.CHAT, recording) { sh -> com.obdlogger.app.ui.ChatView(a, sh.sc, NoChat).apply {
-                bind(listOf(
+                bind(com.obdlogger.core.ChatState(), null, false, "Ответы — по данным этой машины: Avensis 2.0 D-4 · поездок 4 · проверочных логов 1", null) } } },
+            "H2_chat" to { shell(Shell.Page.CHAT, recording) { sh -> com.obdlogger.app.ui.ChatView(a, sh.sc, object : com.obdlogger.app.ui.ChatActions by NoChat {
+                override fun chartView(req: com.obdlogger.core.ChartRequest) = com.obdlogger.app.ui.TrendChartView(a, com.obdlogger.app.ui.Bt.LIGHT,
+                    "Коррекция Б1 по поездкам · холостой", "%", listOf("03.10 11:46" to 14.8, "03.10 16:06" to 13.3, "03.10 19:51" to 21.9, "08.10 17:20" to 19.6), -10.0, 10.0)
+            }).apply {
+                bind(com.obdlogger.core.ChatState(mutableListOf(
                     com.obdlogger.core.ChatMessage("user", "Почему коррекция Б1 на холостом выше, чем в движении?"),
-                    com.obdlogger.core.ChatMessage("assistant", "**Коротко:** похоже на подсос воздуха.\n\n- На холостом коррекция Б1 +21.9 %, в движении −3.1 %: лишний воздух заметен, когда его мало.\n- Задняя лямбда на ХХ 0.06 В — «бедно».\n\nПроверьте шланги вентиляции картера и прокладку впуска, затем запишите проверочный лог."),
+                    com.obdlogger.core.ChatMessage("assistant", "**Коротко:** похоже на подсос воздуха.\n\n- На холостом коррекция Б1 +21.9 %, в движении −3.1 %: лишний воздух заметен, когда его мало.\n- Задняя лямбда на ХХ 0.06 В — «бедно».\n\nПроверьте шланги вентиляции картера и прокладку впуска, затем запишите проверочный лог.\n[график: тренд trim_b1 WARM_IDLE]"),
                     com.obdlogger.core.ChatMessage("user", "А может быть забит топливный фильтр?"),
-                ), true, true, "Ответы — по данным этой машины: Avensis 2.0 D-4 · поездок 4 · проверочных логов 1 · коды: P0136, P0156", null) } } },
+                ), "конспект"), "Думаю… (глубокий режим — до минуты)", true, "Ответы — по данным этой машины: Avensis 2.0 D-4 · поездок 4 · проверочных логов 1 · коды: P0136, P0156", null) } } },
             // Codes screen with what the owner's car reported: both rear O2 sensors, flat at 0.02 V.
             "C1_codes" to {
                 val ff = com.obdlogger.core.FreezeFrame("P0136", listOf(

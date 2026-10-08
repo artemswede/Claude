@@ -12,14 +12,19 @@ import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import com.obdlogger.core.ChatMessage
+import com.obdlogger.core.ChartRequest
+import com.obdlogger.core.ChatCharts
+import com.obdlogger.core.ChatState
 
 /** What the chat page asks the activity to do. */
 interface ChatActions {
     fun sendQuestion(text: String)
     fun voiceQuestion()
     fun editAiKey()
-    fun clearChat()
+    /** The one chat starts over: messages and its memory are erased. */
+    fun resetChat()
+    /** A chart the assistant asked for, drawn from this car's data; null if there is nothing to draw. */
+    fun chartView(req: ChartRequest): View?
 }
 
 /**
@@ -70,18 +75,23 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
         actions.sendQuestion(q)
     }
 
-    /** [busy] — waiting for the answer; [error] — the last failure, shown under the history. */
-    fun bind(history: List<ChatMessage>, busy: Boolean, hasKey: Boolean, context: String, error: String?) {
-        val key = listOf(history.size, history.lastOrNull()?.text?.length, busy, hasKey, context, error)
+    /** [busy] — what is happening while waiting («Думаю…»), null when idle; [error] — the last failure. */
+    fun bind(state: ChatState, busy: String?, hasKey: Boolean, context: String, error: String?) {
+        val history = state.messages
+        val key = listOf(history.size, history.lastOrNull()?.text?.length, state.summary.length, busy, hasKey, context, error)
         if (key == shownKey) return
         shownKey = key
         list.removeAllViews()
         val ctx = getContext()
         val head = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         addTo(head, ctx.text("Чат по машине", if (sc.phone) 22f else sc.hm, p.t1, 700), 0, 1f)
-        if (history.isNotEmpty()) addTo(head, ctx.text("Очистить", sc.p, p.acc, 600).apply { setOnClickListener { actions.clearChat() } }.tap(), dp(12))
+        // One chat only: no list of chats, just a reset.
+        if (history.isNotEmpty() || state.summary.isNotBlank()) addTo(head, ctx.button("Сброс чата", sc, p, primary = false) { actions.resetChat() }, dp(12))
         addTo(list, head)
         addTo(list, ctx.text(context, sc.cap, p.t3), dp(2))
+        if (state.summary.isNotBlank()) {
+            addTo(list, ctx.text("Ранние сообщения сжаты в память чата — факты, числа и гипотезы из них помнятся.", sc.cap, p.t3), dp(4))
+        }
         if (!hasKey) {
             addTo(list, card(column(ctx, dp(8),
                 ctx.text("Нужен ключ DeepSeek API", sc.hs, p.t1, 700),
@@ -110,7 +120,8 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
         }
         for (m in history) {
             val mine = m.role == "user"
-            val bubble = ctx.text(if (mine) m.text else com.obdlogger.app.AiChat.plain(m.text), if (sc.phone) 15f else 17f, p.t1, lineHeight = if (sc.phone) 21f else 24f).apply {
+            val shown = if (mine) m.text else com.obdlogger.app.AiChat.plain(ChatCharts.strip(m.text))
+            val bubble = ctx.text(shown, if (sc.phone) 15f else 17f, p.t1, lineHeight = if (sc.phone) 21f else 24f).apply {
                 setPadding(dp(14), dp(10), dp(14), dp(10))
                 background = if (mine) roundRect(p.accT, dp(14).toFloat()) else roundRect(p.s1, dp(14).toFloat(), dp(1), p.line)
                 setTextIsSelectable(!mine)
@@ -120,9 +131,65 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
                 if (mine) leftMargin = dp(60) else rightMargin = dp(40)
             })
             addTo(list, row, dp(10))
+            // Charts the assistant asked for, under its answer.
+            if (!mine) for (req in ChatCharts.parse(m.text)) {
+                val v = actions.chartView(req) ?: continue
+                addTo(list, card(v, p, dp(12), dp(10)).apply {
+                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(if (sc.phone) 200 else 230)).apply { topMargin = dp(8); rightMargin = dp(40) }
+                })
+            }
         }
-        if (busy) addTo(list, ctx.text("Думаю… (обычно 5–30 секунд)", sc.p, p.t3), dp(10))
+        busy?.let { addTo(list, ctx.text(it, sc.p, p.t3), dp(10)) }
         error?.let { addTo(list, card(ctx.text(it, sc.p, p.amb, 600), p, dp(14), dp(10), p.amb), dp(10)) }
         scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
+    }
+}
+
+/** Per-trip values of one sensor (a trend), drawn for the chat: points, a line, labels. */
+class TrendChartView(ctx: Context, private val p: Bt.Palette, private val title: String, private val unit: String,
+    private val points: List<Pair<String, Double>>, private val normLo: Double?, private val normHi: Double?) : View(ctx) {
+    private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+
+    override fun onDraw(c: android.graphics.Canvas) {
+        val d = resources.displayMetrics.density
+        val w = width.toFloat()
+        val h = height.toFloat()
+        paint.typeface = Bt.sans(context, 600)
+        paint.textSize = 14 * d
+        paint.color = p.t1
+        c.drawText(title, 0f, 16 * d, paint)
+        if (points.isEmpty()) return
+        var lo = points.minOf { it.second }
+        var hi = points.maxOf { it.second }
+        normLo?.let { lo = minOf(lo, it) }
+        normHi?.let { hi = maxOf(hi, it) }
+        if (hi - lo < 1e-9) { lo -= 1; hi += 1 }
+        val pad = (hi - lo) * 0.12
+        lo -= pad; hi += pad
+        val top = 28 * d
+        val bottom = h - 22 * d
+        val left = 8 * d
+        val right = w - 8 * d
+        fun x(i: Int) = if (points.size == 1) (left + right) / 2 else left + (right - left) * i / (points.size - 1)
+        fun y(v: Double) = (bottom - (bottom - top) * ((v - lo) / (hi - lo))).toFloat()
+        if (normLo != null && normHi != null) {
+            paint.color = p.accZ
+            c.drawRect(left, y(normHi), right, y(normLo), paint)
+        }
+        paint.color = p.chart
+        paint.strokeWidth = 2 * d
+        for (i in 1 until points.size) c.drawLine(x(i - 1), y(points[i - 1].second), x(i), y(points[i].second), paint)
+        paint.typeface = Bt.mono(context, 500)
+        paint.textSize = 12 * d
+        points.forEachIndexed { i, (label, v) ->
+            paint.color = if (normLo != null && normHi != null && (v < normLo || v > normHi)) p.amb else p.chart
+            c.drawCircle(x(i), y(v), 4 * d, paint)
+            val txt = com.obdlogger.core.Values.format(v).orEmpty() + if (unit.isNotEmpty() && i == points.lastIndex) " $unit" else ""
+            val tw = paint.measureText(txt)
+            c.drawText(txt, (x(i) - tw / 2).clamp(0f, w - tw), y(v) - 8 * d, paint)
+            paint.color = p.t3
+            val lw = paint.measureText(label.take(5))
+            if (points.size <= 8 || i % 2 == 0 || i == points.lastIndex) c.drawText(label.take(5), (x(i) - lw / 2).clamp(0f, w - lw), h - 4 * d, paint)
+        }
     }
 }

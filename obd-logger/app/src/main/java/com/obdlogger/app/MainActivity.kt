@@ -609,16 +609,21 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     // ---- AI chat ----
 
     private lateinit var chat: com.obdlogger.app.ui.ChatView
-    private val chatHistory by lazy { AiChat.load(this) }
-    @Volatile private var chatBusy = false
+    /** The one chat of the app (messages + memory); never a list of chats. */
+    private val chatState by lazy { AiChat.load(this) }
+    /** «Думаю…» while waiting, null when idle. */
+    @Volatile private var chatBusy: String? = null
     private var chatError: String? = null
     private var chatContext = ""
+    /** Per-sensor detail of this car's recent trips: for the prompt and for the charts the assistant asks for. */
+    @Volatile private var chatDetails: List<com.obdlogger.core.TripDetail> = emptyList()
 
     private fun refreshChat(withContext: Boolean = false) {
-        chat.bind(chatHistory, chatBusy, AiChat.key(this).isNotEmpty(), chatContext, chatError)
+        chat.bind(chatState, chatBusy, AiChat.key(this).isNotEmpty(), chatContext, chatError)
         if (!withContext) return
         Thread {
             val m = TripsModel.build(this, Prefs.currentCar(this))
+            chatDetails = m.trips.takeLast(CHAT_TRIPS).mapNotNull { TripCache.detail(it) }
             val codes = Regex("Ошибки: ([^\\n]+)").find(LoggerState.snapshot.dtcInfo)?.groupValues?.get(1)
             val line = "Ответы — по данным этой машины: ${Prefs.vehicle(this).ifBlank { "машина без названия" }} · " +
                 "поездок ${m.trips.size} · проверочных логов ${m.checks.size}" + (codes?.let { " · коды: $it" } ?: "")
@@ -626,37 +631,81 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         }.start()
     }
 
-    /** What the AI sees: this car's trips, check logs, codes (with the saved reasons) and, while driving, the live values. */
+    /** What the AI sees: this car's trips with per-mode statistics, check logs, codes with the saved reasons, live values, the chat's memory. */
     private fun chatSystemPrompt(): String {
         val m = TripsModel.build(this, Prefs.currentCar(this))
+        chatDetails = m.trips.takeLast(CHAT_TRIPS).mapNotNull { TripCache.detail(it) }
         val s = LoggerState.snapshot
         val codes = s.dtcReportFile?.let { f -> try { File(f).readText() } catch (_: Exception) { null } } ?: s.dtcInfo
         val live = if (s.recording) s.values.take(25).joinToString(", ") { (k, v) -> "${com.obdlogger.core.SensorNames.label(k)} $v" } else null
-        return com.obdlogger.core.ChatPrompt.system(Prefs.vehicle(this), m.trips.map { it.summary }, m.checks.mapNotNull { it.check }, codes, live)
+        return com.obdlogger.core.ChatPrompt.system(Prefs.vehicle(this), m.trips.map { it.summary }, m.checks.mapNotNull { it.check }, codes, live,
+            chatDetails, chatState.summary)
     }
 
     override fun sendQuestion(text: String) {
         val key = AiChat.key(this)
         if (key.isEmpty()) return editAiKey()
-        if (chatBusy) return
-        chatHistory += com.obdlogger.core.ChatMessage("user", text)
-        AiChat.save(this, chatHistory)
-        chatBusy = true
+        if (chatBusy != null) return
+        chatState.messages += com.obdlogger.core.ChatMessage("user", text)
+        AiChat.save(this, chatState)
+        chatBusy = "Думаю… (глубокий режим — до минуты)"
         chatError = null
         refreshChat()
         Thread {
             val result = try {
-                Result.success(AiChat.ask(key, AiChat.model(this), chatSystemPrompt(), com.obdlogger.core.ChatPrompt.history(chatHistory.toList())))
+                val thinking = AiChat.thinking(this)
+                var model = AiChat.modelId(this, key)
+                var system = chatSystemPrompt()
+                // Long conversation: fold the older part into the chat's memory, keep the last 30 as they are.
+                if (com.obdlogger.core.ChatMemory.needsCompression(system, chatState)) {
+                    runOnUiThread { chatBusy = "Сжимаю раннюю часть разговора в память…"; refreshChat() }
+                    val summary = AiChat.ask(key, model, "Ты составляешь точный конспект технической переписки.",
+                        listOf(com.obdlogger.core.ChatMessage("user", com.obdlogger.core.ChatMemory.compressionPrompt(chatState))), thinking = false)
+                    com.obdlogger.core.ChatMemory.apply(chatState, summary)
+                    AiChat.save(this, chatState)
+                    system = chatSystemPrompt()
+                    runOnUiThread { chatBusy = "Думаю…"; refreshChat() }
+                }
+                val answer = try {
+                    AiChat.ask(key, model, system, com.obdlogger.core.ChatPrompt.history(chatState), thinking)
+                } catch (e: AiChat.ModelGone) {
+                    // The server renamed its models: pick again from its list and repeat once.
+                    AiChat.forgetModel(this)
+                    model = AiChat.modelId(this, key)
+                    AiChat.ask(key, model, system, com.obdlogger.core.ChatPrompt.history(chatState), thinking)
+                }
+                Result.success(answer)
             } catch (e: Exception) {
                 Result.failure(e)
             }
             runOnUiThread {
-                chatBusy = false
-                result.onSuccess { chatHistory += com.obdlogger.core.ChatMessage("assistant", it); AiChat.save(this, chatHistory) }
+                chatBusy = null
+                result.onSuccess { chatState.messages += com.obdlogger.core.ChatMessage("assistant", it); AiChat.save(this, chatState) }
                 result.onFailure { chatError = it.message ?: it.toString() }
                 refreshChat()
             }
         }.start()
+    }
+
+    override fun chartView(req: com.obdlogger.core.ChartRequest): View? {
+        val details = chatDetails
+        if (details.isEmpty()) return null
+        return when (req) {
+            is com.obdlogger.core.ChartRequest.Trend -> {
+                val pts = com.obdlogger.core.ChatCharts.trend(details, req.sensor, req.mode)
+                if (pts.isEmpty()) return null
+                val norm = com.obdlogger.core.Norms.of(req.sensor, req.mode?.let { com.obdlogger.core.LiveMode.of(it) } ?: com.obdlogger.core.LiveMode.IDLE)
+                com.obdlogger.app.ui.TrendChartView(this, Bt.LIGHT,
+                    "${com.obdlogger.core.SensorNames.label(req.sensor)} по поездкам" + (req.mode?.let { " · ${it.ru.lowercase()}" } ?: ""),
+                    com.obdlogger.core.SensorNames.unit(req.sensor), pts, norm?.lo, norm?.hi)
+            }
+            is com.obdlogger.core.ChartRequest.Trip -> {
+                val d = com.obdlogger.core.ChatCharts.trip(details, req.trip) ?: return null
+                val trace = d.summary.trace ?: return null
+                if (trace.of(req.sensor) == null && req.sensor != "trim_b1") return null
+                com.obdlogger.app.ui.TrimChartView(this).apply { set(trace, Bt.LIGHT, shell.sc, false, req.sensor) }
+            }
+        }
     }
 
     override fun voiceQuestion() {
@@ -702,18 +751,24 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
             .show()
     }
 
-    override fun clearChat() {
+    override fun resetChat() {
         AlertDialog.Builder(this)
-            .setTitle("Очистить чат?")
-            .setMessage("История вопросов и ответов удалится с устройства.")
-            .setPositiveButton("Очистить") { _, _ -> chatHistory.clear(); chatError = null; AiChat.save(this, chatHistory); refreshChat() }
+            .setTitle("Сбросить чат?")
+            .setMessage("Разговор и память чата удалятся, Бортач начнёт с чистого листа. Данные поездок не затрагиваются.")
+            .setPositiveButton("Сбросить") { _, _ ->
+                chatState.messages.clear()
+                chatState.summary = ""
+                chatError = null
+                AiChat.save(this, chatState)
+                refreshChat()
+            }
             .setNegativeButton("Отмена", null)
             .show()
     }
 
     override fun aiKeyText(): String = AiChat.keyText(this)
-    override fun aiModel(): Int = AiChat.MODELS.indexOfFirst { it.first == AiChat.model(this) }.coerceAtLeast(0)
-    override fun setAiModel(i: Int) = AiChat.setModel(this, AiChat.MODELS[i].first)
+    override fun aiModel(): Int = if (AiChat.thinking(this)) 0 else 1
+    override fun setAiModel(i: Int) = AiChat.setThinking(this, AiChat.MODES[i].second)
 
     // ---- trouble codes ----
 
@@ -1017,5 +1072,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
 
     private companion object {
         const val REQ_VOICE = 41
+        /** Trips whose per-mode statistics go to the chat. */
+        const val CHAT_TRIPS = 6
     }
 }

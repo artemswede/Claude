@@ -111,8 +111,8 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
 
         section("ИИ-чат")
         chevron("Ключ DeepSeek API", "${h.aiKeyText()} · хранится только на этом устройстве") { h.editAiKey() }
-        segment("Модель", "«Думающий» отвечает дольше, но глубже разбирает гипотезы",
-            com.obdlogger.app.AiChat.MODELS.mapIndexed { i, m -> m.second to i }, h.aiModel()) { h.setAiModel(it) }
+        segment("Режим ответа", "«Думающий» (по умолчанию): глубокое рассуждение, сам в быстрый не переключается",
+            com.obdlogger.app.AiChat.MODES.mapIndexed { i, m -> m.first to i }, h.aiModel()) { h.setAiModel(it) }
 
         section("Файлы")
         segment("Хранение", "Загрузки / OBD-Logger · ${h.storageText()}", listOf("30 дней" to 30, "90 дней" to 90, "Всегда" to 0), h.keepDays()) { h.setKeepDays(it) }

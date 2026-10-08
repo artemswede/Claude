@@ -28,6 +28,8 @@ object Prefs {
     /** The owner's DeepSeek key and model for the AI chat. */
     const val AI_KEY = "ai_key"
     const val AI_MODEL = "ai_model"
+    /** Model id picked from the server's list for this key. */
+    const val AI_MODEL_ID = "ai_model_id"
     const val PANEL_SORT = "panel_sort"
     const val PANEL_HIDDEN = "panel_hidden"
 
