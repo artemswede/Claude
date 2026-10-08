@@ -107,6 +107,8 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         shell.containers.getValue(Shell.Page.OVERVIEW).addView(home)
 
         record = RecordView(this, shell.sc)
+        if (!shell.sc.phone) shell.setPageBar(Shell.Page.RECORD, record.header)
+        record.onMode = { shell.setPageInfo(Shell.Page.RECORD, it) }
         shell.containers.getValue(Shell.Page.RECORD).addView(record)
 
         trips = TripsView(this, shell.sc, { openTrip(it) }, { key -> tripsCar = key; refreshTrips(force = true) })
@@ -524,7 +526,16 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
             }
             runOnUiThread {
                 homeLoading = false
-                if (model != null) home.bind(model, LoggerState.snapshot)
+                if (model != null) {
+                    homeModel = model
+                    home.bind(model, LoggerState.snapshot)
+                    // Ready «Подробнее» in advance, so it opens on the first tap.
+                    val key = (model.trip ?: model.past)?.car?.key
+                    if ((model.trip?.top ?: model.past?.top) != null && versionTrips?.first != key && !versionWarming) {
+                        versionWarming = true
+                        Thread { try { versionTrips = key to TripsModel.build(this, key) } finally { versionWarming = false } }.start()
+                    }
+                }
                 home.problem(currentProblem(LoggerState.snapshot))
             }
         }.start()
@@ -661,17 +672,42 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     }
 
     /** «Подробнее» on the main screen: the version card of the trip shown there. */
+    /** The model the main screen shows now: «Подробнее» opens from it at once. */
+    @Volatile private var homeModel: HomeModel? = null
+    /** This car's trips for the version page, kept between openings. */
+    @Volatile private var versionTrips: Pair<String?, TripsModel>? = null
+    private var versionOpening = false
+    @Volatile private var versionWarming = false
+
     private fun openHomeVersion() {
+        if (versionOpening) return
+        val shown = homeModel
+        val key = (shown?.trip ?: shown?.past)?.car?.key
+        val cached = versionTrips?.takeIf { it.first == key }?.second
+        if (shown != null && cached != null) {
+            showVersion(shown, cached)
+            // Refresh the cache quietly for the next time.
+            Thread { versionTrips = key to TripsModel.build(this, key) }.start()
+            return
+        }
+        versionOpening = true
         Thread {
-            val model = HomeModel.build(this, LoggerState.snapshot)
+            val model = shown ?: HomeModel.build(this, LoggerState.snapshot)
             val f = model.trip?.top ?: model.past?.top
             // Only this car's trips go into the version.
-            val m = TripsModel.build(this, (model.trip ?: model.past)?.car?.key)
+            val carKey = (model.trip ?: model.past)?.car?.key
+            val m = TripsModel.build(this, carKey)
+            versionTrips = carKey to m
             runOnUiThread {
-                if (f == null) shell.show(Shell.Page.TRIPS)
-                else push(Shell.Page.OVERVIEW, VersionView(this, shell.sc, Hypotheses.of(f, m.trips.map { it.summary } + listOfNotNull(model.trip.takeIf { model.live })), "Обзор", this))
+                versionOpening = false
+                if (f == null) shell.show(Shell.Page.TRIPS) else showVersion(model, m)
             }
         }.start()
+    }
+
+    private fun showVersion(model: HomeModel, m: TripsModel) {
+        val f = model.trip?.top ?: model.past?.top ?: return shell.show(Shell.Page.TRIPS)
+        push(Shell.Page.OVERVIEW, VersionView(this, shell.sc, Hypotheses.of(f, m.trips.map { it.summary } + listOfNotNull(model.trip.takeIf { model.live })), "Обзор", this))
     }
 
     // ---- TripActions / VersionActions ----

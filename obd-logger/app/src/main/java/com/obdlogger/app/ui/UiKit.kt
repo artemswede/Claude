@@ -14,7 +14,12 @@ import android.widget.TextView
  * Tab strip under the service line («Панель · Внимание · Графики»): text tabs with
  * an accent underline on the selected one, a bottom rule and an optional view on the right.
  */
-class Tabs(ctx: Context, private val sc: Bt.Scale, private val p: Bt.Palette, titles: List<String>, private val onSelect: (Int) -> Unit) :
+class Tabs(
+    ctx: Context, private val sc: Bt.Scale, private val p: Bt.Palette, titles: List<String>,
+    /** Placed in the service line: tighter, no rule under the whole strip. */
+    private val inBar: Boolean = false,
+    private val onSelect: (Int) -> Unit,
+) :
     LinearLayout(ctx) {
     private val items = ArrayList<TextView>()
     private val right = FrameLayout(ctx)
@@ -27,11 +32,12 @@ class Tabs(ctx: Context, private val sc: Bt.Scale, private val p: Bt.Palette, ti
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         setWillNotDraw(false)
-        setPadding(dp(if (sc.phone) 8 else 24), 0, dp(if (sc.phone) 8 else 16), 0)
+        setPadding(if (inBar) 0 else dp(if (sc.phone) 8 else 24), 0, if (inBar) 0 else dp(if (sc.phone) 8 else 16), 0)
         titles.forEachIndexed { i, t ->
             val tv = ctx.text(t, if (sc.phone) 15f else if (sc === Bt.TABLET) 19f else 16f, p.t2, 500).apply {
                 gravity = Gravity.CENTER
-                setPadding(dp(if (sc.phone) 12 else 22), 0, dp(if (sc.phone) 12 else 22), 0)
+                val padH = if (sc.phone) 12 else if (inBar && sc.compact) 12 else 22
+                setPadding(dp(padH), 0, dp(padH), 0)
                 setOnClickListener { select(i) }
             }
             items += tv
@@ -63,7 +69,7 @@ class Tabs(ctx: Context, private val sc: Bt.Scale, private val p: Bt.Palette, ti
     override fun dispatchDraw(canvas: Canvas) {
         super.dispatchDraw(canvas)
         val d = resources.displayMetrics.density
-        canvas.drawRect(0f, height - d, width.toFloat(), height.toFloat(), rule)
+        if (!inBar) canvas.drawRect(0f, height - d, width.toFloat(), height.toFloat(), rule)
         items.getOrNull(selected)?.let { canvas.drawRect(it.left.toFloat(), height - 3 * d, it.right.toFloat(), height.toFloat(), under) }
     }
 
@@ -126,6 +132,26 @@ fun Context.button(title: String, sc: Bt.Scale, p: Bt.Palette, primary: Boolean 
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(sc.btnH))
         setOnClickListener { onClick() }
     }
+
+/**
+ * «← Обзор» as a real button in a fixed strip above the page. Inside a scrolling page a
+ * press on a head-unit screen often became a tiny scroll and was lost.
+ */
+fun Context.backStrip(title: String, sc: Bt.Scale, p: Bt.Palette, onClick: () -> Unit): View =
+    LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(sc.pad), dp(8), dp(sc.pad), dp(4))
+        setBackgroundColor(p.bg)
+        addView(button("←  $title", sc, p, primary = false, onClick = onClick), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(sc.btnH)))
+    }
+
+/** A fixed [strip] over a scrolling [content]. */
+fun Context.stripOver(strip: View, content: View): View = LinearLayout(this).apply {
+    orientation = LinearLayout.VERTICAL
+    addView(strip, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+    addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+}
 
 /** Card surface: s1 with a radius, optional dashed or coloured border. */
 fun card(v: View, p: Bt.Palette, padH: Int, padV: Int, border: Int = 0, dashed: Boolean = false): View {

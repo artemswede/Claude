@@ -42,7 +42,7 @@ class DtcView(ctx: Context, private val sc: Bt.Scale, private val actions: DtcAc
 
     init {
         setBackgroundColor(p.bg)
-        addView(ScrollView(ctx).apply { addView(page) })
+        addView(ctx.stripOver(ctx.backStrip("Назад", sc, p) { actions.closeCodes() }, ScrollView(ctx).apply { addView(page) }))
     }
 
     /** Codes from the trip-start text when nothing was read on this screen yet. */
@@ -55,8 +55,7 @@ class DtcView(ctx: Context, private val sc: Bt.Scale, private val actions: DtcAc
         shownKey = key
         page.removeAllViews()
         val ctx = context
-        addTo(page, ctx.button("←  Назад", sc, p, primary = false) { actions.closeCodes() }, width = ViewGroup.LayoutParams.WRAP_CONTENT)
-        addTo(page, ctx.text("Коды ошибок", if (sc.phone) 24f else sc.hl, p.t1, 700), dp(10))
+        addTo(page, ctx.text("Коды ошибок", if (sc.phone) 24f else sc.hl, p.t1, 700))
 
         val snap = s.dtcSnap
         val stored = snap?.stored ?: codesFrom(s.dtcInfo, "Ошибки")

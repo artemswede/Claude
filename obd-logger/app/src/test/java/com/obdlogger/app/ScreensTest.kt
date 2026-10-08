@@ -223,7 +223,11 @@ class Scenes(private val a: Activity) {
     }
 
     private fun record(tab: Int, s: LoggerState.Snapshot) = shell(Shell.Page.RECORD, s) { sh ->
-        RecordView(a, sh.sc).apply { bind(liveStore, s); showTab(tab) }
+        RecordView(a, sh.sc).apply {
+            if (!sh.sc.phone) sh.setPageBar(Shell.Page.RECORD, header)
+            onMode = { sh.setPageInfo(Shell.Page.RECORD, it) }
+            bind(liveStore, s); showTab(tab)
+        }
     }
 
     fun list(): List<Pair<String, () -> View>> {
@@ -251,7 +255,7 @@ class Scenes(private val a: Activity) {
             "D_notrips" to { home(LoggerState.Snapshot(), emptyList(), null) },
             "G1_panel" to { record(0, recording) },
             "G3_attention" to { record(1, recording) },
-            "G1b_panel_page2" to { shell(Shell.Page.RECORD, recording) { sh -> RecordView(a, sh.sc).apply { bind(liveStore, recording); showTab(0); showPanelPage(1) } } },
+            "G1b_panel_page2" to { shell(Shell.Page.RECORD, recording) { sh -> RecordView(a, sh.sc).apply { if (!sh.sc.phone) sh.setPageBar(Shell.Page.RECORD, header); bind(liveStore, recording); showTab(0); showPanelPage(1) } } },
             "G2_charts" to { record(2, recording) },
             // Codes screen with what the owner's car reported: both rear O2 sensors, flat at 0.02 V.
             "C1_codes" to {

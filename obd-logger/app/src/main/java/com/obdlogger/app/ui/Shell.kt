@@ -55,6 +55,14 @@ class Shell(private val activity: Activity) {
     private val car = ctx.text("", sc.sbarFont, p.t2, maxLines = 1)
     private val dtcChip = ctx.text("", sc.sbarFont - 2, p.red, 600)
     private val rec = ctx.text("", sc.sbarFont, p.t1, maxLines = 1)
+    /** «21» over «мин» inside the lamp pill while recording. */
+    private val recUnit = ctx.text("мин", sc.sbarFont - 3, p.t2)
+    /** A page's own controls in the service line (the «Запись» tabs), in place of the brand. */
+    private val slot = FrameLayout(ctx)
+    private val pageBars = HashMap<Page, View>()
+    private val pageInfos = HashMap<Page, String>()
+    /** «движение» — the page's short state, next to the lamps. */
+    private val info = ctx.text("", sc.sbarFont, p.t2, maxLines = 1)
     private val lampPill = LinearLayout(ctx)
     private val lamp1 = View(ctx)
     private val lamp2 = View(ctx)
@@ -66,6 +74,7 @@ class Shell(private val activity: Activity) {
         repeatCount = android.animation.ValueAnimator.INFINITE
     }
     private val upd = ctx.text("", sc.sbarFont - 1, p.t3, maxLines = 1)
+    private val divider = View(ctx)
     private val nav = LinearLayout(ctx)
     private val navItems = LinkedHashMap<Page, LinearLayout>()
     /** One container per page; pages are built by the activity. */
@@ -80,38 +89,39 @@ class Shell(private val activity: Activity) {
         bar.elevation = ctx.dp(2).toFloat()
         val ls = ctx.dp(if (sc === Bt.TABLET) 26 else 20)
         logo.layoutParams = LinearLayout.LayoutParams(ls, ls)
-        bar.addView(logo)
-        addTo(bar, brand, ctx.dp(8))
+        // Short screens give the brand's room to the page: no logo, no name.
+        if (!sc.compact) {
+            bar.addView(logo)
+            addTo(bar, brand, ctx.dp(8))
+        }
         if (!sc.phone) {
             sep.layoutParams = LinearLayout.LayoutParams(ctx.dp(1), ctx.dp(22))
             addTo(bar, sep, ctx.dp(18))
             addTo(bar, car, ctx.dp(18))
         }
-        addTo(bar, spacer(ctx))
+        bar.addView(slot, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+        addTo(bar, info, ctx.dp(8))
         dtcChip.setPadding(ctx.dp(12), ctx.dp(4), ctx.dp(12), ctx.dp(4))
         dtcChip.setOnClickListener { onDtc() }
         dtcChip.tap()
         addTo(bar, dtcChip, ctx.dp(12))
+        // One pill: engine · ECU link │ writing lamp and the minutes («21» over «мин»).
         lampPill.orientation = LinearLayout.HORIZONTAL
         lampPill.gravity = Gravity.CENTER_VERTICAL
-        lampPill.setPadding(ctx.dp(14), ctx.dp(14), ctx.dp(14), ctx.dp(14))
+        lampPill.setPadding(ctx.dp(14), 0, ctx.dp(14), 0)
         lampPill.minimumHeight = ctx.dp(48)
         lampPill.minimumWidth = ctx.dp(64)
-        // Left to right as the chain goes: ECU sees the engine → Бортач sees the ECU → Бортач writes.
         for ((i, l) in listOf(lamp1, lamp2).withIndex()) {
             lampPill.addView(l, LinearLayout.LayoutParams(ctx.dp(sc.lamp), ctx.dp(sc.lamp)).apply { if (i > 0) leftMargin = ctx.dp(10) })
         }
-        lampPill.elevation = ctx.dp(1).toFloat()
+        lampPill.addView(divider, LinearLayout.LayoutParams(ctx.dp(1), ctx.dp(22)).apply { leftMargin = ctx.dp(12) })
+        lampPill.addView(lamp3, LinearLayout.LayoutParams(ctx.dp(sc.lamp), ctx.dp(sc.lamp)).apply { leftMargin = ctx.dp(12) })
+        rec.gravity = Gravity.CENTER
+        recUnit.gravity = Gravity.CENTER
+        lampPill.addView(column(ctx, 0, rec, recUnit).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { leftMargin = ctx.dp(8) })
         lampPill.contentDescription = "Лампы: двигатель, связь с ЭБУ, запись — подробнее"
         lampPill.setOnClickListener { showLampTip() }
-        addTo(bar, lampPill, ctx.dp(14))
-        // The writing lamp blinks right at «REC»: chain reads engine · ECU link → ● REC.
-        lamp3.layoutParams = LinearLayout.LayoutParams(ctx.dp(sc.lamp), ctx.dp(sc.lamp))
-        addTo(bar, row(ctx, ctx.dp(8), Gravity.CENTER_VERTICAL, lamp3, rec).apply {
-            setPadding(ctx.dp(6), 0, ctx.dp(6), 0)
-            setOnClickListener { showLampTip() }
-            tap()
-        }, ctx.dp(8))
+        addTo(bar, lampPill, ctx.dp(10))
         // «обновлено N с назад» is in the lamp tip; short screens keep the room for the rest.
         if (!sc.phone && !sc.compact) addTo(bar, upd, ctx.dp(14))
         root.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ctx.dp(sc.sbarH)))
@@ -151,9 +161,38 @@ class Shell(private val activity: Activity) {
         show(Page.OVERVIEW)
     }
 
+    /** Puts [v] (e.g. the «Запись» tabs) into the service line while [pg] is shown; null removes it. */
+    fun setPageBar(pg: Page, v: View?) {
+        if (v == null) pageBars.remove(pg) else pageBars[pg] = v
+        updateSlot()
+    }
+
+    /** Short state of [pg] shown next to the lamps («движение»). */
+    fun setPageInfo(pg: Page, text: String) {
+        pageInfos[pg] = text
+        if (pg == page) info.text = text
+    }
+
+    private fun updateSlot() {
+        slot.removeAllViews()
+        val v = pageBars[page]
+        if (v != null) {
+            (v.parent as? ViewGroup)?.removeView(v)
+            slot.addView(v, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        }
+        // The page's own bar takes the brand's and the car's place.
+        val own = v != null
+        logo.visibility = if (own || sc.compact) View.GONE else View.VISIBLE
+        brand.visibility = logo.visibility
+        if (own) { car.visibility = View.GONE; sep.visibility = View.GONE }
+        info.text = pageInfos[page].orEmpty()
+        info.visibility = if (info.text.isNullOrEmpty()) View.GONE else View.VISIBLE
+    }
+
     fun show(pg: Page) {
         page = pg
         containers.forEach { (k, v) -> v.visibility = if (k == pg) View.VISIBLE else View.GONE }
+        updateSlot()
         applyTheme(if (pg == Page.RECORD || (pg == Page.OVERVIEW && nightHome)) Bt.DARK else Bt.LIGHT)
         onPage(pg)
     }
@@ -168,6 +207,9 @@ class Shell(private val activity: Activity) {
         sep.setBackgroundColor(p.line2)
         car.setTextColor(p.t2)
         rec.setTextColor(p.t1)
+        recUnit.setTextColor(p.t2)
+        info.setTextColor(p.t2)
+        divider.setBackgroundColor(p.line2)
         upd.setTextColor(p.t3)
         lampPill.background = roundRect(p.s1, ctx.dp(999).toFloat())
         dtcChip.background = roundRect(p.redT, ctx.dp(999).toFloat())
@@ -201,8 +243,9 @@ class Shell(private val activity: Activity) {
         snapshot = s
         val name = Prefs.vehicle(ctx)
         val unnamed = name.isBlank() && Prefs.currentCar(ctx) != null
-        car.text = if (unnamed) (if (sc.compact) "Назвать машину" else "Новая машина · указать название") else name
-        val showCar = !sc.phone && car.text.isNotEmpty()
+        car.text = if (unnamed) (if (sc.compact) "" else "Новая машина · указать название") else name
+        // Short screens: the car's name lives in «Поездки» and «Настройки»; the line is for the page.
+        val showCar = !sc.phone && !sc.compact && car.text.isNotEmpty() && pageBars[page] == null
         car.visibility = if (showCar) View.VISIBLE else View.GONE
         sep.visibility = car.visibility
         car.setTextColor(if (unnamed) p.acc else p.t2)
@@ -212,6 +255,7 @@ class Shell(private val activity: Activity) {
         val writing = writeLamp(s)
         lamp3.background = roundRect(lampColor(writing), ctx.dp(sc.lamp).toFloat())
         lamp3.visibility = if (s.recording) View.VISIBLE else View.GONE
+        divider.visibility = lamp3.visibility
         if (writing == Lamp.OK) {
             if (!blink.isStarted) blink.start()
         } else {
@@ -221,11 +265,17 @@ class Shell(private val activity: Activity) {
         val min = s.elapsedSec / 60
         rec.typeface = if (s.recording) Bt.mono(ctx, 600) else Bt.sans(ctx, 400)
         rec.text = when {
-            s.recording -> if (min >= 60) "REC · ${min / 60} ч %02d мин".format(min % 60) else "REC · $min мин"
+            s.recording -> if (min >= 60) "${min / 60}:%02d".format(min % 60) else "$min"
+            sc.compact && s.auto -> "жду мотор"
+            sc.compact && s.running -> "связь…"
+            sc.compact -> "выкл."
             s.auto -> "Жду запуска двигателя"
             s.running -> "Подключение…"
             else -> "Запись выключена"
         }
+        recUnit.text = if (min >= 60) "ч:мин" else "мин"
+        recUnit.visibility = if (s.recording) View.VISIBLE else View.GONE
+        rec.textSize = if (s.recording) sc.sbarFont + 1 else sc.sbarFont - 1
         upd.text = when {
             s.lastDataMs <= 0 -> ""
             s.recording -> "обновлено ${((System.currentTimeMillis() - s.lastDataMs) / 1000).coerceAtLeast(0)} с назад"

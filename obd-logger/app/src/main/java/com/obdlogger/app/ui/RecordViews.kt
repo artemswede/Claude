@@ -368,6 +368,42 @@ class LanesView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
     var windowMs = 5 * 60_000L
     private var live = true
     private var mode = LiveMode.OFF
+    /** Lanes visible at once (0 = all); the rest scroll under a fixed time axis. */
+    var perScreen = 0
+        set(v) { field = v; offset = offset.coerceIn(0f, maxOffset()); invalidate() }
+    /** Scroll position in lanes. */
+    private var offset = 0f
+    private var lastY = 0f
+    private var dragging = false
+    private val slop = android.view.ViewConfiguration.get(ctx).scaledTouchSlop
+
+    private fun shown() = if (perScreen <= 0) codes.size.coerceAtLeast(1) else perScreen
+    private fun maxOffset() = (codes.size - shown()).coerceAtLeast(0).toFloat()
+
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(e: android.view.MotionEvent): Boolean {
+        if (maxOffset() <= 0f) return false
+        val axisH = 28 * resources.displayMetrics.density
+        val laneH = (height - axisH) / shown()
+        when (e.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> { lastY = e.y; dragging = false; parent?.requestDisallowInterceptTouchEvent(true) }
+            android.view.MotionEvent.ACTION_MOVE -> {
+                val dy = e.y - lastY
+                if (!dragging && kotlin.math.abs(dy) > slop) dragging = true
+                if (dragging) {
+                    offset = (offset - dy / laneH).coerceIn(0f, maxOffset())
+                    lastY = e.y
+                    invalidate()
+                }
+            }
+            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                // Settle on a whole lane so names and scales line up.
+                offset = kotlin.math.round(offset).coerceIn(0f, maxOffset())
+                invalidate()
+            }
+        }
+        return true
+    }
 
     fun set(store: SeriesStore, codes: List<String>, live: Boolean, mode: LiveMode) {
         this.store = store
@@ -396,7 +432,7 @@ class LanesView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
         val left = 0f
         val right = w - labelW - 12 * d
         val axisH = 28 * d
-        val laneH = (h - axisH) / codes.size.coerceAtLeast(1)
+        val laneH = (h - axisH) / shown()
         fun x(t: Long) = left + (right - left) * ((t - start).toFloat() / windowMs)
 
         // Gaps (ECU silent > 15 s), over all lanes.
@@ -416,8 +452,11 @@ class LanesView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
         val valP = paint(19f, p.t1, 500, mono = true)
         val unitP = paint(13f, p.t2)
         val scaleP = paint(12f, p.t3, 400, mono = true)
+        c.save()
+        c.clipRect(0f, 0f, w, h - axisH)
         codes.forEachIndexed { k, code ->
-            val top = k * laneH
+            val top = (k - offset) * laneH
+            if (top + laneH < 0 || top > h - axisH) return@forEachIndexed
             val bottom = top + laneH
             fill.color = p.line
             c.drawRect(left, bottom - d, w, bottom, fill)
@@ -456,7 +495,16 @@ class LanesView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
             c.drawText(vt, lx, ly + valP.textSize + 2 * d, valP)
             c.drawText(" " + SensorNames.unit(code), lx + valP.measureText(vt), ly + valP.textSize + 2 * d, unitP)
         }
-        // Time axis: a label per minute (or per 3 min on 15 min).
+        c.restore()
+        // Where in the list we are: a thin bar at the right edge while there are more lanes than fit.
+        if (maxOffset() > 0f) {
+            val trackH = h - axisH
+            val barH = trackH * shown() / codes.size
+            val barTop = (trackH - barH) * (offset / maxOffset())
+            fill.color = p.line2
+            c.drawRoundRect(w - 4 * d, barTop, w, barTop + barH, 2 * d, 2 * d, fill)
+        }
+        // Time axis (fixed under the scrolling lanes): a label per minute (or per 3 min on 15 min).
         val step = when {
             windowMs <= 60_000 -> 15_000L
             windowMs <= 5 * 60_000 -> 60_000L

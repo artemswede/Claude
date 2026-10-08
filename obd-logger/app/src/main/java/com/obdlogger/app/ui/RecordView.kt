@@ -62,11 +62,16 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
     private val lanes = LanesView(ctx, p)
     private var sort = AttentionSort.DEVIATION
     private var attnPage = 0
-    private var chartPage = 0
+    /** Lanes on screen at once (1–4); the others scroll up and down under the time axis. */
+    private var lanesPer = Prefs.of(ctx).getInt("chart_lanes", if (sc === Bt.TABLET) 4 else 3).coerceIn(1, 4)
     /** «2/4 ›» next to the time window on «Графики». */
     private val chartPageText = ctx.text("", if (sc.phone) 13f else 15f, p.t2, 600, maxLines = 1).apply {
         setPadding(dp(10), dp(8), dp(10), dp(8))
-        setOnClickListener { chartPage++; refresh() }
+        setOnClickListener {
+            lanesPer = lanesPer % 4 + 1
+            Prefs.of(context).edit().putInt("chart_lanes", lanesPer).apply()
+            refresh()
+        }
     }.tap()
     private val chartsRight = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
     private var lastRanks: Map<String, Int> = emptyMap()
@@ -88,27 +93,33 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
     }.tap()
     private var store: SeriesStore? = null
     private var snapshot = LoggerState.Snapshot()
-    private val tabs = Tabs(ctx, sc, p, listOf("Панель", "Внимание", "Графики")) { show(it) }
+    /** Not on a phone: the tabs go up into the service line (see [header]), a whole row less here. */
+    private val tabsInBar = !sc.phone
+    private val tabs = Tabs(ctx, sc, p, listOf("Панель", "Внимание", "Графики"), inBar = tabsInBar) { show(it) }
+    /** The tabs with their controls, for [Shell.setPageBar]. */
+    val header: View get() = tabs
+    /** The short mode («движение»), shown by the shell next to the lamps when the tabs are in the service line. */
+    var onMode: (String) -> Unit = {}
 
     init {
         setBackgroundColor(p.bg)
         val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
         col.addView(banner)
-        col.addView(tabs, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(Tabs.height(sc))))
+        if (!tabsInBar) col.addView(tabs, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(Tabs.height(sc))))
         col.addView(pages, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         addView(col)
         buildPanel()
         buildAttention()
         charts.setPadding(dp(if (sc.phone) 8 else 16), dp(8), dp(if (sc.phone) 8 else 16), dp(8))
         // Swipe through every sensor, 6 lanes a page (4 on a phone).
-        charts.addView(SwipePager(ctx) { step -> chartPage += step; refresh() }.apply { addView(lanes) },
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        // Every sensor; swipe up and down, the time axis stays at the bottom.
+        charts.addView(lanes, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         addTo(chartsRight, chartPageText)
         // Short screens: one button that cycles the window instead of a three-part switch.
         if (sc.compact) addTo(chartsRight, windowText, dp(4)) else addTo(chartsRight, windowSeg, dp(8))
         if (!sc.compact) addTo(charts, ctx.text("точка = реальный замер · подпись у конца линии · подложка — норма", 13f, p.t3).apply { gravity = Gravity.END }, dp(4))
         // Short screens: the mode is written on the tiles anyway; the room goes to pages and «Датчики».
-        if (!sc.compact) addTo(panelRight, modeText)
+        if (!sc.compact && !tabsInBar) addTo(panelRight, modeText)
         addTo(panelRight, pageText, dp(4))
         addTo(panelRight, menuText, dp(4))
         for (v in listOf(panel, attn, charts)) pages.addView(v, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -142,16 +153,22 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
     private fun buildAttention() {
         val gap = dp(if (sc.phone) 8 else 12)
         attn.setPadding(gap, gap, gap, gap)
+        // Count on the left, the sort switch on the right with a «?» that says how the two differ.
         val head = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        head.addView(Segment(context, sc, p, listOf("Отклонение от нормы", "Скачки"), 0) { i ->
+        attnCount.setOnClickListener { attnPage++; refresh() }
+        attnCount.tap()
+        addTo(head, attnCount, 0, 1f)
+        addTo(head, Segment(context, sc, p, listOf("Отклонение", "Скачки"), 0) { i ->
             sort = if (i == 0) AttentionSort.DEVIATION else AttentionSort.JUMPS
             attnPage = 0
             refresh()
-        })
-        addTo(head, spacer(context))
-        attnCount.setOnClickListener { attnPage++; refresh() }
-        attnCount.tap()
-        addTo(head, attnCount)
+        }, dp(8))
+        addTo(head, context.text("?", if (sc.phone) 18f else 20f, p.acc, 700).apply {
+            gravity = Gravity.CENTER
+            minWidth = dp(48)
+            background = roundRect(p.s2, dp(24).toFloat())
+            setOnClickListener { explainSort() }
+        }.tap(), dp(8))
         attn.addView(head)
         val cols = if (sc.phone) 2 else 3
         val rows = 6 / cols
@@ -174,16 +191,31 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         panel.visibility = if (i == 0) VISIBLE else GONE
         attn.visibility = if (i == 1) VISIBLE else GONE
         charts.visibility = if (i == 2) VISIBLE else GONE
-        val right: View = when (i) {
+        val right: View? = when (i) {
             0 -> panelRight
             2 -> chartsRight
-            else -> modeText
+            else -> if (tabsInBar) null else modeText
         }
         if (i != 0 && modeText.parent === panelRight) panelRight.removeView(modeText)
-        if (i == 0 && !sc.compact && modeText.parent !== panelRight) { (modeText.parent as? ViewGroup)?.removeView(modeText); panelRight.addView(modeText, 0) }
-        (right.parent as? ViewGroup)?.removeView(right)
+        if (i == 0 && !sc.compact && !tabsInBar && modeText.parent !== panelRight) { (modeText.parent as? ViewGroup)?.removeView(modeText); panelRight.addView(modeText, 0) }
+        right?.let { (it.parent as? ViewGroup)?.removeView(it) }
         tabs.setRight(right)
         refresh()
+    }
+
+    private fun explainSort() {
+        AlertDialog.Builder(context)
+            .setTitle("Отклонение и скачки")
+            .setMessage(
+                "Отклонение — сколько времени значение было за нормой и насколько далеко. " +
+                    "Ровный, но неправильный сигнал: лямбда после катализатора всё время 0.08 В при норме 0.45–0.85 — отклонение 100 %, скачков нет.\n\n" +
+                    "Скачки — насколько значение дёргается от замера к замеру, норма не важна. " +
+                    "Обороты холостого 650 → 800 → 600 → 780: всё в норме, отклонение 0 %, но скачков много — «плавающий» холостой.\n\n" +
+                    "Коротко: отклонение — «показывает не то», скачки — «показывает нестабильно». " +
+                    "Лямбда до катализатора скакать обязана (0.1↔0.9 В) — для неё это норма.",
+            )
+            .setPositiveButton("Понятно", null)
+            .show()
     }
 
     private fun label(code: String) = "${SensorNames.label(code)}  ·  ${SensorNames.source(code)}"
@@ -333,6 +365,11 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             sc.compact -> "режим: ${mode.ru}"
             else -> "режим: ${mode.ru} · долгое нажатие на плитку — порядок"
         }
+        onMode(when {
+            last == null -> ""
+            stale -> "запись от ${Num.clock(last)}"
+            else -> mode.ru
+        })
         // Problem order is recounted every 10 s, not every second: tiles must not jump under the finger.
         if (orderDirty || panelCodes.isEmpty() || now - orderAt > 10_000) {
             panelCodes = panelOrder(s)
@@ -383,13 +420,9 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             }
             2 -> {
                 val all = (LANES.filter { it in codes } + codes).distinct()
-                // Short screens: 4 taller lanes a page, the rest by swipe.
-                val per = if (sc.phone || sc.compact) 4 else 6
-                val n = maxOf(1, (all.size + per - 1) / per)
-                chartPage = ((chartPage % n) + n) % n
-                chartPageText.text = if (n > 1) "${chartPage + 1}/$n ›" else ""
-                chartPageText.visibility = if (n > 1) VISIBLE else GONE
-                lanes.set(s, all.drop(chartPage * per).take(per), !stale, mode)
+                chartPageText.text = "$lanesPer на экран ▾"
+                lanes.perScreen = lanesPer
+                lanes.set(s, all, !stale, mode)
             }
         }
     }

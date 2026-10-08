@@ -44,7 +44,6 @@ class VersionView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothe
     init {
         setBackgroundColor(p.bg)
         val page = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(sc.pad), dp(16), dp(sc.pad), dp(32)) }
-        addTo(page, ctx.text("← $backTitle", if (sc.phone) 16f else 19f, p.t1, 500).apply { setOnClickListener { actions.back() } }.tap())
         val f = h.finding
         val seen = h.seenIn
         val span = if (seen.size >= 2) "${seen.size} ${if (seen.size in 2..4) "поездки" else "поездок"} · ${Hypotheses.date(seen.first().first)}–${Hypotheses.date(seen.last().first)}" else null
@@ -149,7 +148,7 @@ class VersionView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothe
             two.addView(rcol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { leftMargin = dp(28) })
             addTo(page, two, dp(24))
         }
-        addView(ScrollView(ctx).apply { addView(page) })
+        addView(ctx.stripOver(ctx.backStrip(backTitle, sc, p) { actions.back() }, ScrollView(ctx).apply { addView(page) }))
     }
 }
 
@@ -165,7 +164,6 @@ class PlanView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothesis
     init {
         setBackgroundColor(p.bg)
         val page = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(sc.pad), dp(16), dp(sc.pad), dp(32)) }
-        addTo(page, ctx.text("← Версия", if (sc.phone) 16f else 19f, p.t1, 500).apply { setOnClickListener { actions.back() } }.tap())
         val head = LinearLayout(ctx).apply { orientation = if (sc.phone) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL; gravity = Gravity.BOTTOM }
         val f = h.finding
         val n = h.seenIn.size
@@ -243,6 +241,6 @@ class PlanView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothesis
             addTo(page, hline(ctx, p.line))
         }
         addTo(page, ctx.text("План — проверяемые шаги по данным записи, а не диагноз. Если ни один шаг не подтвердился, версия ослабевает — Бортач пересчитает её после следующих поездок.", if (sc.phone) 13f else 15f, p.t2), dp(14))
-        addView(ScrollView(ctx).apply { addView(page) })
+        addView(ctx.stripOver(ctx.backStrip("Версия", sc, p) { actions.back() }, ScrollView(ctx).apply { addView(page) }))
     }
 }

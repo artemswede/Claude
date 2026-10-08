@@ -47,15 +47,10 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
     init {
         setBackgroundColor(p.bg)
         val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-        val back = ctx.text("← Поездки", if (sc.phone) 16f else 19f, p.t1, 600).apply {
-            setPadding(dp(sc.pad), 0, dp(16), 0)
-            gravity = Gravity.CENTER_VERTICAL
-            setOnClickListener { actions.back() }
-            tap()
-        }
-        val head = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        head.addView(back, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(48)))
-        head.addView(ctx.text(HomeModel.tripRange(s) + if (item.isCheck) " · проверочный лог" else "", if (sc.phone) 15f else 18f, p.t2, 500, mono = true))
+        val back = ctx.button("←  Поездки", sc, p, primary = false) { actions.back() }
+        val head = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(sc.pad), dp(8), dp(sc.pad), dp(4)) }
+        head.addView(back, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(sc.btnH)))
+        addTo(head, ctx.text(HomeModel.tripRange(s) + if (item.isCheck) " · проверочный лог" else "", if (sc.phone) 15f else 18f, p.t2, 500, mono = true), dp(14))
         col.addView(head)
         col.addView(tabs, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(Tabs.height(sc))))
         col.addView(body, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
@@ -332,13 +327,15 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
         t.rows.forEachIndexed { i, r -> store.add(t.ms[i] + startMs(), idx.map { r.getOrNull(it)?.ifEmpty { null } }) }
         val lanes = LanesView(context, p)
         lanes.windowMs = (t.ms.lastOrNull() ?: 60_000L).coerceAtLeast(60_000L) + 1000
-        val codes = (RecordView.LANES + d.rating(AttentionSort.DEVIATION).map { it.code }).filter { it in store.columns }.distinct().take(if (narrow) 4 else 6)
+        val codes = (RecordView.LANES + d.rating(AttentionSort.DEVIATION).map { it.code }).filter { it in store.columns }.distinct()
+        // All rated sensors; a few at a time, swipe up and down under the fixed time axis.
+        lanes.perScreen = if (narrow) 3 else 5
         lanes.set(store, codes, false, com.obdlogger.core.LiveMode.IDLE)
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(8), dp(16), dp(8))
             addView(lanes, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-            addTo(this, context.text("вся поездка · подложка — норма для прогретого холостого", 13f, p.t3).apply { gravity = Gravity.END }, dp(4))
+            addTo(this, context.text("вся поездка · листайте вверх-вниз · подложка — норма для прогретого холостого", 13f, p.t3).apply { gravity = Gravity.END }, dp(4))
         }
     }
 

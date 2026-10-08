@@ -141,7 +141,13 @@ class HomeView(
 
     private var problemView: View? = null
 
+    private var problemKey: String? = null
+
     fun problem(pr: Problem?) {
+        // Same notice as shown: keep the view, so a press on its button is not lost to a rebuild.
+        val key = pr?.let { "${it.title}|${it.text}|${it.action}" }
+        if (key == problemKey && (pr == null) == (problemView == null)) return
+        problemKey = key
         problemView?.let { removeView(it) }
         problemView = null
         if (pr == null) return
@@ -181,10 +187,18 @@ class HomeView(
         addView(veil)
     }
 
+    private var leftKey: String? = null
+
     fun bind(m: HomeModel, s: LoggerState.Snapshot) {
         val t = m.trip
-        leftCol.removeAllViews()
-        when (m.state) {
+        // Rebuilt only when what it says changes: rebuilding every second under the finger
+        // swallowed taps on «Подробнее» and the buttons.
+        val key = listOf(m.state, t?.name, t?.top?.headline, t?.top?.confidence, t?.top?.why?.map { it.value }, t?.dtcs,
+            t?.durationMin?.toInt(), t?.warmIdleSec?.div(15)?.toInt(), m.past?.name, m.unseen, s.link, s.engine, s.linkText, s.engineText).toString()
+        val rebuild = key != leftKey
+        leftKey = key
+        if (rebuild) leftCol.removeAllViews()
+        if (rebuild) when (m.state) {
             HomeState.VERSION -> version(t!!.top!!)
             HomeState.CALM -> calm(m)
             HomeState.DTC -> dtc(m)

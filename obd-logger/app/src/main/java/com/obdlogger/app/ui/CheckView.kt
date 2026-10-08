@@ -34,9 +34,12 @@ interface CheckActions {
 class CheckView(ctx: Context, private val sc: Bt.Scale, private val actions: CheckActions) : FrameLayout(ctx) {
     private val p = Bt.LIGHT
     private var last: String? = null
+    /** The page under the fixed «← Обзор»; only this part is rebuilt as rpm and the timer change. */
+    private val content = FrameLayout(ctx)
 
     init {
         setBackgroundColor(p.bg)
+        addView(ctx.stripOver(ctx.backStrip("Обзор", sc, p) { actions.back() }, content))
     }
 
     /** [results]: this check and the previous one, when the test is done. */
@@ -50,14 +53,14 @@ class CheckView(ctx: Context, private val sc: Bt.Scale, private val actions: Che
         }
         if (key == last) return
         last = key
-        removeAllViews()
+        content.removeAllViews()
         val v = when {
             st == null -> prep(s)
             st.phase == CheckTest.Phase.RUNNING -> running(st)
             st.phase == CheckTest.Phase.ABORTED -> aborted(st)
             else -> result(results)
         }
-        addView(v)
+        content.addView(v)
     }
 
     private fun value(s: LoggerState.Snapshot, code: String) = s.values.firstOrNull { it.first == code }?.second?.toDoubleOrNull()
@@ -65,8 +68,7 @@ class CheckView(ctx: Context, private val sc: Bt.Scale, private val actions: Che
     private fun prepKey(s: LoggerState.Snapshot) = "${s.recording}:${value(s, "rpm")?.toInt()?.div(100)}:${value(s, "speed_kmh")?.toInt()}:${value(s, "coolant_c")?.toInt()}"
 
     private fun header(title: String): View {
-        val back = context.text("← Обзор", if (sc.phone) 16f else 19f, p.t1, 500).apply { setOnClickListener { actions.back() } }.tap()
-        return column(context, dp(10), back, context.text(title, if (sc.phone) 26f else 36f, p.t1, 700))
+        return context.text(title, if (sc.phone) 26f else if (sc.compact) 28f else 36f, p.t1, 700)
     }
 
     // П1
