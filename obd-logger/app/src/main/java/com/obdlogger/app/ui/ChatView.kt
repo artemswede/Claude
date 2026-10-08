@@ -23,6 +23,8 @@ interface ChatActions {
     fun editAiKey()
     /** The one chat starts over: messages and its memory are erased. */
     fun resetChat()
+    /** «Поиск гипотез»: the built-in deep research brief, sent as a question. */
+    fun runResearch()
     /** A chart the assistant asked for, drawn from this car's data; null if there is nothing to draw. */
     fun chartView(req: ChartRequest): View?
 }
@@ -100,6 +102,12 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
                 ctx.button("Ввести ключ", sc, p, primary = true) { actions.editAiKey() }.apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(sc.btnH)) },
             ), p, dp(18), dp(16), p.acc), dp(14))
         }
+        // The built-in research: one press, the whole engine study in a client-ready answer.
+        addTo(list, ctx.button("🔬  Поиск гипотез — глубокое исследование", sc, p, primary = true) { if (hasKey) actions.runResearch() else actions.editAiKey() }.apply {
+            isEnabled = busy == null
+            alpha = if (isEnabled) 1f else 0.5f
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(sc.btnH))
+        }, dp(12))
         if (history.isEmpty()) {
             addTo(list, ctx.text("Примеры вопросов — нажмите, чтобы спросить:", sc.p, p.t2), dp(16))
             val chips = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
@@ -120,7 +128,8 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
         }
         for (m in history) {
             val mine = m.role == "user"
-            val shown = if (mine) m.text else com.obdlogger.app.AiChat.plain(ChatCharts.strip(m.text))
+            val shown = if (mine) (if (m.text == com.obdlogger.core.ChatPrompt.HYPOTHESIS_BRIEF) "🔬 Поиск гипотез: глубокое исследование двигателя по всем данным" else m.text)
+                else com.obdlogger.app.AiChat.plain(ChatCharts.strip(m.text))
             val bubble = ctx.text(shown, if (sc.phone) 15f else 17f, p.t1, lineHeight = if (sc.phone) 21f else 24f).apply {
                 setPadding(dp(14), dp(10), dp(14), dp(10))
                 background = if (mine) roundRect(p.accT, dp(14).toFloat()) else roundRect(p.s1, dp(14).toFloat(), dp(1), p.line)

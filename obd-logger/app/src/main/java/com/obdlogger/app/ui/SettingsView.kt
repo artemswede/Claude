@@ -59,6 +59,8 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         fun editAiKey() {}
         fun aiOpenRouter(): Boolean = false
         fun checkAiKey() {}
+        fun aiRawTrips(): Int = 2
+        fun setAiRawTrips(i: Int) {}
         fun aiOrModel(): Int = 0
         fun setAiOrModel(i: Int) {}
         fun aiModel(): Int = 0
@@ -115,6 +117,8 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
 
         section("ИИ-чат")
         chevron("Ключ API (OpenRouter или DeepSeek)", "${h.aiKeyText()} · хранится только на этом устройстве") { h.editAiKey() }
+        segment("Сырые данные для ИИ", "последние поездки целиком (~50 тыс. токенов на 45 минут) — ИИ видит каждый замер; расчёты связей идут всегда",
+            listOf("нет" to 0, "1 поездка" to 1, "2 поездки" to 2, "все 6" to 3), h.aiRawTrips()) { h.setAiRawTrips(it) }
         chevron("Проверить ключ", "баланс, лимит ключа и пробный вопрос модели") { h.checkAiKey() }
         if (h.aiOpenRouter()) segment("Модель", "через OpenRouter — только DeepSeek V4 Flash, другие не подставляются",
             com.obdlogger.app.AiChat.OR_MODELS.mapIndexed { i, m -> m.second to i }, h.aiOrModel()) { h.setAiOrModel(it) }

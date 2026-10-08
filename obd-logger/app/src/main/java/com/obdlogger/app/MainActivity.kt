@@ -638,8 +638,10 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         val s = LoggerState.snapshot
         val codes = s.dtcReportFile?.let { f -> try { File(f).readText() } catch (_: Exception) { null } } ?: s.dtcInfo
         val live = if (s.recording) s.values.take(25).joinToString(", ") { (k, v) -> "${com.obdlogger.core.SensorNames.label(k)} $v" } else null
+        // Raw rows of the newest trips (≈ 50K tokens each): as many as the owner chose, fewer on a 128K model.
+        val rawTrips = AiChat.rawTrips(this).let { if (AiChat.window(AiChat.key(this)) < 500_000) minOf(it, 1) else it }
         return com.obdlogger.core.ChatPrompt.system(Prefs.vehicle(this), m.trips.map { it.summary }, m.checks.mapNotNull { it.check }, codes, live,
-            chatDetails, chatState.summary)
+            chatDetails, chatState.summary, com.obdlogger.core.ChatPrompt.research(chatDetails, rawTrips))
     }
 
     override fun sendQuestion(text: String) {
@@ -687,6 +689,8 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         }.start()
     }
 
+    override fun runResearch() = sendQuestion(com.obdlogger.core.ChatPrompt.HYPOTHESIS_BRIEF)
+
     override fun chartView(req: com.obdlogger.core.ChartRequest): View? {
         val details = chatDetails
         if (details.isEmpty()) return null
@@ -701,9 +705,17 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
             }
             is com.obdlogger.core.ChartRequest.Trip -> {
                 val d = com.obdlogger.core.ChatCharts.trip(details, req.trip) ?: return null
-                val trace = d.summary.trace ?: return null
-                if (trace.of(req.sensor) == null && req.sensor != "trim_b1") return null
-                com.obdlogger.app.ui.TrimChartView(this).apply { set(trace, Bt.LIGHT, shell.sc, false, req.sensor) }
+                val trace = d.summary.trace
+                if (trace != null && (trace.of(req.sensor) != null || req.sensor == "trim_b1")) {
+                    com.obdlogger.app.ui.TrimChartView(this).apply { set(trace, Bt.LIGHT, shell.sc, false, req.sensor) }
+                } else if (d.table.has(req.sensor)) {
+                    com.obdlogger.app.ui.OverlayChartView(this, Bt.LIGHT, d, listOf(req.sensor))
+                } else null
+            }
+            is com.obdlogger.core.ChartRequest.Overlay -> {
+                val d = com.obdlogger.core.ChatCharts.trip(details, req.trip) ?: return null
+                val codes = req.sensors.filter { d.table.has(it) }
+                if (codes.isEmpty()) null else com.obdlogger.app.ui.OverlayChartView(this, Bt.LIGHT, d, codes)
             }
         }
     }
@@ -769,6 +781,8 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
 
     override fun aiKeyText(): String = AiChat.keyText(this)
     override fun aiOpenRouter(): Boolean = AiChat.openRouter(AiChat.key(this))
+    override fun aiRawTrips(): Int = AiChat.RAW_CHOICES.indexOf(AiChat.rawTrips(this)).coerceAtLeast(0)
+    override fun setAiRawTrips(i: Int) = AiChat.setRawTrips(this, AiChat.RAW_CHOICES[i])
 
     override fun checkAiKey() {
         android.widget.Toast.makeText(this, "Проверяю ключ…", android.widget.Toast.LENGTH_SHORT).show()

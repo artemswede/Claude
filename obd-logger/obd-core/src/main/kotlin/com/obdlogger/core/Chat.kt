@@ -77,6 +77,11 @@ sealed class ChartRequest {
 
     /** The sensor over one trip; [trip] is a label like «03.10 19:51» or «последняя». */
     data class Trip(override val sensor: String, val trip: String) : ChartRequest()
+
+    /** Two to four sensors on one time axis of one trip, each on its own scale. */
+    data class Overlay(val sensors: List<String>, val trip: String) : ChartRequest() {
+        override val sensor get() = sensors.first()
+    }
 }
 
 /**
@@ -84,14 +89,20 @@ sealed class ChartRequest {
  * «[график: поездка rpm последняя]»; the app draws it under the text.
  */
 object ChatCharts {
-    private val tag = Regex("\\[график:\\s*(тренд|поездка)\\s+([a-z0-9_]+)(?:\\s+([^\\]]+))?]", RegexOption.IGNORE_CASE)
+    private val tag = Regex("\\[график:\\s*(тренд|поездка|наложение)\\s+([^\\]]+)]", RegexOption.IGNORE_CASE)
+    private val code = Regex("^[a-z][a-z0-9_]*$")
 
     fun parse(text: String): List<ChartRequest> = tag.findAll(text).mapNotNull { m ->
         val kind = m.groupValues[1].lowercase(Locale.ROOT)
-        val sensor = m.groupValues[2].lowercase(Locale.ROOT)
-        val arg = m.groupValues[3].trim()
-        if (kind == "тренд") ChartRequest.Trend(sensor, DriveMode.entries.firstOrNull { it.name.equals(arg, ignoreCase = true) })
-        else ChartRequest.Trip(sensor, arg.ifEmpty { "последняя" })
+        val words = m.groupValues[2].trim().split(Regex("\\s+"))
+        val sensors = words.takeWhile { code.matches(it.lowercase(Locale.ROOT)) && DriveMode.entries.none { d -> d.name.equals(it, true) } }.map { it.lowercase(Locale.ROOT) }
+        val arg = words.drop(sensors.size).joinToString(" ").trim()
+        if (sensors.isEmpty()) return@mapNotNull null
+        when (kind) {
+            "тренд" -> ChartRequest.Trend(sensors.first(), DriveMode.entries.firstOrNull { it.name.equals(arg, ignoreCase = true) })
+            "наложение" -> ChartRequest.Overlay(sensors.take(4), arg.ifEmpty { "последняя" })
+            else -> ChartRequest.Trip(sensors.first(), arg.ifEmpty { "последняя" })
+        }
     }.distinct().take(4).toList()
 
     /** The text without the chart tags. */
@@ -127,6 +138,8 @@ object ChatPrompt {
         live: String?,
         details: List<TripDetail> = emptyList(),
         memory: String = "",
+        /** Bortach's exact calculations and raw rows (see [research]). */
+        research: String = "",
     ): String = buildString {
         appendLine(
             "Ты — помощник-диагност в приложении «Бортач» (OBD-II логгер на ELM327). Отвечай по-русски, для водителя без спецподготовки, " +
@@ -139,8 +152,9 @@ object ChatPrompt {
         appendLine()
         appendLine("ГРАФИКИ: если график поможет, вставь в ответ отдельной строкой тег — приложение нарисует его под текстом:")
         appendLine("  [график: тренд <датчик> <режим>] — медиана датчика по поездкам; режим: ${DriveMode.entries.joinToString("/") { it.name }} или пусто (вся поездка);")
-        appendLine("  [график: поездка <датчик> <дата время поездки или «последняя»>] — датчик по ходу одной поездки " +
-            "(доступны: ${Focus.CODES.joinToString(", ")}).")
+        appendLine("  [график: поездка <датчик> <дата время поездки или «последняя»>] — датчик по ходу одной поездки;")
+        appendLine("  [график: наложение <датчик1> <датчик2> [<датчик3> <датчик4>] <поездка или «последняя»>] — 2–4 датчика на одной оси времени, " +
+            "у каждого своя шкала: так видно, что за чем идёт.")
         appendLine("Датчики — коды из статистики ниже (trim_b1 = LTFT+STFT банк 1, o2_b1s2_v = лямбда после катализатора и т. д.). Не больше 3 графиков в ответе.")
         appendLine()
         appendLine("МАШИНА: ${car.ifBlank { "не названа" }}")
@@ -194,8 +208,35 @@ object ChatPrompt {
                     ).joinToString(", "))
             }
         }
+        if (research.isNotBlank()) {
+            appendLine()
+            appendLine(research.trim())
+        }
     }
 
+    /**
+     * «Поиск гипотез»: the built-in research brief. Hypothesis-driven like a strategy
+     * consultant (Victor Cheng's case method: issue tree, MECE, answer first), applied to
+     * the engine; the answer is client-ready — the owner can hand it to a mechanic.
+     */
+    const val HYPOTHESIS_BRIEF = """Проведи глубокое исследование работы двигателя по всем данным выше: выводам Бортача, статистике по режимам, РАСЧЁТАМ БОРТАЧА (корреляции, что меняется раньше, события) и СЫРЫМ ДАННЫМ. Работай как консультант McKinsey по методу Виктора Ченга: от гипотез, дерево вопросов, MECE, вывод первым.
+
+Порядок работы (думай подробно, в ответ выноси только результат):
+1. Картина: какие отклонения есть, в каких режимах, как меняются от поездки к поездке. Отдели нормальные связи (обороты↔ДМРВ, нагрузка↔дроссель) от подозрительных.
+2. Дерево проблемы, MECE: воздух (подсос, ДМРВ, дроссель, PCV, EGR) / топливо (давление, ТНВД D-4, форсунки, фильтр) / зажигание (свечи, катушки) / датчики и проводка (лямбды, ДТОЖ, разъёмы) / управление и механика (фазы VVT-i, компрессия). Для каждой ветки — есть ли в данных признаки.
+3. Гипотезы: 3–5 самых вероятных. Для каждой — механизм (почему так происходит физически), доказательства ЗА с конкретными числами из данных (датчик, режим, поездка, r, события), доказательства ПРОТИВ, чего в данных не хватает.
+4. Зависимости: какие датчики влияют друг на друга и в какую сторону, что опережает что; покажи это наложением графиков.
+5. Проверка: для каждой гипотезы — самый дешёвый решающий тест (что сделать, чем, сколько времени, какой результат подтвердит, какой опровергнет), включая проверочный лог Бортача до и после.
+
+Формат ответа — client-ready, по пирамиде Минто:
+ГЛАВНЫЙ ВЫВОД — одно-два предложения: что с машиной и что делать.
+СИТУАЦИЯ · ОСЛОЖНЕНИЕ · ВОПРОС — по одной строке.
+ГИПОТЕЗЫ — нумерованно, от самой вероятной; у каждой: уверенность (высокая/средняя/низкая), механизм, «за» (с числами), «против», решающий тест.
+ЗАВИСИМОСТИ — 3–5 строк «A → B: что видно, число».
+ПЛАН ДЕЙСТВИЙ — по порядку: дёшево и решающе сначала; что можно сделать самому, что у мастера; ориентир стоимости.
+РИСКИ — что будет, если не делать; когда ехать нельзя.
+ЧТО ЗАПИСАТЬ ДАЛЬШЕ — какая поездка или проверочный лог сузят выбор.
+Вставь 2–3 графика тегами (тренд по поездкам и наложение по последней поездке). Факты отделяй от предположений. Без воды, без общих советов, только по данным этой машины."""
     private fun n(v: Double?): String = v?.let { String.format(Locale.ROOT, if (kotlin.math.abs(it) >= 100) "%.0f" else "%.2f", it).trimEnd('0').trimEnd('.') } ?: "—"
 
     /**
@@ -216,6 +257,22 @@ object ChatPrompt {
                     (s.deviation?.let { " · откл. ${it.toInt()}%" } ?: "") +
                     (s.jitter?.let { " · скачки ${it.toInt()}%" } ?: ""))
             }
+        }
+    }
+
+    /**
+     * The data block for deep questions: exact relations for each of the recent trips and the
+     * raw rows of the newest [rawTrips] trips (≈ 45–50K tokens per 46 minutes).
+     */
+    fun research(details: List<TripDetail>, rawTrips: Int): String = buildString {
+        val sorted = details.sortedBy { it.summary.start }
+        for (d in sorted.takeLast(3)) {
+            appendLine(Relations.render(d).trim())
+            appendLine()
+        }
+        for (d in sorted.takeLast(rawTrips)) {
+            appendLine(Relations.rawTable(d).trim())
+            appendLine()
         }
     }
 

@@ -28,6 +28,11 @@ object AiChat {
     fun orModel(ctx: Context): String = Prefs.of(ctx).getString(Prefs.AI_OR_MODEL, null)?.takeIf { m -> OR_MODELS.any { it.first == m } } ?: OR_MODELS[0].first
     fun setOrModel(ctx: Context, m: String) = Prefs.of(ctx).edit().putString(Prefs.AI_OR_MODEL, m).apply()
 
+    /** Trips whose raw rows go with every question: 0, 1, 2 or all six. */
+    val RAW_CHOICES = listOf(0, 1, 2, 6)
+    fun rawTrips(ctx: Context): Int = Prefs.of(ctx).getInt(Prefs.AI_RAW, 2)
+    fun setRawTrips(ctx: Context, n: Int) = Prefs.of(ctx).edit().putInt(Prefs.AI_RAW, n).apply()
+
     /** Context window for the memory threshold: V4 Flash has 1M (capped in ChatMemory), DeepSeek's own API — 128K. */
     fun window(key: String): Int = if (openRouter(key)) 1_000_000 else 128_000
 

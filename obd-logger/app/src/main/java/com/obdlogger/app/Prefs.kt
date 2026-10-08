@@ -32,6 +32,8 @@ object Prefs {
     const val AI_MODEL_ID = "ai_model_id"
     /** OpenRouter model (one of [AiChat.OR_MODELS]). */
     const val AI_OR_MODEL = "ai_or_model"
+    /** How many newest trips go to the AI as raw rows. */
+    const val AI_RAW = "ai_raw"
     const val PANEL_SORT = "panel_sort"
     const val PANEL_HIDDEN = "panel_hidden"
 
