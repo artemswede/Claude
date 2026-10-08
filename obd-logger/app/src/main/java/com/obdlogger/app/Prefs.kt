@@ -25,6 +25,9 @@ object Prefs {
     const val RECORDING_SHUTDOWN = "recording_shutdown"
     const val SEEN_TRIP = "seen_trip"
     const val UI_SCALE = "ui_scale"
+    /** The owner's DeepSeek key and model for the AI chat. */
+    const val AI_KEY = "ai_key"
+    const val AI_MODEL = "ai_model"
     const val PANEL_SORT = "panel_sort"
     const val PANEL_HIDDEN = "panel_hidden"
 

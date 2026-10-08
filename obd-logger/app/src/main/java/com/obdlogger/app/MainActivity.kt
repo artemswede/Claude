@@ -52,7 +52,7 @@ import com.obdlogger.core.Hypotheses
 import com.obdlogger.core.Hypothesis
 import java.io.File
 
-class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions, VersionActions, CheckActions, com.obdlogger.app.ui.DtcActions {
+class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions, VersionActions, CheckActions, com.obdlogger.app.ui.DtcActions, com.obdlogger.app.ui.ChatActions {
     private lateinit var shell: Shell
     private lateinit var home: HomeView
     private lateinit var settings: SettingsView
@@ -114,6 +114,9 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         trips = TripsView(this, shell.sc, { openTrip(it) }, { key -> tripsCar = key; refreshTrips(force = true) })
         shell.containers.getValue(Shell.Page.TRIPS).addView(trips)
 
+        chat = com.obdlogger.app.ui.ChatView(this, shell.sc, this)
+        shell.containers.getValue(Shell.Page.CHAT).addView(chat)
+
         settings = SettingsView(this, shell.sc)
         shell.containers.getValue(Shell.Page.SETTINGS).addView(settings)
 
@@ -124,6 +127,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
                 Shell.Page.OVERVIEW -> refreshHome()
                 Shell.Page.TRIPS -> refreshTrips(force = true)
                 Shell.Page.SETTINGS -> refreshSettings(force = true)
+                Shell.Page.CHAT -> refreshChat(withContext = true)
                 else -> Unit
             }
         }
@@ -602,6 +606,115 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         onCheck = { openCheck() }, onOpenLast = { openLastTrip() }, p = if (night) Bt.DARK else Bt.LIGHT, onCodes = { openCodes() },
         onReconnect = { if (LoggerState.snapshot.running) startService(LoggerService.intent(this, LoggerService.ACTION_POKE)) else if (Prefs.device(this) != null && hasBluetoothPermission()) startAuto() else shell.show(Shell.Page.SETTINGS) })
 
+    // ---- AI chat ----
+
+    private lateinit var chat: com.obdlogger.app.ui.ChatView
+    private val chatHistory by lazy { AiChat.load(this) }
+    @Volatile private var chatBusy = false
+    private var chatError: String? = null
+    private var chatContext = ""
+
+    private fun refreshChat(withContext: Boolean = false) {
+        chat.bind(chatHistory, chatBusy, AiChat.key(this).isNotEmpty(), chatContext, chatError)
+        if (!withContext) return
+        Thread {
+            val m = TripsModel.build(this, Prefs.currentCar(this))
+            val codes = Regex("Ошибки: ([^\\n]+)").find(LoggerState.snapshot.dtcInfo)?.groupValues?.get(1)
+            val line = "Ответы — по данным этой машины: ${Prefs.vehicle(this).ifBlank { "машина без названия" }} · " +
+                "поездок ${m.trips.size} · проверочных логов ${m.checks.size}" + (codes?.let { " · коды: $it" } ?: "")
+            runOnUiThread { chatContext = line; refreshChat() }
+        }.start()
+    }
+
+    /** What the AI sees: this car's trips, check logs, codes (with the saved reasons) and, while driving, the live values. */
+    private fun chatSystemPrompt(): String {
+        val m = TripsModel.build(this, Prefs.currentCar(this))
+        val s = LoggerState.snapshot
+        val codes = s.dtcReportFile?.let { f -> try { File(f).readText() } catch (_: Exception) { null } } ?: s.dtcInfo
+        val live = if (s.recording) s.values.take(25).joinToString(", ") { (k, v) -> "${com.obdlogger.core.SensorNames.label(k)} $v" } else null
+        return com.obdlogger.core.ChatPrompt.system(Prefs.vehicle(this), m.trips.map { it.summary }, m.checks.mapNotNull { it.check }, codes, live)
+    }
+
+    override fun sendQuestion(text: String) {
+        val key = AiChat.key(this)
+        if (key.isEmpty()) return editAiKey()
+        if (chatBusy) return
+        chatHistory += com.obdlogger.core.ChatMessage("user", text)
+        AiChat.save(this, chatHistory)
+        chatBusy = true
+        chatError = null
+        refreshChat()
+        Thread {
+            val result = try {
+                Result.success(AiChat.ask(key, AiChat.model(this), chatSystemPrompt(), com.obdlogger.core.ChatPrompt.history(chatHistory.toList())))
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+            runOnUiThread {
+                chatBusy = false
+                result.onSuccess { chatHistory += com.obdlogger.core.ChatMessage("assistant", it); AiChat.save(this, chatHistory) }
+                result.onFailure { chatError = it.message ?: it.toString() }
+                refreshChat()
+            }
+        }.start()
+    }
+
+    override fun voiceQuestion() {
+        val i = Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "ru-RU")
+            .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Вопрос о машине")
+        try {
+            startActivityForResult(i, REQ_VOICE)
+        } catch (_: android.content.ActivityNotFoundException) {
+            android.widget.Toast.makeText(this, "Голосового ввода на этом устройстве нет — нажмите на поле вопроса и используйте микрофон на клавиатуре.", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
+    @Deprecated("Activity result API needs AndroidX; this app has none")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_VOICE && resultCode == RESULT_OK) {
+            data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.takeIf { it.isNotBlank() }?.let { sendQuestion(it) }
+        }
+    }
+
+    override fun editAiKey() {
+        val field = android.widget.EditText(this).apply {
+            hint = "sk-…"
+            setSingleLine()
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Ключ DeepSeek API")
+            .setMessage("Создайте ключ на platform.deepseek.com → API keys и вставьте сюда. Ключ хранится только на этом устройстве. " +
+                "С каждым вопросом на серверы DeepSeek уходит сводка по поездкам этой машины.")
+            .setView(field)
+            .setPositiveButton("Сохранить") { _, _ ->
+                val k = field.text.toString().trim()
+                if (k.isNotEmpty()) AiChat.setKey(this, k)
+                refreshChat()
+                refreshSettings(force = true)
+            }
+            .setNeutralButton("Удалить ключ") { _, _ -> AiChat.setKey(this, ""); refreshChat(); refreshSettings(force = true) }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    override fun clearChat() {
+        AlertDialog.Builder(this)
+            .setTitle("Очистить чат?")
+            .setMessage("История вопросов и ответов удалится с устройства.")
+            .setPositiveButton("Очистить") { _, _ -> chatHistory.clear(); chatError = null; AiChat.save(this, chatHistory); refreshChat() }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    override fun aiKeyText(): String = AiChat.keyText(this)
+    override fun aiModel(): Int = AiChat.MODELS.indexOfFirst { it.first == AiChat.model(this) }.coerceAtLeast(0)
+    override fun setAiModel(i: Int) = AiChat.setModel(this, AiChat.MODELS[i].first)
+
     // ---- trouble codes ----
 
     private var dtcView: com.obdlogger.app.ui.DtcView? = null
@@ -900,5 +1013,9 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         } else {
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
+    }
+
+    private companion object {
+        const val REQ_VOICE = 41
     }
 }

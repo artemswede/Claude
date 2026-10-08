@@ -124,6 +124,13 @@ class ScreensTest {
  * Sample data: only real recorded trips (test fixtures of one car). Trips without
  * an info file borrow the previous trip's, so all belong to the same car.
  */
+object NoChat : com.obdlogger.app.ui.ChatActions {
+    override fun sendQuestion(text: String) {}
+    override fun voiceQuestion() {}
+    override fun editAiKey() {}
+    override fun clearChat() {}
+}
+
 object NoDtc : com.obdlogger.app.ui.DtcActions {
     override fun closeCodes() {}
     override fun readCodes() {}
@@ -257,6 +264,14 @@ class Scenes(private val a: Activity) {
             "G3_attention" to { record(1, recording) },
             "G1b_panel_page2" to { shell(Shell.Page.RECORD, recording) { sh -> RecordView(a, sh.sc).apply { if (!sh.sc.phone) sh.setPageBar(Shell.Page.RECORD, header); bind(liveStore, recording); showTab(0); showPanelPage(1) } } },
             "G2_charts" to { record(2, recording) },
+            "H1_chat_nokey" to { shell(Shell.Page.CHAT, recording) { sh -> com.obdlogger.app.ui.ChatView(a, sh.sc, NoChat).apply {
+                bind(emptyList(), false, false, "Ответы — по данным этой машины: Avensis 2.0 D-4 · поездок 4 · проверочных логов 1", null) } } },
+            "H2_chat" to { shell(Shell.Page.CHAT, recording) { sh -> com.obdlogger.app.ui.ChatView(a, sh.sc, NoChat).apply {
+                bind(listOf(
+                    com.obdlogger.core.ChatMessage("user", "Почему коррекция Б1 на холостом выше, чем в движении?"),
+                    com.obdlogger.core.ChatMessage("assistant", "**Коротко:** похоже на подсос воздуха.\n\n- На холостом коррекция Б1 +21.9 %, в движении −3.1 %: лишний воздух заметен, когда его мало.\n- Задняя лямбда на ХХ 0.06 В — «бедно».\n\nПроверьте шланги вентиляции картера и прокладку впуска, затем запишите проверочный лог."),
+                    com.obdlogger.core.ChatMessage("user", "А может быть забит топливный фильтр?"),
+                ), true, true, "Ответы — по данным этой машины: Avensis 2.0 D-4 · поездок 4 · проверочных логов 1 · коды: P0136, P0156", null) } } },
             // Codes screen with what the owner's car reported: both rear O2 sensors, flat at 0.02 V.
             "C1_codes" to {
                 val ff = com.obdlogger.core.FreezeFrame("P0136", listOf(

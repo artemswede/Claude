@@ -54,6 +54,11 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         fun setUiScale(percent: Int) {}
         fun screenText(): String = ""
         fun openCodes() {}
+        /** AI chat: the DeepSeek key («sk-…ab12» / «не задан») and the model. */
+        fun aiKeyText(): String = "не задан"
+        fun editAiKey() {}
+        fun aiModel(): Int = 0
+        fun setAiModel(i: Int) {}
     }
 
     private val p = Bt.LIGHT
@@ -103,6 +108,11 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         section("Экран")
         segment("Масштаб интерфейса", "для магнитол и маленьких экранов · ${h.screenText()}",
             com.obdlogger.app.UiScale.LEVELS.map { it.second to (it.first * 100).toInt() }, h.uiScale()) { h.setUiScale(it) }
+
+        section("ИИ-чат")
+        chevron("Ключ DeepSeek API", "${h.aiKeyText()} · хранится только на этом устройстве") { h.editAiKey() }
+        segment("Модель", "«Думающий» отвечает дольше, но глубже разбирает гипотезы",
+            com.obdlogger.app.AiChat.MODELS.mapIndexed { i, m -> m.second to i }, h.aiModel()) { h.setAiModel(it) }
 
         section("Файлы")
         segment("Хранение", "Загрузки / OBD-Logger · ${h.storageText()}", listOf("30 дней" to 30, "90 дней" to 90, "Всегда" to 0), h.keepDays()) { h.setKeepDays(it) }

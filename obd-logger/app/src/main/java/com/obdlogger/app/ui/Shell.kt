@@ -26,6 +26,7 @@ class Shell(private val activity: Activity) {
         OVERVIEW("Обзор", R.drawable.ic_overview),
         RECORD("Запись", R.drawable.ic_record),
         TRIPS("Поездки", R.drawable.ic_trips),
+        CHAT("Чат", R.drawable.ic_chat),
         SETTINGS("Настройки", R.drawable.ic_settings),
     }
 
