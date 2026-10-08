@@ -27,11 +27,14 @@ object ChatMemory {
     /** Rough token count for Russian text with numbers (≈2.5 characters a token). */
     fun tokens(text: String): Int = (text.length / 2.5).toInt() + 1
 
+    /** The window used for the threshold: the model's own, capped at [WINDOW_CAP] so a request stays quick on a head unit. */
+    const val WINDOW_CAP = 200_000
+
     fun requestTokens(system: String, state: ChatState): Int =
         tokens(system) + tokens(state.summary) + state.messages.sumOf { tokens(it.text) + 4 }
 
-    fun needsCompression(system: String, state: ChatState): Boolean =
-        state.messages.size > PROTECT_LAST && requestTokens(system, state) > WINDOW_TOKENS * THRESHOLD
+    fun needsCompression(system: String, state: ChatState, window: Int = WINDOW_TOKENS): Boolean =
+        state.messages.size > PROTECT_LAST && requestTokens(system, state) > minOf(window, WINDOW_CAP) * THRESHOLD
 
     /** The messages to fold now: everything but the protected tail. */
     fun older(state: ChatState): List<ChatMessage> = state.messages.dropLast(PROTECT_LAST)

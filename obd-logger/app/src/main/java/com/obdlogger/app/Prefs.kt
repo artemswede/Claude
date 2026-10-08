@@ -30,6 +30,8 @@ object Prefs {
     const val AI_MODEL = "ai_model"
     /** Model id picked from the server's list for this key. */
     const val AI_MODEL_ID = "ai_model_id"
+    /** OpenRouter model (one of [AiChat.OR_MODELS]). */
+    const val AI_OR_MODEL = "ai_or_model"
     const val PANEL_SORT = "panel_sort"
     const val PANEL_HIDDEN = "panel_hidden"
 

@@ -57,6 +57,9 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         /** AI chat: the DeepSeek key («sk-…ab12» / «не задан») and the model. */
         fun aiKeyText(): String = "не задан"
         fun editAiKey() {}
+        fun aiOpenRouter(): Boolean = false
+        fun aiOrModel(): Int = 0
+        fun setAiOrModel(i: Int) {}
         fun aiModel(): Int = 0
         fun setAiModel(i: Int) {}
     }
@@ -110,7 +113,9 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             com.obdlogger.app.UiScale.LEVELS.map { it.second to (it.first * 100).toInt() }, h.uiScale()) { h.setUiScale(it) }
 
         section("ИИ-чат")
-        chevron("Ключ DeepSeek API", "${h.aiKeyText()} · хранится только на этом устройстве") { h.editAiKey() }
+        chevron("Ключ API (OpenRouter или DeepSeek)", "${h.aiKeyText()} · хранится только на этом устройстве") { h.editAiKey() }
+        if (h.aiOpenRouter()) segment("Модель", "через OpenRouter — только DeepSeek V4 Flash, другие не подставляются",
+            com.obdlogger.app.AiChat.OR_MODELS.mapIndexed { i, m -> m.second to i }, h.aiOrModel()) { h.setAiOrModel(it) }
         segment("Режим ответа", "«Думающий» (по умолчанию): глубокое рассуждение, сам в быстрый не переключается",
             com.obdlogger.app.AiChat.MODES.mapIndexed { i, m -> m.first to i }, h.aiModel()) { h.setAiModel(it) }
 

@@ -17,7 +17,19 @@ import java.net.URL
  */
 object AiChat {
     private const val BASE = "https://api.deepseek.com"
-    private const val ENDPOINT = "$BASE/chat/completions"
+    private const val OPENROUTER = "https://openrouter.ai/api/v1/chat/completions"
+
+    /** OpenRouter models the owner allows — only these two DeepSeek V4 Flash builds, never another one. */
+    val OR_MODELS = listOf("deepseek/deepseek-v4-flash-0731" to "V4 Flash 0731", "deepseek/deepseek-v4-flash" to "V4 Flash 0423")
+
+    /** An OpenRouter key («sk-or-…») goes to OpenRouter; any other — straight to DeepSeek. */
+    fun openRouter(key: String) = key.startsWith("sk-or-")
+
+    fun orModel(ctx: Context): String = Prefs.of(ctx).getString(Prefs.AI_OR_MODEL, null)?.takeIf { m -> OR_MODELS.any { it.first == m } } ?: OR_MODELS[0].first
+    fun setOrModel(ctx: Context, m: String) = Prefs.of(ctx).edit().putString(Prefs.AI_OR_MODEL, m).apply()
+
+    /** Context window for the memory threshold: V4 Flash has 1M (capped in ChatMemory), DeepSeek's own API — 128K. */
+    fun window(key: String): Int = if (openRouter(key)) 1_000_000 else 128_000
 
     /** Answer modes: deep thinking (default, never switched off by itself) or fast. */
     val MODES = listOf("Думающий" to true, "Быстрый" to false)
@@ -30,6 +42,7 @@ object AiChat {
 
     /** The model id this key can use, picked from the server's list and remembered. */
     fun modelId(ctx: Context, key: String): String {
+        if (openRouter(key)) return orModel(ctx)
         Prefs.of(ctx).getString(Prefs.AI_MODEL_ID, null)?.let { return it }
         val ids = try { models(key) } catch (_: Exception) { emptyList() }
         return pick(ids).also { Prefs.of(ctx).edit().putString(Prefs.AI_MODEL_ID, it).apply() }
@@ -59,7 +72,9 @@ object AiChat {
     class ModelGone(msg: String) : IOException(msg)
 
     /** «sk-…ab12» — enough to recognise the key, not enough to use it. */
-    fun keyText(ctx: Context): String = key(ctx).let { if (it.isEmpty()) "не задан" else "${it.take(3)}…${it.takeLast(4)}" }
+    fun keyText(ctx: Context): String = key(ctx).let {
+        if (it.isEmpty()) "не задан" else "${if (openRouter(it)) "OpenRouter" else "DeepSeek"} · ${it.take(6)}…${it.takeLast(4)}"
+    }
 
     /**
      * Asks the model; throws [IOException] with a message for the owner. Blocking: call off
@@ -79,7 +94,10 @@ object AiChat {
         val messages = JSONArray().put(JSONObject().put("role", "system").put("content", system))
         history.forEach { messages.put(JSONObject().put("role", it.role).put("content", it.text)) }
         val b = JSONObject().put("model", model).put("messages", messages).put("stream", false)
-        if (extras) {
+        if (model.contains("/")) {
+            // OpenRouter: its unified reasoning switch; only the chosen model, no fallback to others.
+            b.put("reasoning", if (thinking) JSONObject().put("effort", "high") else JSONObject().put("enabled", false))
+        } else if (extras) {
             b.put("thinking", JSONObject().put("type", if (thinking) "enabled" else "disabled"))
             if (thinking) b.put("reasoning_effort", "high")
         }
@@ -88,33 +106,35 @@ object AiChat {
 
     private fun post(key: String, body: JSONObject): String {
         try {
-            val c = URL(ENDPOINT).openConnection() as HttpURLConnection
+            val c = URL(if (openRouter(key)) OPENROUTER else "$BASE/chat/completions").openConnection() as HttpURLConnection
             c.requestMethod = "POST"
             c.connectTimeout = 15_000
             c.readTimeout = 180_000
             c.doOutput = true
             c.setRequestProperty("Content-Type", "application/json")
             c.setRequestProperty("Authorization", "Bearer $key")
+            if (openRouter(key)) c.setRequestProperty("X-Title", "Bortach")
             c.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
             val code = c.responseCode
             val text = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
             if (code !in 200..299) {
                 val msg = try { JSONObject(text).optJSONObject("error")?.optString("message") } catch (_: Exception) { null }
                 if (msg != null && Regex("model", RegexOption.IGNORE_CASE).containsMatchIn(msg) && Regex("exist|not found|invalid|unknown", RegexOption.IGNORE_CASE).containsMatchIn(msg)) {
+                    if (openRouter(key)) throw IOException("Модель «${body.optString("model")}» сейчас недоступна на OpenRouter: $msg. Выберите другую в Настройках → ИИ-чат.")
                     throw ModelGone("Модель «${body.optString("model")}» недоступна: $msg")
                 }
                 if (code == 400 && body.has("thinking")) throw BadRequest(msg ?: "400")
                 throw IOException(when (code) {
-                    401 -> "Ключ DeepSeek не подходит. Проверьте его в Настройках."
-                    402 -> "На счёте DeepSeek закончились деньги."
+                    401 -> "Ключ не подходит. Проверьте его в Настройках."
+                    402 -> if (openRouter(key)) "На счёте OpenRouter закончились кредиты." else "На счёте DeepSeek закончились деньги."
                     429 -> "Слишком много запросов — повторите через минуту."
-                    in 500..599 -> "Сервер DeepSeek сейчас не отвечает ($code). Повторите позже."
-                    else -> "DeepSeek ответил $code${msg?.let { ": $it" } ?: ""}"
+                    in 500..599 -> "Сервер сейчас не отвечает ($code). Повторите позже."
+                    else -> "Сервер ответил $code${msg?.let { ": $it" } ?: ""}"
                 })
             }
             return JSONObject(text).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content").trim()
         } catch (e: java.net.UnknownHostException) {
-            throw IOException("Нет интернета: магнитола не видит api.deepseek.com.")
+            throw IOException("Нет интернета: магнитола не видит сервер ИИ.")
         } catch (e: java.net.SocketTimeoutException) {
             throw IOException("DeepSeek долго не отвечает. Повторите вопрос.")
         } catch (e: javax.net.ssl.SSLException) {

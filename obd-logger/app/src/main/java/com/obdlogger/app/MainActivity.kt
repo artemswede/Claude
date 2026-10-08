@@ -657,7 +657,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
                 var model = AiChat.modelId(this, key)
                 var system = chatSystemPrompt()
                 // Long conversation: fold the older part into the chat's memory, keep the last 30 as they are.
-                if (com.obdlogger.core.ChatMemory.needsCompression(system, chatState)) {
+                if (com.obdlogger.core.ChatMemory.needsCompression(system, chatState, AiChat.window(key))) {
                     runOnUiThread { chatBusy = "Сжимаю раннюю часть разговора в память…"; refreshChat() }
                     val summary = AiChat.ask(key, model, "Ты составляешь точный конспект технической переписки.",
                         listOf(com.obdlogger.core.ChatMessage("user", com.obdlogger.core.ChatMemory.compressionPrompt(chatState))), thinking = false)
@@ -736,9 +736,10 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
         }
         AlertDialog.Builder(this)
-            .setTitle("Ключ DeepSeek API")
-            .setMessage("Создайте ключ на platform.deepseek.com → API keys и вставьте сюда. Ключ хранится только на этом устройстве. " +
-                "С каждым вопросом на серверы DeepSeek уходит сводка по поездкам этой машины.")
+            .setTitle("Ключ для ИИ-чата")
+            .setMessage("Подходит ключ OpenRouter (sk-or-…, openrouter.ai → Keys) или DeepSeek (platform.deepseek.com). " +
+                "С ключом OpenRouter используется только DeepSeek V4 Flash (0731 или 0423 — выбор в Настройках). " +
+                "Ключ хранится только на этом устройстве; с каждым вопросом уходит сводка по поездкам этой машины.")
             .setView(field)
             .setPositiveButton("Сохранить") { _, _ ->
                 val k = field.text.toString().trim()
@@ -767,6 +768,9 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     }
 
     override fun aiKeyText(): String = AiChat.keyText(this)
+    override fun aiOpenRouter(): Boolean = AiChat.openRouter(AiChat.key(this))
+    override fun aiOrModel(): Int = AiChat.OR_MODELS.indexOfFirst { it.first == AiChat.orModel(this) }.coerceAtLeast(0)
+    override fun setAiOrModel(i: Int) = AiChat.setOrModel(this, AiChat.OR_MODELS[i].first)
     override fun aiModel(): Int = if (AiChat.thinking(this)) 0 else 1
     override fun setAiModel(i: Int) = AiChat.setThinking(this, AiChat.MODES[i].second)
 
