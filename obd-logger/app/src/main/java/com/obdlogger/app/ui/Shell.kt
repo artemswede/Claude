@@ -56,7 +56,7 @@ class Shell(private val activity: Activity) {
     private val dtcChip = ctx.text("", sc.sbarFont - 2, p.red, 600)
     private val rec = ctx.text("", sc.sbarFont, p.t1, maxLines = 1)
     /** «21» over «мин» inside the lamp pill while recording. */
-    private val recUnit = ctx.text("мин", sc.sbarFont - 3, p.t2)
+    private val recUnit = ctx.text("мин", maxOf(12f, sc.sbarFont - 2), p.t2)
     /** A page's own controls in the service line (the «Запись» tabs), in place of the brand. */
     private val slot = FrameLayout(ctx)
     private val pageBars = HashMap<Page, View>()

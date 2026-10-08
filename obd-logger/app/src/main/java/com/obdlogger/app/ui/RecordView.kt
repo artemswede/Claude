@@ -114,9 +114,14 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         // Swipe through every sensor, 6 lanes a page (4 on a phone).
         // Every sensor; swipe up and down, the time axis stays at the bottom.
         charts.addView(lanes, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-        addTo(chartsRight, chartPageText)
-        // Short screens: one button that cycles the window instead of a three-part switch.
-        if (sc.compact) addTo(chartsRight, windowText, dp(4)) else addTo(chartsRight, windowSeg, dp(8))
+        // Short screens: one «3 · 5 мин ▾» button with a menu for both; elsewhere density + window switch.
+        if (sc.compact) {
+            chartPageText.setOnClickListener { chartsMenu() }
+            addTo(chartsRight, chartPageText)
+        } else {
+            addTo(chartsRight, chartPageText)
+            addTo(chartsRight, windowSeg, dp(8))
+        }
         if (!sc.compact) addTo(charts, ctx.text("точка = реальный замер · подпись у конца линии · подложка — норма", 13f, p.t3).apply { gravity = Gravity.END }, dp(4))
         // Short screens: the mode is written on the tiles anyway; the room goes to pages and «Датчики».
         if (!sc.compact && !tabsInBar) addTo(panelRight, modeText)
@@ -201,6 +206,24 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         right?.let { (it.parent as? ViewGroup)?.removeView(it) }
         tabs.setRight(right)
         refresh()
+    }
+
+    /** Head unit: how many lanes on screen and the time window, in one menu. */
+    private fun chartsMenu() {
+        val items = arrayOf("1 график на экран", "2 графика на экран", "3 графика на экран", "4 графика на экран", "Окно 1 мин", "Окно 5 мин", "Окно 15 мин")
+        AlertDialog.Builder(context)
+            .setTitle("Вид графиков")
+            .setItems(items) { _, i ->
+                if (i < 4) {
+                    lanesPer = i + 1
+                    Prefs.of(context).edit().putInt("chart_lanes", lanesPer).apply()
+                } else {
+                    lanes.windowMs = listOf(1, 5, 15)[i - 4] * 60_000L
+                }
+                refresh()
+            }
+            .setNegativeButton("Закрыть", null)
+            .show()
     }
 
     private fun explainSort() {
@@ -367,7 +390,7 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         }
         onMode(when {
             last == null -> ""
-            stale -> "запись от ${Num.clock(last)}"
+            stale -> if (sc.compact) "от ${Num.clock(last)}" else "запись от ${Num.clock(last)}"
             else -> mode.ru
         })
         // Problem order is recounted every 10 s, not every second: tiles must not jump under the finger.
@@ -420,7 +443,7 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             }
             2 -> {
                 val all = (LANES.filter { it in codes } + codes).distinct()
-                chartPageText.text = "$lanesPer на экран ▾"
+                chartPageText.text = if (sc.compact) "$lanesPer · ${lanes.windowMs / 60_000} мин ▾" else "$lanesPer на экран ▾"
                 lanes.perScreen = lanesPer
                 lanes.set(s, all, !stale, mode)
             }
