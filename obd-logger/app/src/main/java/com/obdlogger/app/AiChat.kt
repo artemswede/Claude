@@ -68,6 +68,48 @@ object AiChat {
         return List(a.length()) { a.getJSONObject(it).optString("id") }.filter { it.isNotBlank() }
     }
 
+    /**
+     * «Проверить ключ»: what the server says about the key (OpenRouter: limit and usage) and a
+     * one-word test question to the chosen model. Blocking; returns a report for the owner.
+     */
+    fun check(ctx: Context): String {
+        val key = key(ctx)
+        if (key.isEmpty()) return "Ключ не задан."
+        val out = StringBuilder()
+        if (openRouter(key)) {
+            try {
+                val c = URL("https://openrouter.ai/api/v1/key").openConnection() as HttpURLConnection
+                c.connectTimeout = 15_000
+                c.readTimeout = 30_000
+                c.setRequestProperty("Authorization", "Bearer $key")
+                val code = c.responseCode
+                val text = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (code in 200..299) {
+                    val d = JSONObject(text).optJSONObject("data")
+                    out.append("Ключ OpenRouter принят.")
+                    d?.let {
+                        val limit = if (it.isNull("limit")) "без лимита" else "лимит ${it.optDouble("limit")} $"
+                        out.append(" Потрачено ${"%.4f".format(java.util.Locale.ROOT, it.optDouble("usage"))} $, $limit")
+                        if (!it.isNull("limit_remaining")) out.append(", осталось ${it.optDouble("limit_remaining")} $")
+                        if (it.optBoolean("is_free_tier")) out.append(", бесплатный уровень — нужно пополнить баланс")
+                        out.append(".")
+                    }
+                } else out.append("Ключ OpenRouter не принят ($code): ${text.take(200)}")
+            } catch (e: Exception) {
+                out.append("Сервер OpenRouter недоступен: ${e.message}")
+            }
+            out.append("\n")
+        }
+        val model = modelId(ctx, key)
+        try {
+            val a = ask(key, model, "Отвечай одним словом.", listOf(ChatMessage("user", "Скажи «работает».")), thinking = false)
+            out.append("Модель $model отвечает: «${a.take(40)}». Всё в порядке.")
+        } catch (e: Exception) {
+            out.append("Модель $model: ${e.message}")
+        }
+        return out.toString()
+    }
+
     /** The model no longer exists (renamed on the server): pick again. */
     class ModelGone(msg: String) : IOException(msg)
 
@@ -113,12 +155,24 @@ object AiChat {
             c.doOutput = true
             c.setRequestProperty("Content-Type", "application/json")
             c.setRequestProperty("Authorization", "Bearer $key")
-            if (openRouter(key)) c.setRequestProperty("X-Title", "Bortach")
+            c.setRequestProperty("User-Agent", "Bortach/${BuildConfig.VERSION_NAME} (Android ${android.os.Build.VERSION.RELEASE})")
+            if (openRouter(key)) {
+                c.setRequestProperty("X-Title", "Bortach")
+                c.setRequestProperty("HTTP-Referer", "https://github.com/artemswede/Claude")
+            }
             c.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
             val code = c.responseCode
             val text = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
             if (code !in 200..299) {
-                val msg = try { JSONObject(text).optJSONObject("error")?.optString("message") } catch (_: Exception) { null }
+                val err = try { JSONObject(text).optJSONObject("error") } catch (_: Exception) { null }
+                // OpenRouter puts the real reason into metadata (provider, raw provider answer, moderation reasons).
+                val meta = err?.optJSONObject("metadata")
+                val detail = listOfNotNull(
+                    meta?.optString("provider_name")?.takeIf { it.isNotBlank() }?.let { "провайдер $it" },
+                    meta?.optJSONArray("reasons")?.let { r -> List(r.length()) { r.optString(it) }.joinToString(", ").takeIf { it.isNotBlank() }?.let { "причины: $it" } },
+                    meta?.opt("raw")?.toString()?.take(300)?.takeIf { it.isNotBlank() },
+                ).joinToString("; ")
+                val msg = err?.optString("message")?.let { m -> if (detail.isNotEmpty()) "$m ($detail)" else m } ?: text.take(300).ifBlank { null }
                 if (msg != null && Regex("model", RegexOption.IGNORE_CASE).containsMatchIn(msg) && Regex("exist|not found|invalid|unknown", RegexOption.IGNORE_CASE).containsMatchIn(msg)) {
                     if (openRouter(key)) throw IOException("Модель «${body.optString("model")}» сейчас недоступна на OpenRouter: $msg. Выберите другую в Настройках → ИИ-чат.")
                     throw ModelGone("Модель «${body.optString("model")}» недоступна: $msg")
@@ -126,6 +180,8 @@ object AiChat {
                 if (code == 400 && body.has("thinking")) throw BadRequest(msg ?: "400")
                 throw IOException(when (code) {
                     401 -> "Ключ не подходит. Проверьте его в Настройках."
+                    403 -> "Доступ запрещён (403): ${msg ?: "без пояснения"}. На OpenRouter это обычно лимит, заданный на самом ключе, " +
+                        "модель или провайдер, недоступные в вашем регионе, или модерация. Нажмите «Проверить ключ» в Настройках → ИИ-чат."
                     402 -> if (openRouter(key)) "На счёте OpenRouter закончились кредиты." else "На счёте DeepSeek закончились деньги."
                     429 -> "Слишком много запросов — повторите через минуту."
                     in 500..599 -> "Сервер сейчас не отвечает ($code). Повторите позже."

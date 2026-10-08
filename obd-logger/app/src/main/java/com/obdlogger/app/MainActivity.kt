@@ -769,6 +769,16 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
 
     override fun aiKeyText(): String = AiChat.keyText(this)
     override fun aiOpenRouter(): Boolean = AiChat.openRouter(AiChat.key(this))
+
+    override fun checkAiKey() {
+        android.widget.Toast.makeText(this, "Проверяю ключ…", android.widget.Toast.LENGTH_SHORT).show()
+        Thread {
+            val report = AiChat.check(this)
+            runOnUiThread {
+                AlertDialog.Builder(this).setTitle("Проверка ключа").setMessage(report).setPositiveButton("Понятно", null).show()
+            }
+        }.start()
+    }
     override fun aiOrModel(): Int = AiChat.OR_MODELS.indexOfFirst { it.first == AiChat.orModel(this) }.coerceAtLeast(0)
     override fun setAiOrModel(i: Int) = AiChat.setOrModel(this, AiChat.OR_MODELS[i].first)
     override fun aiModel(): Int = if (AiChat.thinking(this)) 0 else 1

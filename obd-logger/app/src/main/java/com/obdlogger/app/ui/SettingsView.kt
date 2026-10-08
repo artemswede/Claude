@@ -58,6 +58,7 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         fun aiKeyText(): String = "не задан"
         fun editAiKey() {}
         fun aiOpenRouter(): Boolean = false
+        fun checkAiKey() {}
         fun aiOrModel(): Int = 0
         fun setAiOrModel(i: Int) {}
         fun aiModel(): Int = 0
@@ -114,6 +115,7 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
 
         section("ИИ-чат")
         chevron("Ключ API (OpenRouter или DeepSeek)", "${h.aiKeyText()} · хранится только на этом устройстве") { h.editAiKey() }
+        chevron("Проверить ключ", "баланс, лимит ключа и пробный вопрос модели") { h.checkAiKey() }
         if (h.aiOpenRouter()) segment("Модель", "через OpenRouter — только DeepSeek V4 Flash, другие не подставляются",
             com.obdlogger.app.AiChat.OR_MODELS.mapIndexed { i, m -> m.second to i }, h.aiOrModel()) { h.setAiOrModel(it) }
         segment("Режим ответа", "«Думающий» (по умолчанию): глубокое рассуждение, сам в быстрый не переключается",
