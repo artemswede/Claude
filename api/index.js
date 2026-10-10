@@ -23,6 +23,15 @@ async function searchSerper(query) {
   return parts.length ? parts.join("\n") : null;
 }
 
+function quickAnswer(text) {
+  const t = text.toLowerCase().trim();
+  if (/что (ты )?умеешь|что (ты )?можешь|что (ты )?делаешь|помощь|help/.test(t))
+    return "Я умею отвечать на вопросы, искать информацию в интернете, решать задачки и просто болтать. Спрашивай что угодно!";
+  if (/кто (ты|такой)|как (тебя )?зовут|твоё? имя/.test(t))
+    return "Я Жожик — умный голосовой ассистент с доступом к интернету.";
+  return null;
+}
+
 async function askGemini(userText, history, searchResults) {
   const contents = [];
   for (const msg of history) {
@@ -46,9 +55,14 @@ async function askGemini(userText, history, searchResults) {
       },
     }),
   });
+  if (!res.ok) return "Не получилось ответить. Попробуй переформулировать.";
   const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (text) return text;
+  const parts = data.candidates?.[0]?.content?.parts;
+  if (parts) {
+    for (const p of parts) {
+      if (p.text && !p.thought) return p.text;
+    }
+  }
   if (data.candidates?.[0]?.finishReason === "SAFETY") return "Извини, на этот вопрос я не могу ответить.";
   return "Не получилось ответить. Попробуй переформулировать.";
 }
@@ -96,6 +110,9 @@ export default async function handler(request) {
     if (["хватит", "стоп", "выход", "пока", "до свидания"].includes(userText.toLowerCase().trim())) {
       return alice("Пока! Было приятно поболтать.", { h: [] }, true);
     }
+
+    const quick = quickAnswer(userText);
+    if (quick) return alice(quick, { h: [...history.slice(-3), { u: userText, a: quick }] });
 
     let questionToAsk = userText;
     let searchForQuestion = userText;
