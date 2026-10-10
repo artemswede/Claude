@@ -69,9 +69,7 @@ function aliceResponse(text, sessionState, endSession = false) {
   return { response: { text: t, tts: t, end_session: endSession }, session_state: sessionState, version: "1.0" };
 }
 
-export const config = { maxDuration: 30 };
-
-module.exports = async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== "POST") { res.status(200).json({ ok: true }); return; }
 
   try {
@@ -110,4 +108,7 @@ module.exports = async function handler(req, res) {
     console.error("Handler error:", err);
     res.status(200).json(aliceResponse("Что-то пошло не так. Попробуй ещё раз.", { history: [] }));
   }
-};
+}
+
+module.exports = handler;
+module.exports.config = { maxDuration: 30 };
