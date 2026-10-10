@@ -13,13 +13,13 @@ async function searchSerper(query) {
   const res = await fetch("https://google.serper.dev/search", {
     method: "POST",
     headers: { "X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ q: query, gl: "ru", hl: "ru", num: 3 }),
+    body: JSON.stringify({ q: query, gl: "ru", hl: "ru", num: 2 }),
   });
   if (!res.ok) return null;
   const data = await res.json();
   const parts = [];
   if (data.answerBox) parts.push(data.answerBox.answer || data.answerBox.snippet || "");
-  if (data.organic) for (const r of data.organic.slice(0, 3)) if (r.snippet) parts.push(r.snippet);
+  if (data.organic) for (const r of data.organic.slice(0, 2)) if (r.snippet) parts.push(r.snippet);
   return parts.length ? parts.join("\n") : null;
 }
 
@@ -46,11 +46,11 @@ async function askGemini(userText, history, searchResults) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      system_instruction: { parts: [{ text: "Ты голосовой ассистент Жожик. Твоё имя Жожик. Ты не Gemini и не Google. Отвечай коротко, 1-2 предложения, по-русски. Без маркдауна и списков." }] },
+      system_instruction: { parts: [{ text: "Ты Жожик. Отвечай 1-2 предложения, по-русски. Без маркдауна." }] },
       contents,
       generationConfig: {
-        maxOutputTokens: 256,
-        temperature: 0.7,
+        maxOutputTokens: 100,
+        temperature: 0.3,
         thinkingConfig: { thinkingBudget: 0 },
       },
     }),
@@ -124,13 +124,13 @@ export default async function handler(request) {
 
     let search = null;
     if (needsSearch(searchForQuestion)) {
-      const searchResult = await withTimeout(searchSerper(searchForQuestion), 1500);
+      const searchResult = await withTimeout(searchSerper(searchForQuestion), 1000);
       if (searchResult.ok) search = searchResult.value;
     }
 
     const geminiResult = await withTimeout(
-      askGemini(questionToAsk, history.slice(-4), search),
-      3500
+      askGemini(questionToAsk, history.slice(-2), search),
+      3000
     );
 
     if (!geminiResult.ok) {
