@@ -1,0 +1,10 @@
+{
+  "name": "alice-gemini-skill",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Yandex Alice skill with Gemini AI and Serper web search",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {}
+}
