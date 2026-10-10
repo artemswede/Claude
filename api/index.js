@@ -25,6 +25,12 @@ async function searchSerper(query) {
 
 function quickAnswer(text) {
   const t = text.toLowerCase().trim();
+  if (/^(привет|здравствуй|хай|хелло|здарова|здорово|салют|йо|ку|добрый (день|вечер|утро))/.test(t))
+    return "Привет! Чем могу помочь?";
+  if (/^(как (ты|дела|жизнь|сам)|ты как|нормально)/.test(t))
+    return "У меня всё отлично! Готов помочь. Спрашивай!";
+  if (/^(спасибо|благодарю|спс|пасиб)/.test(t))
+    return "Пожалуйста! Обращайся ещё.";
   if (/что (ты )?умеешь|что (ты )?можешь|что (ты )?делаешь|помощь|help/.test(t))
     return "Я умею отвечать на вопросы, искать информацию в интернете, решать задачки и просто болтать. Спрашивай что угодно!";
   if (/кто (ты|такой)|как (тебя )?зовут|твоё? имя/.test(t))
@@ -130,7 +136,7 @@ export default async function handler(request) {
 
     const geminiResult = await withTimeout(
       askGemini(questionToAsk, history.slice(-2), search),
-      3000
+      3500
     );
 
     if (!geminiResult.ok) {
