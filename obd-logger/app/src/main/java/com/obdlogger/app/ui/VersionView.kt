@@ -16,7 +16,7 @@ import com.obdlogger.core.Hypothesis
 interface VersionActions {
     fun back()
     fun openPlan(h: Hypothesis)
-    fun startCheck()
+    fun startCheck(kind: com.obdlogger.core.CheckKind)
     fun openCompare()
     fun printPlan(h: Hypothesis)
     fun sharePlan(h: Hypothesis)
@@ -117,13 +117,16 @@ class VersionView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothe
             addTo(next, row(ctx, dp(10), Gravity.TOP, ctx.text("${i + 1}", 15f, p.t3, 400, mono = true), ctx.text(s, if (sc.phone) 15f else 17f, p.t1)))
         }
         addTo(rcol, card(next, p, dp(18), dp(16), p.acc), dp(12))
+        // A short check only where it answers this version; otherwise the next trip says enough.
+        val check = com.obdlogger.core.CheckKind.forFinding(h.finding.kind)
         addTo(rcol, card(column(ctx, dp(6),
             ctx.label("Как понять, что помогло", sc, p),
             ctx.text(h.success, if (sc.phone) 15f else 17f, p.t1),
-            ctx.text("Запишите проверочный лог сразу после ремонта — он сравнится с логом «до».", if (sc.phone) 13f else 14f, p.t2)), p, dp(18), dp(14)), dp(12))
+            ctx.text(check?.let { "Проверка «${it.title}» до и после ремонта сравнится честно, в одинаковых условиях. Или просто ездите — Бортач сравнит поездки с обычным для машины." }
+                ?: "Просто ездите как обычно — Бортач сравнит следующие поездки с обычным для машины.", if (sc.phone) 13f else 14f, p.t2)), p, dp(18), dp(14)), dp(12))
         val btns = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
         btns.addView(ctx.button("План для мастера", sc, p, primary = true) { actions.openPlan(h) }, LinearLayout.LayoutParams(0, dp(sc.btnH), 1f))
-        btns.addView(ctx.button("Проверочный лог", sc, p, primary = false) { actions.startCheck() }, LinearLayout.LayoutParams(0, dp(sc.btnH), 1f).apply { leftMargin = dp(10) })
+        check?.let { k -> btns.addView(ctx.button("Проверка: ${k.title.lowercase()}", sc, p, primary = false) { actions.startCheck(k) }, LinearLayout.LayoutParams(0, dp(sc.btnH), 1f).apply { leftMargin = dp(10) }) }
         addTo(rcol, btns, dp(12))
         if (seen.isNotEmpty()) {
             addTo(rcol, ctx.sectionTitle(4, "Где это видно", sc, p), dp(24))

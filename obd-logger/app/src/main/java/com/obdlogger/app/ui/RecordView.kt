@@ -54,6 +54,12 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         setPadding(dp(10), dp(8), dp(10), dp(8))
         setOnClickListener { panelMenu() }
     }.tap()
+    /** «Проверки»: the short targeted checks (idle, mixture, charging, warm-up). */
+    var onChecks: () -> Unit = {}
+    private val checksText = ctx.text("Проверки", if (sc.phone) 13f else 15f, p.acc, 600, maxLines = 1).apply {
+        setPadding(dp(10), dp(8), dp(10), dp(8))
+        setOnClickListener { onChecks() }
+    }.tap()
     private val panelRight = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
     private val attn = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
     private val charts = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
@@ -127,6 +133,7 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         if (!sc.compact && !tabsInBar) addTo(panelRight, modeText)
         addTo(panelRight, pageText, dp(4))
         addTo(panelRight, menuText, dp(4))
+        addTo(panelRight, checksText, dp(4))
         for (v in listOf(panel, attn, charts)) pages.addView(v, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         tabs.select(0)
     }

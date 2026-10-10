@@ -211,10 +211,10 @@ object Reports {
 
     private fun checks(list: List<TripItem>): String = buildString {
         val shown = list.sortedBy { it.summary.start }.takeLast(4)
-        append("<h2>6 · Проверочные логи: до и после</h2>")
-        append("<div class='small'>4 минуты на стоянке в одинаковых условиях — самое честное сравнение до и после ремонта.</div>")
+        append("<h2>6 · Проверки: до и после</h2>")
+        append("<div class='small'>Короткие проверки на стоянке в одинаковых условиях — самое честное сравнение до и после ремонта.</div>")
         append("<table class='keep'><tr><th>Показатель</th>")
-        shown.forEach { append("<th class='num'>${esc(it.summary.start?.format(DAY_TIME) ?: "?")}</th>") }
+        shown.forEach { append("<th class='num'>${esc((it.check?.kind?.title?.let { k -> "$k · " } ?: "") + (it.summary.start?.format(DAY_TIME) ?: "?"))}</th>") }
         append("</tr>")
         val rows = listOf<Pair<String, (com.obdlogger.core.CheckResult) -> String?>>(
             "Коррекция Б1 на ХХ" to { c -> c.idleTrim?.let { TripAnalyzer.pct(it) } },
@@ -223,6 +223,8 @@ object Reports {
             "Обороты ХХ" to { c -> c.idleRpm?.toInt()?.toString() },
             "Лямбда после кат., ХХ" to { c -> c.rearO2Idle?.let { "${TripAnalyzer.fmt(it)} В" } },
             "Расход воздуха на ХХ" to { c -> c.idleMaf?.let { "${TripAnalyzer.fmt(it)} г/с" } },
+            "Напряжение без нагрузки / с потребителями" to { c -> c.voltIdle?.let { "${TripAnalyzer.fmt(it)} / ${c.voltLoad?.let(TripAnalyzer::fmt) ?: "—"} В" } },
+            "Прогрев до 80 °C" to { c -> c.warmMin?.let { "${TripAnalyzer.fmt(it)} мин" } },
         )
         for ((title, get) in rows) {
             val vals = shown.map { it.check?.let(get) }

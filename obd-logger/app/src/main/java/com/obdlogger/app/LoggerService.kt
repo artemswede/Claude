@@ -97,7 +97,10 @@ class LoggerService : Service() {
             ACTION_STOP -> requestStop()
             ACTION_MARK -> if (recording) LoggerState.requestMarker()
             ACTION_POKE -> poke()
-            ACTION_CHECK -> if (recording) checkRequested = true
+            ACTION_CHECK -> if (recording) {
+                checkKind = intent.getStringExtra(EXTRA_CHECK)?.let(com.obdlogger.core.CheckKind::of) ?: com.obdlogger.core.CheckKind.MIXTURE
+                checkRequested = true
+            }
             ACTION_CHECK_STOP -> checkStopRequested = true
             ACTION_DTC_READ, ACTION_DTC_CLEAR -> {
                 dtcRequest = intent.action
@@ -392,7 +395,7 @@ class LoggerService : Service() {
             if (checkRequested && check == null) {
                 checkRequested = false
                 checkStopRequested = false
-                check = startCheck(logger)
+                check = startCheck(logger, checkKind)
             }
             val marker = LoggerState.peekMarker()
             val checkMarker = check?.state?.marker
@@ -403,7 +406,8 @@ class LoggerService : Service() {
                 val idx = logger.columns.indexOfFirst { it.name == "speed_kmh" }
                 val speed = logger.lastRow.getOrNull(idx)?.toDoubleOrNull()
                 val rpmNow = if (r.wroteRow) logger.lastRow.getOrNull(rpmIndex)?.toDoubleOrNull() else null
-                val st = c.test.update(now, rpmNow, speed)
+                val coolantNow = logger.lastRow.getOrNull(logger.columns.indexOfFirst { it.name == "coolant_c" })?.toDoubleOrNull()
+                val st = c.test.update(now, rpmNow, speed, coolantNow)
                 c.state = st
                 LoggerState.update { it.copy(check = st) }
                 if (st.phase != com.obdlogger.core.CheckTest.Phase.RUNNING) {
@@ -494,12 +498,14 @@ class LoggerService : Service() {
         var state: com.obdlogger.core.CheckTest.State? = null
     }
 
-    private fun startCheck(logger: DataLogger): CheckRun {
+    @Volatile private var checkKind = com.obdlogger.core.CheckKind.MIXTURE
+
+    private fun startCheck(logger: DataLogger, kind: com.obdlogger.core.CheckKind): CheckRun {
         val files = SessionFiles.createCheck(this)
         val w = files.csv.bufferedWriter()
         logger.tee = w
         trace("check log start: ${files.csv.name}")
-        val run = CheckRun(com.obdlogger.core.CheckTest(System.currentTimeMillis()), files, w)
+        val run = CheckRun(com.obdlogger.core.CheckTest(System.currentTimeMillis(), kind), files, w)
         LoggerState.update { it.copy(check = run.test.update(System.currentTimeMillis(), null, null)) }
         return run
     }
@@ -515,8 +521,9 @@ class LoggerService : Service() {
         if (ok) {
             // The trip's header (car, VIN, protocol, PIDs) ties the check log to its car.
             val tripInfo = tripInfoFile?.takeIf { it.exists() }?.readText()?.substringBefore("=== Коды неисправностей ===").orEmpty()
-            c.files.info.writeText(tripInfo + "\n=== Проверочный лог Бортача ${BuildConfig.VERSION_NAME} ===\n" +
-                "Шаги: прогретый холостой 2:00 → 2500 об/мин 1:00 → холостой 1:00 (столбец marker: TEST1…TEST3)\n")
+            val kind = c.test.kind
+            c.files.info.writeText(tripInfo + "\n=== Проверка Бортача «${kind.title}» ${BuildConfig.VERSION_NAME} ===\n" +
+                "Шаги: " + kind.steps.joinToString(" → ") { it.title } + " (столбец marker: TEST1…TEST${kind.steps.size} ${kind.id})\n")
             SessionFiles.exportToDownloads(this, c.files.csv)
             LoggerState.update { it.copy(checkCsv = c.files.csv.absolutePath, savedTrips = it.savedTrips + 1) }
         } else {
@@ -801,6 +808,7 @@ class LoggerService : Service() {
         const val ACTION_DTC_READ = "com.obdlogger.DTC_READ"
         const val ACTION_DTC_CLEAR = "com.obdlogger.DTC_CLEAR"
         const val EXTRA_ADDRESS = "address"
+        const val EXTRA_CHECK = "check"
         const val EXTRA_VEHICLE = "vehicle"
         const val EXTRA_EXTENDED = "extended"
         private const val SILENT_CYCLES_BEFORE_REINIT = 2

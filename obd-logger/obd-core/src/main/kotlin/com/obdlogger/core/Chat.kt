@@ -203,17 +203,9 @@ object ChatPrompt {
         }
         if (checks.isNotEmpty()) {
             appendLine()
-            appendLine("ПРОВЕРОЧНЫЕ ЛОГИ (медианы; коррекция = LTFT+STFT, %):")
-            for (c in checks.sortedBy { it.start }.takeLast(6)) {
-                appendLine("• ${c.start?.let { java.time.format.DateTimeFormatter.ofPattern("dd.MM HH:mm").format(it) } ?: c.name}: " +
-                    listOfNotNull(
-                        c.idleTrim?.let { "коррекция Б1 ХХ ${TripAnalyzer.pct(it)}" },
-                        c.revTrim?.let { "Б1 на 2500 ${TripAnalyzer.pct(it)}" },
-                        c.idleTrimB2?.let { "Б2 ХХ ${TripAnalyzer.pct(it)}" },
-                        c.idleRpm?.let { "обороты ХХ ${it.toInt()}" },
-                        c.rearO2Idle?.let { "задняя лямбда ХХ ${TripAnalyzer.fmt(it)} В" },
-                        c.idleMaf?.let { "ДМРВ ХХ ${TripAnalyzer.fmt(it)} г/с" },
-                    ).joinToString(", "))
+            appendLine("ПРОВЕРКИ БОРТАЧА (медианы; коррекция = LTFT+STFT, %):")
+            for (c in checks.sortedBy { it.start }.takeLast(8)) {
+                appendLine("• ${c.kind.title}, ${c.start?.let { java.time.format.DateTimeFormatter.ofPattern("dd.MM HH:mm").format(it) } ?: c.name}: ${c.summary()}")
             }
         }
         if (research.isNotBlank()) {

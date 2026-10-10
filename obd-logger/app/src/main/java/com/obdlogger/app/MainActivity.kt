@@ -109,6 +109,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         record = RecordView(this, shell.sc)
         if (!shell.sc.phone) shell.setPageBar(Shell.Page.RECORD, record.header)
         record.onMode = { shell.setPageInfo(Shell.Page.RECORD, it) }
+        record.onChecks = { openCheck() }
         shell.containers.getValue(Shell.Page.RECORD).addView(record)
 
         trips = TripsView(this, shell.sc, { openTrip(it) }, { key -> tripsCar = key; refreshTrips(force = true) })
@@ -652,7 +653,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
             chatDetails = m.trips.take(CHAT_TRIPS).mapNotNull { TripCache.detail(it) }
             val codes = Regex("Ошибки: ([^\\n]+)").find(LoggerState.snapshot.dtcInfo)?.groupValues?.get(1)
             val line = "Ответы — по данным этой машины: ${Prefs.vehicle(this).ifBlank { "машина без названия" }} · " +
-                "поездок ${m.trips.size} · проверочных логов ${m.checks.size}" + (codes?.let { " · коды: $it" } ?: "")
+                "поездок ${m.trips.size} · проверок ${m.checks.size}" + (codes?.let { " · коды: $it" } ?: "")
             runOnUiThread { chatContext = line; refreshChat() }
         }.start()
     }
@@ -1035,10 +1036,10 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
 
     override fun openPlan(h: Hypothesis) = push(shell.page, PlanView(this, shell.sc, h, Prefs.vehicle(this), this))
 
-    override fun startCheck() {
+    override fun startCheck(kind: com.obdlogger.core.CheckKind) {
         if (shell.page != Shell.Page.OVERVIEW) shell.show(Shell.Page.OVERVIEW)
         while (pop()) Unit
-        openCheck()
+        openCheck(kind)
     }
 
     // ---- CheckActions ----
@@ -1047,10 +1048,12 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     private var checkResults: Pair<CheckResult?, CheckResult?>? = null
     @Volatile private var checkLoading = false
 
-    private fun openCheck() {
-        val v = CheckView(this, shell.sc, this)
+    /** «Проверки»: the menu, or straight to [kind] (from the chat or a version). Opens over the current section. */
+    fun openCheck(kind: com.obdlogger.core.CheckKind? = null) {
+        if (checkView != null) return
+        val v = CheckView(this, shell.sc, this, kind)
         checkView = v
-        push(Shell.Page.OVERVIEW, v)
+        push(if (shell.page == Shell.Page.SETTINGS) Shell.Page.OVERVIEW else shell.page, v)
         refreshCheck()
     }
 
@@ -1063,8 +1066,10 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
             Thread {
                 val f = File(s.checkCsv)
                 val now = try { CheckResult.of(f.nameWithoutExtension, f.readText()) } catch (e: Exception) { null }
-                val prevFile = SessionFiles.checkCsvs(this).lastOrNull { it.name < f.name }
-                val prev = prevFile?.let { pf -> try { CheckResult.of(pf.nameWithoutExtension, pf.readText()) } catch (e: Exception) { null } }
+                // The previous check of the same kind: a charge check compares with a charge check.
+                val prev = SessionFiles.checkCsvs(this).filter { it.name < f.name }.reversed().asSequence()
+                    .mapNotNull { pf -> try { CheckResult.of(pf.nameWithoutExtension, pf.readText()) } catch (e: Exception) { null } }
+                    .firstOrNull { it.kind == now?.kind }
                 runOnUiThread {
                     checkResults = now to prev
                     checkLoading = false
@@ -1075,9 +1080,9 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         v.bind(s, if (done) checkResults else null)
     }
 
-    override fun startTest() {
+    override fun startTest(kind: com.obdlogger.core.CheckKind) {
         checkResults = null
-        startService(LoggerService.intent(this, LoggerService.ACTION_CHECK))
+        startService(LoggerService.intent(this, LoggerService.ACTION_CHECK).putExtra(LoggerService.EXTRA_CHECK, kind.id))
     }
 
     override fun stopTest() {

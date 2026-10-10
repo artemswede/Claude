@@ -224,8 +224,16 @@ class Scenes(private val a: Activity) {
         SeriesStore().also { SessionFiles.loadInto(Samples.realItems.last().csv, it) }
     }
 
-    private fun check(s: LoggerState.Snapshot, results: Pair<CheckResult?, CheckResult?>?, st: CheckTest.State? = null) = shell(Shell.Page.OVERVIEW, s) { sh ->
-        CheckView(a, sh.sc, NoActions).apply { bind(s.copy(check = st), results) }
+    private fun check(s: LoggerState.Snapshot, results: Pair<CheckResult?, CheckResult?>?, st: CheckTest.State? = null,
+        kind: com.obdlogger.core.CheckKind? = com.obdlogger.core.CheckKind.MIXTURE) = shell(Shell.Page.OVERVIEW, s) { sh ->
+        CheckView(a, sh.sc, NoActions, kind).apply { bind(s.copy(check = st), results) }
+    }
+
+    private fun warming(): CheckTest.State {
+        val t = CheckTest(0, com.obdlogger.core.CheckKind.WARMUP)
+        var st: CheckTest.State? = null
+        for (sec in 1..300) st = t.update(sec * 1000L, 900.0, 30.0, 30.0 + sec * 0.12)
+        return st!!
     }
 
     private fun run(t: CheckTest, until: Int, rpm: (Int) -> Double): CheckTest.State {
@@ -349,6 +357,11 @@ class Scenes(private val a: Activity) {
             "V2_charts" to { trip(3) },
             "K2_version" to { shell(Shell.Page.OVERVIEW, waiting) { sh -> VersionView(a, sh.sc, hypothesis(), "Обзор", NoActions) } },
             "K3_plan" to { shell(Shell.Page.OVERVIEW, waiting) { sh -> PlanView(a, sh.sc, hypothesis(), "Toyota Avensis 2005 · 2.0 D-4 (1AZ-FSE)", NoActions) } },
+            "P0_checks" to { check(recording.copy(values = listOf("rpm" to "760", "speed_kmh" to "0", "coolant_c" to "88")), null, kind = null) },
+            "P1b_prep_charge" to { check(recording.copy(values = listOf("rpm" to "760", "speed_kmh" to "0", "coolant_c" to "88")), null, kind = com.obdlogger.core.CheckKind.CHARGE) },
+            "P2b_warmup" to { check(recording, null, warming()) },
+            "P4b_result_charge" to { check(recording, CheckResult("c", null, null, null, null, 760.0, null, null, null, com.obdlogger.core.CheckKind.CHARGE, voltIdle = 14.1, voltLoad = 13.3) to
+                CheckResult("c0", java.time.LocalDateTime.of(2026, 10, 1, 9, 0), null, null, null, 760.0, null, null, null, com.obdlogger.core.CheckKind.CHARGE, voltIdle = 14.2, voltLoad = 13.8), done()) },
             "P1_prep" to { check(recording.copy(values = listOf("rpm" to "760", "speed_kmh" to "0", "coolant_c" to "88")), null) },
             "P2_step" to { check(recording, null, step2()) },
             "P3_abort" to { check(recording, null, aborted()) },
@@ -385,7 +398,7 @@ object FakeSetup : SetupView.Host {
 }
 
 object NoActions : TripActions, VersionActions, CheckActions {
-    override fun startTest() = Unit
+    override fun startTest(kind: com.obdlogger.core.CheckKind) = Unit
     override fun stopTest() = Unit
     override fun closeTest() = Unit
     override fun back() = Unit
@@ -394,7 +407,7 @@ object NoActions : TripActions, VersionActions, CheckActions {
     override fun shareTrip(item: TripItem) = Unit
     override fun openVersion(f: com.obdlogger.core.Finding, item: TripItem?) = Unit
     override fun openPlan(h: com.obdlogger.core.Hypothesis) = Unit
-    override fun startCheck() = Unit
+    override fun startCheck(kind: com.obdlogger.core.CheckKind) = Unit
     override fun openCompare() = Unit
     override fun printPlan(h: com.obdlogger.core.Hypothesis) = Unit
     override fun sharePlan(h: com.obdlogger.core.Hypothesis) = Unit

@@ -50,7 +50,7 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
         val back = ctx.button("←  Поездки", sc, p, primary = false) { actions.back() }
         val head = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(sc.pad), dp(8), dp(sc.pad), dp(4)) }
         head.addView(back, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(sc.btnH)))
-        addTo(head, ctx.text(HomeModel.tripRange(s) + if (item.isCheck) " · проверочный лог" else "", if (sc.phone) 15f else 18f, p.t2, 500, mono = true), dp(14))
+        addTo(head, ctx.text(HomeModel.tripRange(s) + if (item.isCheck) " · проверка «${item.check?.kind?.title?.lowercase() ?: "смесь"}»" else "", if (sc.phone) 15f else 18f, p.t2, 500, mono = true), dp(14))
         col.addView(head)
         col.addView(tabs, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(Tabs.height(sc))))
         col.addView(body, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
@@ -107,7 +107,7 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
         val watch = s.findings.firstOrNull { it.severity == Severity.WATCH }
         val cards = LinearLayout(context).apply { orientation = if (narrow) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL }
         val versionCard = when {
-            item.isCheck -> versionBox("Проверочный лог", item.check?.idleTrim?.let { "Коррекция Б1 на ХХ ${TripAnalyzer.pct(it)}" } ?: "Записан", null, p.line2)
+            item.isCheck -> versionBox("Проверка: ${item.check?.kind?.title?.lowercase() ?: "смесь"}", item.check?.summary()?.ifEmpty { null } ?: "Записана", null, p.line2)
             top != null && s.durationMin >= com.obdlogger.core.HomeLogic.NEED_TRIP_MIN -> versionBox("Версия по этой поездке", top.headline, top, p.acc)
             s.durationMin < com.obdlogger.core.HomeLogic.NEED_TRIP_MIN -> versionBox("Недостаточно данных", "Поездка короче ${com.obdlogger.core.HomeLogic.NEED_TRIP_MIN.toInt()} минут — вывод не делается", null, p.line2)
             else -> versionBox("Разбор готов", "Отклонений не найдено", null, p.acc)

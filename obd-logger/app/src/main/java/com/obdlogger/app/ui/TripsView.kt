@@ -25,7 +25,7 @@ class TripVerdict(val text: String, val fg: Int, val bg: Int) {
             val s = it.summary
             val top = s.top
             return when {
-                it.isCheck -> TripVerdict("Проверочный лог", p.t1, p.s3)
+                it.isCheck -> TripVerdict("Проверка: ${it.check?.kind?.title?.lowercase() ?: "смесь"}", p.t1, p.s3)
                 !s.dtcs.isNullOrEmpty() -> TripVerdict("Коды: ${s.dtcs!!.joinToString(", ")}", p.red, p.redT)
                 top != null && s.durationMin >= HomeLogic.NEED_TRIP_MIN -> TripVerdict("▲ Есть версия: ${top.headline.replaceFirstChar { c -> c.lowercase() }}", p.amb, p.ambT)
                 s.durationMin < HomeLogic.NEED_TRIP_MIN -> TripVerdict("Мало данных: короткая", p.t2, p.s3)
@@ -93,8 +93,8 @@ class TripsView(
     private var filter = 0
     private var compareChecks = false
     private val body = FrameLayout(ctx)
-    private val journalFilter = Segment(ctx, sc, p, listOf("Все", "С версией", "Проверочные"), 0) { filter = it; render() }
-    private val compareFilter = Segment(ctx, sc, p, listOf("Поездки", "Проверочные логи"), 0) { compareChecks = it == 1; render() }
+    private val journalFilter = Segment(ctx, sc, p, listOf("Все", "С версией", "Проверки"), 0) { filter = it; render() }
+    private val compareFilter = Segment(ctx, sc, p, listOf("Поездки", "Проверки"), 0) { compareChecks = it == 1; render() }
     private val tabs = Tabs(ctx, sc, p, listOf("Журнал", "Сравнение")) { render() }
     private val dayFmt = DateTimeFormatter.ofPattern("dd.MM")
     /** Journal columns: date, time, modes, verdict — on short screens the verdict gets the most room. */
@@ -122,7 +122,7 @@ class TripsView(
         body.removeAllViews()
         if (tabs.selected == 0) {
             val withVersion = m.trips.count { it.summary.top != null && it.summary.durationMin >= HomeLogic.NEED_TRIP_MIN }
-            journalFilter.setTitles(listOf("Все · ${m.items.size}", "С версией · $withVersion", (if (sc.compact) "Провер. · " else "Проверочные · ") + m.checks.size))
+            journalFilter.setTitles(listOf("Все · ${m.items.size}", "С версией · $withVersion", "Проверки · " + m.checks.size))
             tabs.setRight(if (sc.phone) null else journalFilter.detached())
             body.addView(ScrollView(context).apply { addView(journal(m)) })
         } else {
@@ -188,7 +188,7 @@ class TripsView(
                 context.text(if (m.items.isEmpty()) "Поездок ещё нет" else "Таких записей нет", sc.hm, p.t1, 600),
                 context.text(
                     if (m.items.isEmpty()) "Каждая поездка с автозаписью появится здесь сама: дата, длительность, режимы и вывод. Нужен только адаптер и включённая автозапись."
-                    else "Проверочный лог записывается с главного экрана на стоянке, на прогретом моторе.",
+                    else "Проверки запускаются со страницы «Запись» → «Проверки»: холостой, смесь, зарядка, прогрев.",
                     sc.p, p.t2,
                 ),
             )
@@ -218,7 +218,7 @@ class TripsView(
         )
         val bar = ModeBar(context, p).apply { set(it) }
         val idle = it.minutes(DriveMode.WARM_IDLE)
-        val caption = if (it.isCheck) "проверочный лог" else listOfNotNull(
+        val caption = if (it.isCheck) "проверка «${it.check?.kind?.title?.lowercase() ?: "смесь"}»" else listOfNotNull(
             "прогрев".takeIf { _ -> it.minutes(DriveMode.COLD) > 0.5 },
             "движение",
             if (idle >= 0.5) "ХХ ${idle.toInt().coerceAtLeast(1)} мин" else null,
@@ -357,14 +357,14 @@ class TripsView(
         val list = m.checks.sortedBy { it.summary.start }
         if (list.size < 2) {
             return column(context, dp(10),
-                context.text(if (list.isEmpty()) "Проверочных логов ещё нет" else "Нужен второй проверочный лог", sc.hm, p.t1, 600),
-                context.text("Проверочный лог — 4 минуты на стоянке: холостой, 2500 об/мин, холостой. Сделайте его до ремонта и после — Бортач сравнит честно, в одинаковых условиях.", sc.p, p.t2))
+                context.text(if (list.isEmpty()) "Проверок ещё нет" else "Нужна вторая проверка", sc.hm, p.t1, 600),
+                context.text("Проверки — короткие тесты на стоянке: холостой, смесь, зарядка, прогрев («Запись» → «Проверки»). Сделайте одну до ремонта и после — Бортач сравнит честно, в одинаковых условиях.", sc.p, p.t2))
         }
         val shown = list.takeLast(4)
         val box = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         val head = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(12), dp(10), 0, dp(10)) }
         head.addView(context.label("Показатель", sc, p), LinearLayout.LayoutParams(dp(if (sc.phone) 150 else 320), ViewGroup.LayoutParams.WRAP_CONTENT))
-        shown.forEach { c -> head.addView(context.label(c.summary.start?.format(dayFmt) ?: "?", sc, p).apply { gravity = Gravity.END }, LinearLayout.LayoutParams(dp(if (sc.phone) 76 else 120), ViewGroup.LayoutParams.WRAP_CONTENT)) }
+        shown.forEach { c -> head.addView(context.label((c.check?.kind?.id?.let { "$it " } ?: "") + (c.summary.start?.format(dayFmt) ?: "?"), sc, p).apply { gravity = Gravity.END }, LinearLayout.LayoutParams(dp(if (sc.phone) 76 else 120), ViewGroup.LayoutParams.WRAP_CONTENT)) }
         box.addView(head)
         box.addView(hline(context, p.line2))
         val rows = listOf<Pair<String, (com.obdlogger.core.CheckResult) -> String?>>(
@@ -375,6 +375,10 @@ class TripsView(
             "Лямбда после кат., ХХ" to { c -> c.rearO2Idle?.let { "${com.obdlogger.core.TripAnalyzer.fmt(it)} В" } },
             "Лямбда после кат., 2500" to { c -> c.rearO2Rev?.let { "${com.obdlogger.core.TripAnalyzer.fmt(it)} В" } },
             "Расход воздуха на ХХ" to { c -> c.idleMaf?.let { "${com.obdlogger.core.TripAnalyzer.fmt(it)} г/с" } },
+            "Разброс оборотов ХХ" to { c -> c.idleRpmSpread?.toInt()?.toString() },
+            "Напряжение без нагрузки" to { c -> c.voltIdle?.let { "${com.obdlogger.core.TripAnalyzer.fmt(it)} В" } },
+            "Напряжение с потребителями" to { c -> c.voltLoad?.let { "${com.obdlogger.core.TripAnalyzer.fmt(it)} В" } },
+            "Прогрев до 80 °C" to { c -> if (c.kind == com.obdlogger.core.CheckKind.WARMUP) c.warmMin?.let { "${com.obdlogger.core.TripAnalyzer.fmt(it)} мин" } ?: "не прогрелся" else null },
         )
         for ((title, get) in rows) {
             val vals = shown.map { it.check?.let(get) }
