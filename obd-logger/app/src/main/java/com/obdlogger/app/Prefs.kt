@@ -42,7 +42,7 @@ object Prefs {
     const val CURRENT_CAR = "current_car"
 
     /**
-     * Name of the car connected last («Toyota Avensis 2005 · 2.0 D-4»), set by the
+     * Name of the car connected last («марка модель год · двигатель»), set by the
      * owner per car: the tablet moves between cars and each keeps its own name.
      * Empty when not named yet.
      */
@@ -82,6 +82,12 @@ object Prefs {
     /** When the system last killed the service mid-recording; 0 = never / acknowledged. */
     fun killedAt(ctx: Context): Long = of(ctx).getLong(KILLED_AT, 0)
     /** The last trip whose result the owner has opened (the main screen stops offering it). */
+    /** «Обнулить профиль»: trips before this moment no longer count as the car's normal. */
+    fun profileSince(ctx: Context, carKey: String): java.time.LocalDateTime? =
+        of(ctx).getString("profile_since_$carKey", null)?.let { runCatching { java.time.LocalDateTime.parse(it) }.getOrNull() }
+    fun setProfileSince(ctx: Context, carKey: String, at: java.time.LocalDateTime?) =
+        of(ctx).edit().apply { if (at == null) remove("profile_since_$carKey") else putString("profile_since_$carKey", at.toString()) }.apply()
+
     fun seenTrip(ctx: Context): String? = of(ctx).getString(SEEN_TRIP, null)
     fun setSeenTrip(ctx: Context, name: String) = of(ctx).edit().putString(SEEN_TRIP, name).apply()
 }

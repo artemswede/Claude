@@ -8,6 +8,7 @@ import com.obdlogger.core.DriveMode
 import com.obdlogger.core.TripAnalyzer
 import com.obdlogger.core.TripComparison
 import com.obdlogger.core.TripDetail
+import com.obdlogger.core.TripProfile
 import com.obdlogger.core.TripSummary
 import java.io.File
 
@@ -34,6 +35,11 @@ class TripsModel(
     val car: CarId? = null,
 ) {
     val trips get() = items.filter { !it.isCheck }
+
+    /** This car's trip fingerprints for «как обычно», oldest first, after the profile's reset ([since]). Heavy the first time. */
+    fun profiles(since: java.time.LocalDateTime?): List<TripProfile> =
+        trips.filter { since == null || (it.summary.start ?: return@filter false) >= since }
+            .mapNotNull { TripCache.profile(it) }.sortedBy { it.start }
 
     companion object {
         /** Heavy: reads CSV files (cached by name and size). */
@@ -71,6 +77,19 @@ object TripCache {
         val s = TripAnalyzer.analyze(csv.nameWithoutExtension, text, info) ?: return null
         val check = if (csv.name.startsWith(SessionFiles.CHECK_PREFIX)) CheckResult.of(csv.nameWithoutExtension, text) else null
         return TripItem(csv, s, check).also { cache[key] = it }
+    }
+
+    private val profiles = HashMap<String, TripProfile>()
+
+    /** The trip's fingerprint: from `_profile.txt` next to it, or computed once and written there. */
+    fun profile(item: TripItem): TripProfile? {
+        val key = "${item.csv.absolutePath}:${item.csv.length()}"
+        synchronized(profiles) { profiles[key]?.let { return it } }
+        val f = SessionFiles.profileOf(item.csv)
+        val cached = if (f.exists() && f.lastModified() >= item.csv.lastModified()) runCatching { TripProfile.decode(f.readText()) }.getOrNull() else null
+        val p = cached ?: detail(item)?.let { TripProfile.of(it) }?.also { runCatching { f.writeText(it.encode()) } } ?: return null
+        synchronized(profiles) { profiles[key] = p }
+        return p
     }
 
     /** Full detail for the trip screen. */

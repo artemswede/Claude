@@ -581,7 +581,7 @@ class LoggerService : Service() {
 
         if (rows == 0 && autoMode) {
             // Auto mode probed the ECU but nothing was recorded: no empty trip files.
-            listOf(t.files.csv, t.files.info, t.files.elmLog).forEach { it.delete() }
+            listOf(t.files.csv, t.files.info, t.files.elmLog, SessionFiles.profileOf(t.files.csv)).forEach { it.delete() }
             return
         }
         val toExport = t.files.existing()

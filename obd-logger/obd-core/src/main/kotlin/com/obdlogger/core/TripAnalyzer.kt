@@ -20,7 +20,7 @@ enum class DriveMode(val ru: String) {
 enum class Metric(val ru: String, val unit: String) {
     IDLE_RPM("Обороты холостого стоя, медиана", "об/мин"),
     ROLL_RPM("Обороты при подкате к остановке, медиана", "об/мин"),
-    RPM_DIPS("Провалы оборотов ниже 560 на холостом", "раз"),
+    RPM_DIPS("Провалы оборотов на холостом (ниже обычного на 15 %)", "раз"),
     IDLE_MAF("Расход воздуха на холостом", "г/с"),
     IDLE_TRIM_B1("Коррекция топлива на холостом, банк 1 (LTFT+STFT)", "%"),
     IDLE_TRIM_B2("Коррекция топлива на холостом, банк 2 (LTFT+STFT)", "%"),
@@ -231,7 +231,12 @@ object TripAnalyzer {
     private val TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
 
     private const val WARM_C = 70.0
-    private const val DIP_RPM = 560.0
+
+    /**
+     * A dip: rpm below this car's own warm idle by 15 % (at least 100 rpm) — any engine,
+     * any idle speed. Without a warm idle in the trip, a generic 560.
+     */
+    fun dipBelow(idleRpm: Double?): Double = idleRpm?.let { it - maxOf(100.0, it * 0.15) } ?: 560.0
     private const val MIN_SAMPLES = 5
 
     /** Parses a CSV and classifies every row by operating mode. Null if there is nothing to analyse. */
@@ -321,12 +326,13 @@ object TripAnalyzer {
         coolantPeak?.takeIf { it >= 75 }?.let { put(Metric.COOLANT_MAX, it) }
         put(Metric.INTAKE_AIR, median(raw("intake_air_c").filterNotNull()))
 
-        // Dips: warm engine, closed throttle, (almost) standing, rpm below 560 — counted as events.
+        // Dips: warm engine, closed throttle, (almost) standing, rpm well below this trip's idle — counted as events.
+        val dipRpm = dipBelow(metrics[Metric.IDLE_RPM])
         var dips = 0
         var inDip = false
         for (i in rows.indices) {
             val r = rpm[i]
-            val dip = r != null && r in 250.0..DIP_RPM && (coolant[i] ?: 0.0) >= WARM_C && closed(i) && (speed[i] ?: 0.0) <= 20
+            val dip = r != null && r in 250.0..dipRpm && (coolant[i] ?: 0.0) >= WARM_C && closed(i) && (speed[i] ?: 0.0) <= 20
             if (dip && !inDip) dips++
             inDip = dip
         }
@@ -411,14 +417,15 @@ object TripAnalyzer {
 
         val dips = m[Metric.RPM_DIPS] ?: 0.0
         val idleRpm = m[Metric.IDLE_RPM]
+        val dipRpm = dipBelow(idleRpm).toInt()
         if (dips >= 2) {
             out += Finding(if (dips >= 5) Severity.BAD else Severity.WARN, "Провалы холостого хода",
-                "${dips.toInt()} раз обороты опускались ниже ${DIP_RPM.toInt()} при прогретом моторе и закрытом дросселе",
-                "Нагар на дросселе и в EGR, подсос воздуха, слабый аккумулятор. Чистка дросселя/EGR, затем обучение холостого", "высокая",
+                "${dips.toInt()} раз обороты опускались ниже $dipRpm (обычного холостого минус 15 %) при прогретом моторе и закрытом дросселе",
+                "Загрязнение дросселя или регулятора холостого, подсос воздуха, нагрузка от генератора. Чистка дросселя, затем обучение холостого", "высокая",
                 kind = "dips", score = dips / 2,
                 urgency = "Мотор может заглохнуть на остановке. Проверьте в ближайшие дни.",
                 why = listOfNotNull(
-                    Evidence("Провалы ниже ${DIP_RPM.toInt()} об/мин", "${dips.toInt()} раз", deviating = true),
+                    Evidence("Провалы ниже $dipRpm об/мин", "${dips.toInt()} раз", deviating = true),
                     idleRpm?.let { Evidence("Обороты холостого, медиана", "${it.toInt()}") },
                 ))
         } else if (idleRpm != null && idleRpm < 620) {
@@ -519,7 +526,7 @@ object TripComparison {
     private val LIMITS = mapOf(
         Metric.IDLE_TRIM_B1 to Triple(25.0, +1, "около этого порога ЭБУ обычно записывает P0171"),
         Metric.IDLE_TRIM_B2 to Triple(25.0, +1, "около этого порога ЭБУ обычно записывает P0174"),
-        Metric.IDLE_RPM to Triple(560.0, -1, "холостой начнёт проваливаться, риск заглохания"),
+        Metric.IDLE_RPM to Triple(Double.NaN, -1, "холостой начнёт проваливаться, риск заглохания"),
         Metric.CHARGE_V to Triple(13.2, -1, "аккумулятор перестанет заряжаться"),
         Metric.COOLANT_MAX to Triple(105.0, +1, "перегрев"),
     )
@@ -557,7 +564,7 @@ object TripComparison {
         Metric.IDLE_TRIM_B2 to Spec("Коррекция Б2", "ltft+stft_b2", -10.0, 10.0, +1),
         Metric.CRUISE_TRIM_B1 to Spec("Коррекция в движении", "", -10.0, 10.0, +1),
         Metric.IDLE_RPM to Spec("Обороты ХХ", "rpm", 600.0, 850.0, -1),
-        Metric.RPM_DIPS to Spec("Провалы ниже 560", "", null, 1.0, +1),
+        Metric.RPM_DIPS to Spec("Провалы оборотов", "", null, 1.0, +1),
         Metric.IDLE_REAR_O2 to Spec("Лямбда Б1 после кат.", "o2_b1s2", 0.45, null, -1),
         Metric.CHARGE_V to Spec("Напряжение, мотор работает", "battery_v", 13.5, 14.8, -1),
         Metric.COOLANT_MAX to Spec("Температура ОЖ, максимум", "coolant_c", null, 104.0, +1),
@@ -637,7 +644,8 @@ object TripComparison {
         for ((metric, limit) in LIMITS) {
             val series = sorted.mapNotNull { it.metrics[metric] }.takeLast(6)
             if (series.size < 3) continue
-            val (thr, dir, what) = limit
+            val (thr0, dir, what) = limit
+            val thr = if (thr0.isNaN()) TripAnalyzer.dipBelow(series.take(maxOf(1, series.size - 3)).sorted().let { it[it.size / 2] }) else thr0
             val slope = slope(series)
             val last = series.last()
             if ((last - thr) * dir >= 0 || slope * dir <= 1e-6) continue
@@ -707,7 +715,8 @@ object TripComparison {
             any = true
             val slope = slope(series.takeLast(6))
             val last = series.last()
-            val (thr, dir, what) = limit
+            val (thr0, dir, what) = limit
+            val thr = if (thr0.isNaN()) TripAnalyzer.dipBelow(series.take(maxOf(1, series.size - 3)).sorted().let { it[it.size / 2] }) else thr0
             val toward = slope * dir > 0
             // A trend only counts if the last three trips all moved the same way.
             val recent = series.takeLast(3)

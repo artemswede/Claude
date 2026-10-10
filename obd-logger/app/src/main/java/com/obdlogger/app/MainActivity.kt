@@ -623,7 +623,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         if (!withContext) return
         Thread {
             val m = TripsModel.build(this, Prefs.currentCar(this))
-            chatDetails = m.trips.takeLast(CHAT_TRIPS).mapNotNull { TripCache.detail(it) }
+            chatDetails = m.trips.take(CHAT_TRIPS).mapNotNull { TripCache.detail(it) }
             val codes = Regex("Ошибки: ([^\\n]+)").find(LoggerState.snapshot.dtcInfo)?.groupValues?.get(1)
             val line = "Ответы — по данным этой машины: ${Prefs.vehicle(this).ifBlank { "машина без названия" }} · " +
                 "поездок ${m.trips.size} · проверочных логов ${m.checks.size}" + (codes?.let { " · коды: $it" } ?: "")
@@ -634,15 +634,24 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     /** What the AI sees: this car's trips with per-mode statistics, check logs, codes with the saved reasons, live values, the chat's memory. */
     private fun chatSystemPrompt(): String {
         val m = TripsModel.build(this, Prefs.currentCar(this))
-        chatDetails = m.trips.takeLast(CHAT_TRIPS).mapNotNull { TripCache.detail(it) }
+        chatDetails = m.trips.take(CHAT_TRIPS).mapNotNull { TripCache.detail(it) }
         val s = LoggerState.snapshot
         val codes = s.dtcReportFile?.let { f -> try { File(f).readText() } catch (_: Exception) { null } } ?: s.dtcInfo
         val live = if (s.recording) s.values.take(25).joinToString(", ") { (k, v) -> "${com.obdlogger.core.SensorNames.label(k)} $v" } else null
         // Raw rows of the newest trips (≈ 50K tokens each): as many as the owner chose, fewer on a 128K model.
         val rawTrips = AiChat.rawTrips(this).let { if (AiChat.window(AiChat.key(this)) < 500_000) minOf(it, 1) else it }
-        return com.obdlogger.core.ChatPrompt.system(Prefs.vehicle(this), m.trips.map { it.summary }, m.checks.mapNotNull { it.check }, codes, live,
-            chatDetails, chatState.summary, com.obdlogger.core.ChatPrompt.research(chatDetails, rawTrips))
+        val last = m.trips.firstOrNull()
+        val engine = com.obdlogger.core.Engine.of(last?.let { SessionFiles.infoOf(it.csv) }?.takeIf { it.exists() }?.readText(), chatDetails.lastOrNull()?.table?.sensors.orEmpty())
+        val car = Prefs.vehicle(this).ifBlank { "не названа" } + (if (engine != com.obdlogger.core.Engine.UNKNOWN) " · ${engine.ru}" else "") +
+            (last?.summary?.car?.key?.takeIf { it.startsWith("vin:") }?.let { " · VIN ${it.removePrefix("vin:")}" } ?: "")
+        return com.obdlogger.core.ChatPrompt.system(car, m.trips.map { it.summary }, m.checks.mapNotNull { it.check }, codes, live,
+            chatDetails, chatState.summary, com.obdlogger.core.ChatPrompt.research(chatDetails, rawTrips),
+            com.obdlogger.core.Baseline.render(carProfiles(m)))
     }
+
+    /** This car's trip fingerprints since the profile was last reset (heavy the first time: cached next to the trips). */
+    private fun carProfiles(m: TripsModel): List<com.obdlogger.core.TripProfile> =
+        m.profiles(m.car?.key?.let { Prefs.profileSince(this, it) })
 
     override fun sendQuestion(text: String) {
         val key = AiChat.key(this)

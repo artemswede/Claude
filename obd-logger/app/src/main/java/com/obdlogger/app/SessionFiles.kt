@@ -104,6 +104,8 @@ class SessionFiles(dir: File, baseName: String) {
 
         fun infoOf(csv: File) = File(csv.parentFile, csv.name.removeSuffix(".csv") + "_info.txt")
         fun elmOf(csv: File) = File(csv.parentFile, csv.name.removeSuffix(".csv") + "_elm.log")
+        /** The trip's fingerprint for the car's profile (`TripProfile`), computed once. */
+        fun profileOf(csv: File) = File(csv.parentFile, csv.name.removeSuffix(".csv") + "_profile.txt")
 
         /** New check-log files next to the trips. */
         fun createCheck(ctx: Context) = SessionFiles(dir(ctx), CHECK_PREFIX + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()))

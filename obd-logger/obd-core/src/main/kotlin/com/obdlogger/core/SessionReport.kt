@@ -23,6 +23,7 @@ class SessionReport(
         appendLine("Протокол OBD: ${info.protocol} (#${info.protocolNumber})")
         appendLine("VIN: ${info.vin ?: "ЭБУ не сообщает"}")
         appendLine("Стандарт OBD: ${info.obdStandard ?: "?"}")
+        info.fuelType?.let { appendLine("${Engine.FUEL_LINE} $it") }
         appendLine("Калибровка ЭБУ (CALID): ${info.calibrationId ?: "ЭБУ не сообщает"}")
         appendLine()
         appendLine("=== Коды неисправностей ===")

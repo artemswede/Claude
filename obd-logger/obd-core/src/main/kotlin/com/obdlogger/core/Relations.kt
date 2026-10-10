@@ -112,7 +112,9 @@ object Relations {
         val rpm = t.raw("rpm")
         val idle = t.rows.indices.filter { t.modes[it] == DriveMode.WARM_IDLE }
         val kinds = LinkedHashMap<String, List<Int>>()
-        kinds["провал оборотов ниже 560 на ХХ"] = idle.filter { (rpm[it] ?: 999.0) < 560 }
+        val idleMedian = idle.mapNotNull { rpm[it] }.sorted().let { if (it.isEmpty()) null else it[it.size / 2] }
+        val dip = TripAnalyzer.dipBelow(idleMedian)
+        kinds["провал оборотов ниже ${dip.toInt()} на ХХ (обычный холостой минус 15 %)"] = idle.filter { (rpm[it] ?: 1e9) < dip }
         val trim = t.raw("trim_b1")
         kinds["коррекция Б1 выше +15 %"] = trim.indices.filter { (trim[it] ?: 0.0) > 15 }
         val rear = t.raw("o2_b1s2_v")

@@ -59,7 +59,7 @@ object Recovery {
         val info = SessionFiles.infoOf(csv)
         if (lines <= 0) {
             // Connected but nothing recorded: no empty trip in the journal.
-            listOf(csv, info, SessionFiles.elmOf(csv)).forEach { it.delete() }
+            listOf(csv, info, SessionFiles.elmOf(csv), SessionFiles.profileOf(csv)).forEach { it.delete() }
             return
         }
         val stamp = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.ROOT).format(Date(csv.lastModified()))

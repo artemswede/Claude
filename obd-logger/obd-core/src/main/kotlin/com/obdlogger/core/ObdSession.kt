@@ -40,6 +40,8 @@ data class VehicleInfo(
     val dtcs: DtcSnapshot,
     /** Mode 09 04: ECU software calibration ID. */
     val calibrationId: String? = null,
+    /** PID 01 51: fuel type («Бензин», «Дизель»…), null when the ECU does not report it. */
+    val fuelType: String? = null,
 )
 
 /** Adapter setup and one-off vehicle queries on top of [ElmIo]. */
@@ -206,6 +208,7 @@ class ObdSession(private val elm: ElmIo, private val resetDelayMs: Long = 1_000)
             obdStandard = obd,
             dtcs = readDtcs(),
             calibrationId = query("0904", 5_000)?.let(::parseCalibrationId),
+            fuelType = if (0x51 in supported) query("0151")?.let { ElmResponse.pidData(it, 0x51) }?.takeIf { it.isNotEmpty() }?.let { Engine.fuelName(it.u(0)) } else null,
         )
     }
 

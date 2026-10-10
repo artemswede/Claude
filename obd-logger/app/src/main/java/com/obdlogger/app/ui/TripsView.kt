@@ -155,7 +155,7 @@ class TripsView(
         rename.setPadding(dp(12), dp(8), dp(12), dp(8))
         if (own == null) rename.background = roundRect(p.accZ, dp(14).toFloat())
         rename.setOnClickListener {
-            val field = android.widget.EditText(context).apply { setText(own.orEmpty()); hint = "Например: Avensis 2.0 D-4"; setSingleLine() }
+            val field = android.widget.EditText(context).apply { setText(own.orEmpty()); hint = "Например: марка, модель, двигатель"; setSingleLine() }
             android.app.AlertDialog.Builder(context)
                 .setTitle("Название машины")
                 .setMessage("По нему поездки разных машин не перепутаются ни в журнале, ни в отчётах.")
