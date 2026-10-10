@@ -50,7 +50,7 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         setPadding(dp(10), dp(8), dp(10), dp(8))
         setOnClickListener { panelPage++; refresh() }
     }.tap()
-    private val menuText = ctx.text("Датчики ▾", if (sc.phone) 13f else 15f, p.acc, 600, maxLines = 1).apply {
+    private val menuText = ctx.text(if (sc.compact) "Меню ▾" else "Датчики ▾", if (sc.phone) 13f else 15f, p.acc, 600, maxLines = 1).apply {
         setPadding(dp(10), dp(8), dp(10), dp(8))
         setOnClickListener { panelMenu() }
     }.tap()
@@ -102,7 +102,7 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         if (!sc.compact && !tabsInBar) addTo(panelRight, modeText)
         addTo(panelRight, pageText, dp(4))
         addTo(panelRight, menuText, dp(4))
-        addTo(panelRight, checksText, dp(4))
+        if (!sc.compact) addTo(panelRight, checksText, dp(4))
         for (v in listOf(panel, attn, charts)) pages.addView(v, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         tabs.select(0)
     }
@@ -205,11 +205,15 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
     private fun panelMenu() {
         val st = store ?: return
         val sort = Prefs.panelSort(context)
-        val items = arrayOf("Порядок: ${sort.ru}", "Какие датчики показывать…", "Сбросить свой порядок")
+        // Short screens: «Проверки» lives here, the tab line has no room for it.
+        val withChecks = sc.compact
+        val items = (if (withChecks) listOf("Проверки: холостой, смесь, зарядка, прогрев…") else emptyList()) +
+            listOf("Порядок: ${sort.ru}", "Какие датчики показывать…", "Сбросить свой порядок")
         AlertDialog.Builder(context)
-            .setTitle("Датчики панели")
-            .setItems(items) { _, which ->
-                when (which) {
+            .setTitle(if (withChecks) "Панель и проверки" else "Датчики панели")
+            .setItems(items.toTypedArray()) { _, i ->
+                when (if (withChecks) i - 1 else i) {
+                    -1 -> onChecks()
                     0 -> pickSort()
                     1 -> pickVisible(st)
                     2 -> { Prefs.setTiles(context, emptyList()); orderDirty = true; refresh() }

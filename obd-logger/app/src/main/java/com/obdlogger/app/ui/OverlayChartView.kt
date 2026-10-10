@@ -21,8 +21,14 @@ class OverlayChartView(ctx: Context, private val p: Bt.Palette, private val d: T
 
     override fun onDraw(c: Canvas) {
         val dens = resources.displayMetrics.density
-        val w = width.toFloat()
-        val h = height.toFloat()
+        // Inside the card's padding.
+        c.save()
+        c.translate(paddingLeft.toFloat(), paddingTop.toFloat())
+        draw(c, dens, (width - paddingLeft - paddingRight).toFloat(), (height - paddingTop - paddingBottom).toFloat())
+        c.restore()
+    }
+
+    private fun draw(c: Canvas, dens: Float, w: Float, h: Float) {
         val ms = d.table.ms
         if (ms.size < 2) return
         val tMax = ms.last().coerceAtLeast(1L).toFloat()
@@ -108,8 +114,16 @@ class LiveOverlayView(ctx: Context, private val p: Bt.Palette, private val store
 
     override fun onDraw(c: Canvas) {
         val dens = resources.displayMetrics.density
-        val w = width.toFloat()
-        val h = height.toFloat()
+        // Inside the card's padding.
+        c.save()
+        c.translate(paddingLeft.toFloat(), paddingTop.toFloat())
+        val w = (width - paddingLeft - paddingRight).toFloat()
+        val h = (height - paddingTop - paddingBottom).toFloat()
+        draw(c, dens, w, h)
+        c.restore()
+    }
+
+    private fun draw(c: Canvas, dens: Float, w: Float, h: Float) {
         val end = store.lastTime()
         text.typeface = Bt.sans(context, 600)
         text.textSize = 12 * dens
@@ -124,7 +138,7 @@ class LiveOverlayView(ctx: Context, private val p: Bt.Palette, private val store
         var ly = 30 * dens
         series.forEachIndexed { k, (code, s) ->
             val last = s.second.lastOrNull { !it.isNaN() }
-            val label = "● ${SensorNames.label(code)} ${last?.let { Values.format(it) } ?: "—"} ${SensorNames.unit(code)}".trim()
+            val label = "● ${SensorNames.label(code)} ${last?.let { Num.fmt(code, it) } ?: "—"} ${SensorNames.unit(code)}".trim()
             val lw = text.measureText(label) + 14 * dens
             if (lx > 0 && lx + lw > w) { lx = 0f; ly += 16 * dens }
             text.color = colors[k % colors.size]

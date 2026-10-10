@@ -100,7 +100,7 @@ class BaselineView(ctx: Context, private val sc: Bt.Scale, private val actions: 
             val r = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; minimumHeight = dp(40) }
             val unit = SensorNames.unit(n.code).let { if (it.isEmpty()) "" else " $it" }
             addTo(r, ctx.text(SensorNames.label(n.code), sc.p, p.t1, 500, maxLines = 1), 0, 1.4f)
-            addTo(r, ctx.text(n.mode.ru.lowercase(), sc.cap, p.t3, maxLines = 1), 0, 1f)
+            addTo(r, ctx.text(n.mode.ru.lowercase(), sc.cap, p.t3, maxLines = 2), 0, 1f)
             addTo(r, ctx.text(Baseline.range(n.code, n.lo, n.hi) + unit, sc.p, p.t1, 600, mono = true, maxLines = 1), 0, 1f)
             val now = last?.of(n.code, n.mode)?.median
             val off = now != null && (now < n.lo - n.spread || now > n.hi + n.spread)
