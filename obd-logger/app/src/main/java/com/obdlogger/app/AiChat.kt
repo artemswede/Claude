@@ -25,6 +25,31 @@ object AiChat {
     /** An OpenRouter key («sk-or-…») goes to OpenRouter; any other — straight to DeepSeek. */
     fun openRouter(key: String) = key.startsWith("sk-or-")
 
+    /**
+     * «Свой сервер»: the owner's bortach-proxy (Vercel). The key passed around is then
+     * «bp:» + its token, and the address is remembered here; the AI key itself lives on
+     * the server, so the head unit needs no VPN and keeps no AI key.
+     */
+    private const val PROXY = "bp:"
+    @Volatile private var proxyUrl = ""
+
+    fun proxied(key: String) = key.startsWith(PROXY)
+
+    fun proxy(ctx: Context): Pair<String, String> =
+        Prefs.of(ctx).getString(Prefs.AI_PROXY_URL, null).orEmpty().trim() to Prefs.of(ctx).getString(Prefs.AI_PROXY_TOKEN, null).orEmpty().trim()
+
+    fun setProxy(ctx: Context, url: String, token: String) =
+        Prefs.of(ctx).edit().putString(Prefs.AI_PROXY_URL, url.trim()).putString(Prefs.AI_PROXY_TOKEN, token.trim()).apply()
+
+    /** «my.vercel.app» → «https://my.vercel.app/api/chat». */
+    fun endpoint(url: String): String {
+        var u = url.trim().trimEnd('/')
+        if (u.isEmpty()) return u
+        if (!u.startsWith("http://") && !u.startsWith("https://")) u = "https://$u"
+        if (!u.endsWith("/api/chat")) u = u.removeSuffix("/api") + "/api/chat"
+        return u
+    }
+
     fun orModel(ctx: Context): String = Prefs.of(ctx).getString(Prefs.AI_OR_MODEL, null)?.takeIf { m -> OR_MODELS.any { it.first == m } } ?: OR_MODELS[0].first
     fun setOrModel(ctx: Context, m: String) = Prefs.of(ctx).edit().putString(Prefs.AI_OR_MODEL, m).apply()
 
@@ -33,13 +58,21 @@ object AiChat {
     fun rawTrips(ctx: Context): Int = Prefs.of(ctx).getInt(Prefs.AI_RAW, 2)
     fun setRawTrips(ctx: Context, n: Int) = Prefs.of(ctx).edit().putInt(Prefs.AI_RAW, n).apply()
 
-    /** Context window for the memory threshold: V4 Flash has 1M (capped in ChatMemory), DeepSeek's own API — 128K. */
-    fun window(key: String): Int = if (openRouter(key)) 1_000_000 else 128_000
+    /** Context window for the memory threshold: V4 Flash and Gemini have 1M (capped in ChatMemory), DeepSeek's own API — 128K. */
+    fun window(key: String): Int = if (openRouter(key) || proxied(key)) 1_000_000 else 128_000
 
     /** Answer modes: deep thinking (default, never switched off by itself) or fast. */
     val MODES = listOf("Думающий" to true, "Быстрый" to false)
 
-    fun key(ctx: Context): String = Prefs.of(ctx).getString(Prefs.AI_KEY, null).orEmpty().trim()
+    /** What the chat sends with: the own server when it is set up, otherwise the AI key. */
+    fun key(ctx: Context): String {
+        val (url, token) = proxy(ctx)
+        if (url.isNotEmpty() && token.isNotEmpty()) {
+            proxyUrl = endpoint(url)
+            return PROXY + token
+        }
+        return Prefs.of(ctx).getString(Prefs.AI_KEY, null).orEmpty().trim()
+    }
     fun setKey(ctx: Context, key: String) = Prefs.of(ctx).edit().putString(Prefs.AI_KEY, key.trim()).remove(Prefs.AI_MODEL_ID).apply()
     /** Thinking mode on — the default; Бортач never falls back to the fast mode by itself. */
     fun thinking(ctx: Context): Boolean = Prefs.of(ctx).getString(Prefs.AI_MODEL, "think") != "fast"
@@ -48,6 +81,7 @@ object AiChat {
     /** The model id this key can use, picked from the server's list and remembered. */
     fun modelId(ctx: Context, key: String): String {
         if (openRouter(key)) return orModel(ctx)
+        if (proxied(key)) return "auto"
         Prefs.of(ctx).getString(Prefs.AI_MODEL_ID, null)?.let { return it }
         val ids = try { models(key) } catch (_: Exception) { emptyList() }
         return pick(ids).also { Prefs.of(ctx).edit().putString(Prefs.AI_MODEL_ID, it).apply() }
@@ -81,6 +115,28 @@ object AiChat {
         val key = key(ctx)
         if (key.isEmpty()) return "Ключ не задан."
         val out = StringBuilder()
+        if (proxied(key)) {
+            try {
+                val c = URL(proxyUrl).openConnection() as HttpURLConnection
+                c.connectTimeout = 15_000
+                c.readTimeout = 30_000
+                c.setRequestProperty("Authorization", "Bearer ${key.removePrefix(PROXY)}")
+                val code = c.responseCode
+                val text = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+                val j = try { JSONObject(text) } catch (_: Exception) { null }
+                if (code in 200..299 && j != null) {
+                    out.append("Свой сервер на связи: ${j.optString("provider")}, модель ${j.optString("model")}" +
+                        (j.optString("region").takeIf { it.isNotBlank() && it != "null" }?.let { ", регион $it" } ?: "") + ".\n")
+                } else {
+                    out.append("Свой сервер ответил $code: ${j?.optJSONObject("error")?.optString("message") ?: text.take(200)}")
+                    return out.toString()
+                }
+            } catch (e: java.net.UnknownHostException) {
+                return "Адрес сервера не найден: ${e.message}. Проверьте адрес в Настройках → ИИ-чат."
+            } catch (e: Exception) {
+                return "Свой сервер недоступен: ${e.message}. Если адрес *.vercel.app не открывается без VPN — привяжите к проекту свой домен."
+            }
+        }
         if (openRouter(key)) {
             try {
                 val c = URL("https://openrouter.ai/api/v1/key").openConnection() as HttpURLConnection
@@ -120,7 +176,8 @@ object AiChat {
 
     /** «sk-…ab12» — enough to recognise the key, not enough to use it. */
     fun keyText(ctx: Context): String = key(ctx).let {
-        if (it.isEmpty()) "не задан" else "${if (openRouter(it)) "OpenRouter" else "DeepSeek"} · ${it.take(6)}…${it.takeLast(4)}"
+        if (proxied(it)) "свой сервер · ${proxy(ctx).first.removePrefix("https://").substringBefore('/')}"
+        else if (it.isEmpty()) "не задан" else "${if (openRouter(it)) "OpenRouter" else "DeepSeek"} · ${it.take(6)}…${it.takeLast(4)}"
     }
 
     /**
@@ -141,7 +198,10 @@ object AiChat {
         val messages = JSONArray().put(JSONObject().put("role", "system").put("content", system))
         history.forEach { messages.put(JSONObject().put("role", it.role).put("content", it.text)) }
         val b = JSONObject().put("model", model).put("messages", messages).put("stream", false)
-        if (model.contains("/")) {
+        if (model == "auto") {
+            // Own server: it knows its provider and sets the reasoning fields itself.
+            b.put("thinking", thinking)
+        } else if (model.contains("/")) {
             // OpenRouter: its unified reasoning switch; only the chosen model, no fallback to others.
             b.put("reasoning", if (thinking) JSONObject().put("effort", "high") else JSONObject().put("enabled", false))
         } else if (extras) {
@@ -153,19 +213,26 @@ object AiChat {
 
     private fun post(key: String, body: JSONObject): String {
         try {
-            val c = URL(if (openRouter(key)) OPENROUTER else "$BASE/chat/completions").openConnection() as HttpURLConnection
+            val own = proxied(key)
+            val c = URL(if (own) proxyUrl else if (openRouter(key)) OPENROUTER else "$BASE/chat/completions").openConnection() as HttpURLConnection
             c.requestMethod = "POST"
             c.connectTimeout = 15_000
-            c.readTimeout = 180_000
+            // The own server waits for the model up to 5 minutes (Vercel maxDuration).
+            c.readTimeout = if (own) 310_000 else 180_000
             c.doOutput = true
-            c.setRequestProperty("Content-Type", "application/json")
-            c.setRequestProperty("Authorization", "Bearer $key")
+            c.setRequestProperty("Content-Type", if (own) "application/octet-stream" else "application/json")
+            c.setRequestProperty("Authorization", "Bearer ${key.removePrefix(PROXY)}")
             c.setRequestProperty("User-Agent", "Bortach/${BuildConfig.VERSION_NAME} (Android ${android.os.Build.VERSION.RELEASE})")
             if (openRouter(key)) {
                 c.setRequestProperty("X-Title", "Bortach")
                 c.setRequestProperty("HTTP-Referer", "https://github.com/artemswede/Claude")
             }
-            c.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            val raw = body.toString().toByteArray(Charsets.UTF_8)
+            if (own) {
+                // Gzip: Russian text with numbers shrinks 5–8 times, so long contexts fit Vercel's 4.5 MB.
+                c.setRequestProperty("X-Bortach-Gzip", "1")
+                c.outputStream.use { o -> java.util.zip.GZIPOutputStream(o).use { it.write(raw) } }
+            } else c.outputStream.use { it.write(raw) }
             val code = c.responseCode
             val text = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
             if (code !in 200..299) {
@@ -182,7 +249,14 @@ object AiChat {
                     if (openRouter(key)) throw IOException("Модель «${body.optString("model")}» сейчас недоступна на OpenRouter: $msg. Выберите другую в Настройках → ИИ-чат.")
                     throw ModelGone("Модель «${body.optString("model")}» недоступна: $msg")
                 }
-                if (code == 400 && body.has("thinking")) throw BadRequest(msg ?: "400")
+                if (code == 400 && body.has("thinking") && !own) throw BadRequest(msg ?: "400")
+                if (own) throw IOException(when (code) {
+                    401 -> "Токен своего сервера не подходит. Проверьте его в Настройках → ИИ-чат."
+                    413 -> "Запрос слишком большой для сервера. Уменьшите «Сырые данные для ИИ» в Настройках."
+                    429 -> "Лимит запросов у ИИ исчерпан — повторите через минуту. ${msg.orEmpty()}"
+                    504 -> "Сервер не дождался ответа модели. Повторите или включите «Быстрый» режим."
+                    else -> "Свой сервер ($code): ${msg ?: "без пояснения"}"
+                })
                 throw IOException(when (code) {
                     401 -> "Ключ не подходит. Проверьте его в Настройках."
                     403 -> "Доступ запрещён (403): ${msg ?: "без пояснения"}. На OpenRouter это обычно лимит, заданный на самом ключе, " +
@@ -195,9 +269,9 @@ object AiChat {
             }
             return JSONObject(text).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content").trim()
         } catch (e: java.net.UnknownHostException) {
-            throw IOException("Нет интернета: магнитола не видит сервер ИИ.")
+            throw IOException(if (proxied(key)) "Магнитола не видит свой сервер: проверьте интернет и адрес в Настройках." else "Нет интернета: магнитола не видит сервер ИИ.")
         } catch (e: java.net.SocketTimeoutException) {
-            throw IOException("DeepSeek долго не отвечает. Повторите вопрос.")
+            throw IOException(if (proxied(key)) "Свой сервер долго не отвечает. Повторите вопрос." else "DeepSeek долго не отвечает. Повторите вопрос.")
         } catch (e: javax.net.ssl.SSLException) {
             throw IOException("Не удалось установить защищённое соединение (часто — неверная дата на магнитоле). ${e.message.orEmpty()}")
         } catch (e: org.json.JSONException) {

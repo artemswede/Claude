@@ -1,0 +1,8 @@
+{
+  "name": "bortach-proxy",
+  "private": true,
+  "type": "module",
+  "description": "Посредник Бортача: чат с ИИ без VPN на магнитоле",
+  "engines": { "node": ">=20" },
+  "scripts": { "test": "node --test" }
+}

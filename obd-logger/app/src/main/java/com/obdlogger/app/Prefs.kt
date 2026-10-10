@@ -34,6 +34,9 @@ object Prefs {
     const val AI_OR_MODEL = "ai_or_model"
     /** How many newest trips go to the AI as raw rows. */
     const val AI_RAW = "ai_raw"
+    /** «Свой сервер» (bortach-proxy on Vercel): its address and token; when set, questions go there. */
+    const val AI_PROXY_URL = "ai_proxy_url"
+    const val AI_PROXY_TOKEN = "ai_proxy_token"
     const val PANEL_SORT = "panel_sort"
     const val PANEL_HIDDEN = "panel_hidden"
 

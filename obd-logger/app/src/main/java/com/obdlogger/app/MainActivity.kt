@@ -837,7 +837,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
         }
         AlertDialog.Builder(this)
-            .setTitle("Ключ для ИИ-чата")
+            .setTitle(if (AiChat.proxied(AiChat.key(this))) "Ключ для ИИ-чата (сейчас работает свой сервер)" else "Ключ для ИИ-чата")
             .setMessage("Подходит ключ OpenRouter (sk-or-…, openrouter.ai → Keys) или DeepSeek (platform.deepseek.com). " +
                 "С ключом OpenRouter используется только DeepSeek V4 Flash (0731 или 0423 — выбор в Настройках). " +
                 "Ключ хранится только на этом устройстве; с каждым вопросом уходит сводка по поездкам этой машины.")
@@ -849,6 +849,48 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
                 refreshSettings(force = true)
             }
             .setNeutralButton("Удалить ключ") { _, _ -> AiChat.setKey(this, ""); refreshChat(); refreshSettings(force = true) }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
+    override fun proxyText(): String = AiChat.proxy(this).let { (u, t) ->
+        if (u.isEmpty() || t.isEmpty()) "не задан" else "включён · " + u.removePrefix("https://").substringBefore('/')
+    }
+
+    /** «Свой сервер»: the address of bortach-proxy and its PROXY_TOKEN; while set, the chat goes there instead of the key. */
+    override fun editProxy() {
+        val (u0, t0) = AiChat.proxy(this)
+        val url = android.widget.EditText(this).apply {
+            hint = "my-bortach.vercel.app"
+            setText(u0)
+            setSingleLine()
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+        }
+        val token = android.widget.EditText(this).apply {
+            hint = "токен (PROXY_TOKEN)"
+            setText(t0)
+            setSingleLine()
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+        }
+        val box = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            val pad = (20 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad / 2, pad, 0)
+            addView(url)
+            addView(token)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Свой сервер для ИИ-чата")
+            .setMessage("Адрес проекта bortach-proxy на Vercel и токен из его переменной PROXY_TOKEN. " +
+                "Пока сервер задан, вопросы идут через него (без VPN на магнитоле), а ключ ИИ хранится на сервере.")
+            .setView(box)
+            .setPositiveButton("Сохранить") { _, _ ->
+                AiChat.setProxy(this, url.text.toString(), token.text.toString())
+                refreshChat()
+                refreshSettings(force = true)
+                if (url.text.isNotBlank() && token.text.isNotBlank()) checkAiKey()
+            }
+            .setNeutralButton("Отключить") { _, _ -> AiChat.setProxy(this, "", ""); refreshChat(); refreshSettings(force = true) }
             .setNegativeButton("Отмена", null)
             .show()
     }

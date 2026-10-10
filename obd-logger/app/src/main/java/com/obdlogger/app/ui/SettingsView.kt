@@ -59,6 +59,9 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         fun editAiKey() {}
         fun aiOpenRouter(): Boolean = false
         fun checkAiKey() {}
+        /** «Свой сервер»: address and token of bortach-proxy; empty — not used. */
+        fun proxyText(): String = "не задан"
+        fun editProxy() {}
         fun aiRawTrips(): Int = 2
         fun setAiRawTrips(i: Int) {}
         fun aiOrModel(): Int = 0
@@ -116,10 +119,11 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             com.obdlogger.app.UiScale.LEVELS.map { it.second to (it.first * 100).toInt() }, h.uiScale()) { h.setUiScale(it) }
 
         section("ИИ-чат")
+        chevron("Свой сервер (без VPN)", "${h.proxyText()} · Vercel-посредник, ключ ИИ хранится на нём") { h.editProxy() }
         chevron("Ключ API (OpenRouter или DeepSeek)", "${h.aiKeyText()} · хранится только на этом устройстве") { h.editAiKey() }
         segment("Сырые данные для ИИ", "последние поездки целиком (~50 тыс. токенов на 45 минут) — ИИ видит каждый замер; расчёты связей идут всегда",
             listOf("нет" to 0, "1 поездка" to 1, "2 поездки" to 2, "все 6" to 3), h.aiRawTrips()) { h.setAiRawTrips(it) }
-        chevron("Проверить ключ", "баланс, лимит ключа и пробный вопрос модели") { h.checkAiKey() }
+        chevron("Проверить ключ или сервер", "связь, модель и пробный вопрос") { h.checkAiKey() }
         if (h.aiOpenRouter()) segment("Модель", "через OpenRouter — только DeepSeek V4 Flash, другие не подставляются",
             com.obdlogger.app.AiChat.OR_MODELS.mapIndexed { i, m -> m.second to i }, h.aiOrModel()) { h.setAiOrModel(it) }
         segment("Режим ответа", "«Думающий» (по умолчанию): глубокое рассуждение, сам в быстрый не переключается",

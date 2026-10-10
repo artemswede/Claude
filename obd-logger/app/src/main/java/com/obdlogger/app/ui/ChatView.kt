@@ -104,9 +104,9 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
         }
         if (!hasKey) {
             addTo(list, card(column(ctx, dp(8),
-                ctx.text("Нужен ключ OpenRouter или DeepSeek", sc.hs, p.t1, 700),
-                ctx.text("Ключ OpenRouter (sk-or-…, openrouter.ai → Keys) — тогда отвечает DeepSeek V4 Flash; или ключ platform.deepseek.com. Он хранится только на этом устройстве. " +
-                    "К вопросу прикладывается сводка по вашим поездкам (выводы, сравнения, коды) — она уходит на серверы OpenRouter / DeepSeek.", sc.p, p.t2),
+                ctx.text("Нужен ключ ИИ или свой сервер", sc.hs, p.t1, 700),
+                ctx.text("Без VPN: свой сервер на Vercel с ключом Gemini (Настройки → ИИ-чат → «Свой сервер»). Или ключ OpenRouter (sk-or-…) / platform.deepseek.com — он хранится только на этом устройстве. " +
+                    "К вопросу прикладывается сводка по вашим поездкам (выводы, сравнения, коды) — она уходит выбранному ИИ (через ваш сервер или напрямую).", sc.p, p.t2),
                 ctx.button("Ввести ключ", sc, p, primary = true) { actions.editAiKey() }.apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(sc.btnH)) },
             ), p, dp(18), dp(16), p.acc), dp(14))
         }
