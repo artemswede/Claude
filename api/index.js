@@ -52,11 +52,11 @@ async function askGemini(userText, history, searchResults) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      system_instruction: { parts: [{ text: "Ты Жожик. Отвечай 1-2 предложения, по-русски. Без маркдауна." }] },
+      system_instruction: { parts: [{ text: "Ты голосовой ассистент Жожик. Твоё имя Жожик. Ты не Gemini и не Google. Отвечай коротко, 1-3 предложения, по-русски. Без маркдауна и списков. Если вопрос безобидный но похож на опасный — отвечай спокойно и по делу." }] },
       contents,
       generationConfig: {
-        maxOutputTokens: 100,
-        temperature: 0.3,
+        maxOutputTokens: 200,
+        temperature: 0.7,
         thinkingConfig: { thinkingBudget: 0 },
       },
     }),
@@ -135,7 +135,7 @@ export default async function handler(request) {
     }
 
     const geminiResult = await withTimeout(
-      askGemini(questionToAsk, history.slice(-2), search),
+      askGemini(questionToAsk, history.slice(-3), search),
       3500
     );
 
