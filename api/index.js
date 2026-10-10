@@ -37,7 +37,7 @@ async function askGemini(userText, history, searchResults) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      system_instruction: { parts: [{ text: "Отвечай коротко, 1-2 предложения, по-русски. Без маркдауна." }] },
+      system_instruction: { parts: [{ text: "Ты голосовой ассистент Жожик. Твоё имя Жожик. Ты не Gemini и не Google. Отвечай коротко, 1-2 предложения, по-русски. Без маркдауна и списков." }] },
       contents,
       generationConfig: {
         maxOutputTokens: 256,
