@@ -59,7 +59,6 @@ async function askGemini(userText, history, searchResults) {
         generationConfig: {
           maxOutputTokens: 200,
           temperature: 0.7,
-          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
     });
