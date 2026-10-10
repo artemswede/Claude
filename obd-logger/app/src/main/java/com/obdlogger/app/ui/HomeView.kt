@@ -84,18 +84,18 @@ class HomeView(
         // Head unit: no caption, the two lines of the trip itself instead (the caption cost the text its room).
         val c1 = if (sc === Bt.WIDE) column(ctx, 0, lastTrip) else column(ctx, dp(4), ctx.label("Последняя поездка", sc, p), lastTrip)
         val c2 = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        c2.addView(spark, LinearLayout.LayoutParams(dp(if (wide) 72 else 104), dp(if (wide) 30 else 40)))
+        c2.addView(spark, LinearLayout.LayoutParams(dp(if (wide) 56 else 104), dp(if (wide) 30 else 40)))
         // Head units: one line per column, the bar must not eat the short screen.
         if (wide) { lastTrip.maxLines = 2; trendTitle.maxLines = 2; trendValues.visibility = View.GONE }
-        addTo(c2, column(ctx, dp(2), trendTitle, trendValues), dp(16), 1f)
+        addTo(c2, column(ctx, dp(2), trendTitle, trendValues), dp(if (wide) 10 else 16), 1f)
         bindUsual(null)
         if (sc.phone) {
             addTo(bottomBar, c1)
             addTo(bottomBar, c2, dp(12))
             addTo(bottomBar, usualBox, dp(12))
         } else {
-            addTo(bottomBar, c1, 0, 1f)
-            addTo(bottomBar, c2, dp(sc.gap), 1.2f)
+            addTo(bottomBar, c1, 0, if (wide) 0.9f else 1f)
+            addTo(bottomBar, c2, dp(sc.gap), if (wide) 1.15f else 1.2f)
             addTo(bottomBar, usualBox, dp(sc.gap), 1.4f)
         }
 
@@ -261,7 +261,7 @@ class HomeView(
                 usualText.text = "Датчики в своих обычных пределах · подробнее →"
             }
             else -> {
-                usualTitle.text = "Изменилось против обычного" + if (d.size > 1) " · ${d.size}" else ""
+                usualTitle.text = "Не как обычно" + if (d.size > 1) " · ${d.size}" else ""
                 usualText.text = d.first().short + if (d.size > 1) "; ещё ${d.size - 1} →" else " →"
             }
         }

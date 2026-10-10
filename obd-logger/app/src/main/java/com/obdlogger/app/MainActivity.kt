@@ -531,6 +531,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
             }
             runOnUiThread {
                 homeLoading = false
+                postPendingReports()
                 if (model != null) {
                     homeModel = model
                     home.bind(model, LoggerState.snapshot)
@@ -646,7 +647,10 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     @Volatile private var chatDetails: List<com.obdlogger.core.TripDetail> = emptyList()
 
     private fun refreshChat(withContext: Boolean = false) {
-        chat.bind(chatState, chatBusy, AiChat.key(this).isNotEmpty(), chatContext, chatError)
+        postPendingReports()
+        val s = LoggerState.snapshot
+        val moving = s.recording && (s.values.firstOrNull { it.first == "speed_kmh" }?.second?.toDoubleOrNull() ?: 0.0) > 0.5
+        chat.bind(chatState, chatBusy, AiChat.key(this).isNotEmpty(), chatContext, chatError, WatchStore.rules(this), moving)
         if (!withContext) return
         Thread {
             val m = TripsModel.build(this, Prefs.currentCar(this))
@@ -664,7 +668,9 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         chatDetails = m.trips.take(CHAT_TRIPS).mapNotNull { TripCache.detail(it) }
         val s = LoggerState.snapshot
         val codes = s.dtcReportFile?.let { f -> try { File(f).readText() } catch (_: Exception) { null } } ?: s.dtcInfo
-        val live = if (s.recording) s.values.take(25).joinToString(", ") { (k, v) -> "${com.obdlogger.core.SensorNames.label(k)} $v" } else null
+        // While recording: the values now and the last minutes as a table — «что сейчас происходит?», «почему дёрнуло?».
+        val live = if (s.recording) s.values.take(25).joinToString(", ") { (k, v) -> "${com.obdlogger.core.SensorNames.label(k)} $v" } +
+            "\n" + com.obdlogger.core.LiveTable.render(LiveData.store, 3) else null
         // Raw rows of the newest trips (≈ 50K tokens each): as many as the owner chose, fewer on a 128K model.
         val rawTrips = AiChat.rawTrips(this).let { if (AiChat.window(AiChat.key(this)) < 500_000) minOf(it, 1) else it }
         val last = m.trips.firstOrNull()
@@ -685,6 +691,25 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         if (chatBusy != null) return
         chatState.messages += com.obdlogger.core.ChatMessage("user", text)
         AiChat.save(this, chatState)
+        answer(key)
+    }
+
+    /**
+     * A result of a check or a watch goes into the chat as the owner's message; with a key
+     * the assistant gives its verdict right away (unless it is busy answering).
+     */
+    private fun postToChat(text: String) {
+        chatState.messages += com.obdlogger.core.ChatMessage("user", text)
+        AiChat.save(this, chatState)
+        val key = AiChat.key(this)
+        if (key.isNotEmpty() && chatBusy == null) answer(key) else refreshChat()
+    }
+
+    private fun postPendingReports() {
+        for (r in WatchStore.takeReports(this)) postToChat("📋 $r")
+    }
+
+    private fun answer(key: String) {
         chatBusy = "Думаю… (глубокий режим — до минуты)"
         chatError = null
         refreshChat()
@@ -727,9 +752,14 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     override fun runResearch() = sendQuestion(com.obdlogger.core.ChatPrompt.HYPOTHESIS_BRIEF)
 
     override fun chartView(req: com.obdlogger.core.ChartRequest): View? {
+        if (req is com.obdlogger.core.ChartRequest.Live) {
+            val codes = req.sensors.filter { it in LiveData.store.columns }
+            return if (codes.isEmpty()) null else com.obdlogger.app.ui.LiveOverlayView(this, Bt.LIGHT, LiveData.store, codes, { LoggerState.snapshot.recording })
+        }
         val details = chatDetails
         if (details.isEmpty()) return null
         return when (req) {
+            is com.obdlogger.core.ChartRequest.Live -> null
             is com.obdlogger.core.ChartRequest.Trend -> {
                 val pts = com.obdlogger.core.ChatCharts.trend(details, req.sensor, req.mode)
                 if (pts.isEmpty()) return null
@@ -753,6 +783,25 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
                 if (codes.isEmpty()) null else com.obdlogger.app.ui.OverlayChartView(this, Bt.LIGHT, d, codes)
             }
         }
+    }
+
+    /** A check the assistant offered: its result comes back into the chat. */
+    @Volatile private var checkFromChat = false
+
+    override fun runCheck(kind: com.obdlogger.core.CheckKind) {
+        checkFromChat = true
+        openCheck(kind)
+    }
+
+    override fun watch(rule: com.obdlogger.core.WatchRule) {
+        WatchStore.add(this, rule)
+        android.widget.Toast.makeText(this, "Наблюдаю: ${rule.text} — в следующих ${com.obdlogger.core.WatchRule.TRIPS} поездках", android.widget.Toast.LENGTH_SHORT).show()
+        refreshChat()
+    }
+
+    override fun unwatch(rule: com.obdlogger.core.WatchRule) {
+        WatchStore.remove(this, rule)
+        refreshChat()
     }
 
     override fun voiceQuestion() {
@@ -1073,6 +1122,13 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
                 runOnUiThread {
                     checkResults = now to prev
                     checkLoading = false
+                    if (checkFromChat && now != null) {
+                        checkFromChat = false
+                        val (verdict, _, _) = com.obdlogger.core.CheckVerdict.of(now, prev)
+                        postToChat("📋 Результат проверки «${now.kind.title}»: ${now.summary()}." +
+                            (prev?.let { " Прошлая такая проверка ${it.start?.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM")) ?: ""}: ${it.summary()}." } ?: "") +
+                            " Вывод Бортача: $verdict")
+                    }
                     checkView?.bind(LoggerState.snapshot, checkResults)
                 }
             }.start()

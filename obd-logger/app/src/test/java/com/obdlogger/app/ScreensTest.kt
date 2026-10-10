@@ -328,6 +328,17 @@ class Scenes(private val a: Activity) {
                     com.obdlogger.core.ChatMessage("user", "А может быть забит топливный фильтр?"),
                     com.obdlogger.core.ChatMessage("assistant", "Вряд ли: под нагрузкой коррекция падает до −3 %, а забитый фильтр дал бы рост именно там. Смотрите на наложение — коррекция растёт, когда ДМРВ на холостом минимален:\n[график: наложение trim_b1 maf_gs rpm последняя]"),
                 ), "конспект"), "Думаю… (глубокий режим — до минуты)", true, "Ответы — по данным этой машины: Avensis 2.0 D-4 · поездок 4 · проверочных логов 1 · коды: P0136, P0156", null) } } },
+            "H3_chat_actions" to { shell(Shell.Page.CHAT, recording) { sh -> com.obdlogger.app.ui.ChatView(a, sh.sc, object : com.obdlogger.app.ui.ChatActions by NoChat {
+                override fun chartView(req: com.obdlogger.core.ChartRequest): android.view.View? =
+                    com.obdlogger.app.ui.LiveOverlayView(a, com.obdlogger.app.ui.Bt.LIGHT, liveStore, req.let { (it as? com.obdlogger.core.ChartRequest.Live)?.sensors ?: listOf(it.sensor) }, { true })
+            }).apply {
+                bind(com.obdlogger.core.ChatState(mutableListOf(
+                    com.obdlogger.core.ChatMessage("user", "Что сейчас происходит со смесью?"),
+                    com.obdlogger.core.ChatMessage("assistant", "Сейчас коррекция Б1 держится около +18 %, а ДМРВ на холостом 1.6 г/с — ниже обычного для вашей машины. " +
+                        "Это похоже на подсос после ДМРВ. Посмотрите живой график и проверьте под нагрузкой.\n[график: наложение trim_b1 maf_gs rpm сейчас]\n[проверка: смесь]\n[наблюдать: trim_b1 > 15 когда WARM_IDLE]"),
+                    com.obdlogger.core.ChatMessage("user", "📋 Наблюдение «Коррекция Б1 > 15 % — холостой ход», поездка 09.10 08:10 (31 мин): выполнялось 6 раз, всего 4 мин 12 с из 7 мин 40 с в режиме (54 %)."),
+                ), ""), null, true, "Ответы — по данным этой машины · поездок 4 · проверок 1", null,
+                    listOf(com.obdlogger.core.WatchRule("trim_b1", ">", 15.0, com.obdlogger.core.LiveMode.IDLE, 2)), false) } } },
             // Codes screen with what the owner's car reported: both rear O2 sensors, flat at 0.02 V.
             "C1_codes" to {
                 val ff = com.obdlogger.core.FreezeFrame("P0136", listOf(

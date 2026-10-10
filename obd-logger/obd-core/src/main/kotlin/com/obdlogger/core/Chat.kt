@@ -82,6 +82,11 @@ sealed class ChartRequest {
     data class Overlay(val sensors: List<String>, val trip: String) : ChartRequest() {
         override val sensor get() = sensors.first()
     }
+
+    /** One to four sensors right now, from the live recording, refreshed every second. */
+    data class Live(val sensors: List<String>) : ChartRequest() {
+        override val sensor get() = sensors.first()
+    }
 }
 
 /**
@@ -98,10 +103,14 @@ object ChatCharts {
         val sensors = words.takeWhile { code.matches(it.lowercase(Locale.ROOT)) && DriveMode.entries.none { d -> d.name.equals(it, true) } }.map { it.lowercase(Locale.ROOT) }
         val arg = words.drop(sensors.size).joinToString(" ").trim()
         if (sensors.isEmpty()) return@mapNotNull null
-        when (kind) {
+        val now = arg.equals("сейчас", true) || arg.equals("live", true)
+        when {
+            now && kind != "тренд" -> ChartRequest.Live(sensors.take(4))
+            else -> when (kind) {
             "тренд" -> ChartRequest.Trend(sensors.first(), DriveMode.entries.firstOrNull { it.name.equals(arg, ignoreCase = true) })
             "наложение" -> ChartRequest.Overlay(sensors.take(4), arg.ifEmpty { "последняя" })
             else -> ChartRequest.Trip(sensors.first(), arg.ifEmpty { "последняя" })
+            }
         }
     }.distinct().take(4).toList()
 
@@ -159,7 +168,15 @@ object ChatPrompt {
         appendLine("  [график: поездка <датчик> <дата время поездки или «последняя»>] — датчик по ходу одной поездки;")
         appendLine("  [график: наложение <датчик1> <датчик2> [<датчик3> <датчик4>] <поездка или «последняя»>] — 2–4 датчика на одной оси времени, " +
             "у каждого своя шкала: так видно, что за чем идёт.")
+        appendLine("  [график: наложение <датчик1> <датчик2> … сейчас] или [график: поездка <датчик> сейчас] — живой график идущей записи, обновляется каждую секунду.")
         appendLine("Датчики — коды из статистики ниже (trim_b1 = LTFT+STFT банк 1, o2_b1s2_v = лямбда после катализатора и т. д.). Не больше 3 графиков в ответе.")
+        appendLine()
+        appendLine("ДЕЙСТВИЯ: проверить гипотезу можно двумя способами — водитель запускает их сам, ты только предлагаешь:")
+        appendLine("  [проверка: холостой|смесь|зарядка|прогрев] — кнопка короткой проверки (холостой 2 мин стоя; смесь 4 мин: ХХ→2500→ХХ; " +
+            "зарядка 2 мин: без нагрузки и с фарами, печкой, обогревом; прогрев — от холодного пуска до 80 °C). Только когда проверка решающая.")
+        appendLine("  [наблюдать: <датчик> <знак> <число> [когда WARM_IDLE|CRUISE|COLD]] — Бортач следит за условием в следующих ${WatchRule.TRIPS} поездках " +
+            "и пришлёт в чат, сколько раз и когда оно выполнялось и что было рядом. Знаки: > < >= <=. Пример: [наблюдать: trim_b1 > 15 когда WARM_IDLE].")
+        appendLine("Когда в чат приходит «Результат проверки» или «Наблюдение» — дай вердикт по гипотезе: подтверждена, опровергнута или нужна ещё поездка, и что дальше.")
         appendLine()
         appendLine("МАШИНА: ${car.ifBlank { "не названа" }}")
         if (memory.isNotBlank()) {

@@ -27,6 +27,11 @@ interface ChatActions {
     fun runResearch()
     /** A chart the assistant asked for, drawn from this car's data; null if there is nothing to draw. */
     fun chartView(req: ChartRequest): View?
+    /** The owner pressed a check the assistant offered: opens it (the owner starts it there). */
+    fun runCheck(kind: com.obdlogger.core.CheckKind) {}
+    /** The owner agreed to watch a condition in the next trips. */
+    fun watch(rule: com.obdlogger.core.WatchRule) {}
+    fun unwatch(rule: com.obdlogger.core.WatchRule) {}
 }
 
 /**
@@ -78,9 +83,10 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
     }
 
     /** [busy] — what is happening while waiting («Думаю…»), null when idle; [error] — the last failure. */
-    fun bind(state: ChatState, busy: String?, hasKey: Boolean, context: String, error: String?) {
+    fun bind(state: ChatState, busy: String?, hasKey: Boolean, context: String, error: String?,
+        watches: List<com.obdlogger.core.WatchRule> = emptyList(), moving: Boolean = false) {
         val history = state.messages
-        val key = listOf(history.size, history.lastOrNull()?.text?.length, state.summary.length, busy, hasKey, context, error)
+        val key = listOf(history.size, history.lastOrNull()?.text?.length, state.summary.length, busy, hasKey, context, error, watches.map { it.encode() }, moving)
         if (key == shownKey) return
         shownKey = key
         list.removeAllViews()
@@ -101,6 +107,22 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
                     "К вопросу прикладывается сводка по вашим поездкам (выводы, сравнения, коды) — она уходит на серверы OpenRouter / DeepSeek.", sc.p, p.t2),
                 ctx.button("Ввести ключ", sc, p, primary = true) { actions.editAiKey() }.apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(sc.btnH)) },
             ), p, dp(18), dp(16), p.acc), dp(14))
+        }
+        // What Бортач watches in the trips for the assistant, with a cancel each.
+        if (watches.isNotEmpty()) {
+            val box = column(ctx, dp(4), ctx.label("Наблюдаю в поездках", sc, p))
+            for (w in watches) {
+                val r = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+                addTo(r, ctx.text("👁 ${w.text} · ещё ${w.tripsLeft} ${if (w.tripsLeft == 1) "поездка" else if (w.tripsLeft in 2..4) "поездки" else "поездок"}", sc.p, p.t1), 0, 1f)
+                addTo(r, ctx.text("✕", 20f, p.t2, 600).apply {
+                    gravity = Gravity.CENTER
+                    minWidth = dp(48)
+                    contentDescription = "Не наблюдать"
+                    setOnClickListener { actions.unwatch(w) }
+                }.tap())
+                addTo(box, r)
+            }
+            addTo(list, card(box, p, dp(16), dp(8), p.line2), dp(10))
         }
         // The built-in research: one press, the whole engine study in a client-ready answer.
         addTo(list, ctx.button("🔬  Поиск гипотез — глубокое исследование", sc, p, primary = true) { if (hasKey) actions.runResearch() else actions.editAiKey() }.apply {
@@ -129,7 +151,7 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
         for (m in history) {
             val mine = m.role == "user"
             val shown = if (mine) (if (m.text == com.obdlogger.core.ChatPrompt.HYPOTHESIS_BRIEF) "🔬 Поиск гипотез: глубокое исследование двигателя по всем данным" else m.text)
-                else com.obdlogger.app.AiChat.plain(ChatCharts.strip(m.text))
+                else com.obdlogger.app.AiChat.plain(com.obdlogger.core.ChatTests.strip(ChatCharts.strip(m.text)))
             val bubble = ctx.text(shown, if (sc.phone) 15f else 17f, p.t1, lineHeight = if (sc.phone) 21f else 24f).apply {
                 setPadding(dp(14), dp(10), dp(14), dp(10))
                 background = if (mine) roundRect(p.accT, dp(14).toFloat()) else roundRect(p.s1, dp(14).toFloat(), dp(1), p.line)
@@ -140,6 +162,23 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
                 if (mine) leftMargin = dp(60) else rightMargin = dp(40)
             })
             addTo(list, row, dp(10))
+            // Checks and watches the assistant offers: the owner starts them, never the app.
+            if (!mine) {
+                for (k in com.obdlogger.core.ChatTests.parse(m.text)) {
+                    val blocked = moving && k.parked
+                    val b = ctx.button(if (blocked) "▶ ${k.title}: на стоянке" else "▶ Проверка: ${k.title}", sc, p, primary = !blocked) { if (!blocked) actions.runCheck(k) }
+                    b.isEnabled = !blocked
+                    b.alpha = if (blocked) 0.5f else 1f
+                    addTo(list, b, dp(8), width = ViewGroup.LayoutParams.WRAP_CONTENT)
+                    addTo(list, ctx.text(k.short, sc.cap, p.t3), dp(2))
+                }
+                for (w in com.obdlogger.core.WatchRule.parse(m.text)) {
+                    val on = watches.any { it.code == w.code && it.op == w.op && it.value == w.value && it.mode == w.mode }
+                    val b = ctx.button(if (on) "✓ Наблюдаю: ${w.text}" else "👁 Наблюдать: ${w.text}", sc, p, primary = false) { if (!on) actions.watch(w) }
+                    addTo(list, b, dp(8), width = ViewGroup.LayoutParams.WRAP_CONTENT)
+                    if (!on) addTo(list, ctx.text("Бортач будет следить за этим в следующих ${com.obdlogger.core.WatchRule.TRIPS} поездках и пришлёт результат сюда.", sc.cap, p.t3), dp(2))
+                }
+            }
             // Charts the assistant asked for, under its answer.
             if (!mine) for (req in ChatCharts.parse(m.text)) {
                 val v = actions.chartView(req) ?: continue

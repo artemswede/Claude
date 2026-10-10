@@ -422,6 +422,7 @@ class LoggerService : Service() {
                 silentCycles = 0
                 t.lastDataMs = now
                 LiveData.store.add(logger.lastRowMs, logger.lastRow)
+                watchRow(logger.lastRowMs)
                 val rpm = logger.lastRow.getOrNull(rpmIndex)?.toDoubleOrNull()
                 when {
                     rpm == null -> lamps(link = Lamp.OK, linkText = "ЭБУ на связи")
@@ -551,6 +552,36 @@ class LoggerService : Service() {
     }
 
     /** Closes a trip: final trouble codes, report with analysis and comparison, export to Downloads. */
+    /** Rules from the chat being watched in this trip, by rule (without its trip count). */
+    private var watchTallies = LinkedHashMap<String, com.obdlogger.core.WatchTally>()
+    private var watchStartMs: Long? = null
+
+    /** One recorded row through every watched rule; rules added mid-trip join from now. */
+    private fun watchRow(ms: Long) {
+        val rules = WatchStore.rules(this)
+        if (rules.isEmpty() && watchTallies.isEmpty()) return
+        if (watchStartMs == null) watchStartMs = ms
+        for (r in rules) watchTallies.getOrPut("${r.code}|${r.op}|${r.value}|${r.mode}") { com.obdlogger.core.WatchTally(r) }
+        val st = LiveData.store
+        val codes = (com.obdlogger.core.Attention.INTERESTING + watchTallies.values.map { it.rule.code }).distinct().filter { it in st.columns }
+        val values = codes.associateWith { st.last(it) }
+        val mode = com.obdlogger.core.LiveMode.of(st.last("rpm"), st.last("speed_kmh"), st.last("coolant_c"))
+        watchTallies.values.forEach { it.add(ms, values, mode) }
+    }
+
+    /** At the end of a trip: each watched rule's answer goes to the chat queue. */
+    private fun finishWatch(rows: Int) {
+        val tallies = watchTallies
+        val start = watchStartMs
+        watchTallies = LinkedHashMap()
+        watchStartMs = null
+        if (tallies.isEmpty() || rows == 0 || start == null) return
+        val label = java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.ROOT).format(java.util.Date(start))
+        val minutes = (System.currentTimeMillis() - start) / 60_000.0
+        tallies.values.forEach { WatchStore.postReport(this, it.report(label, minutes)) }
+        WatchStore.tripDone(this)
+    }
+
     private fun finishTrip(t: Trip, s: ObdSession?) {
         recording = false
         status("Сохранение поездки…")
@@ -612,6 +643,7 @@ class LoggerService : Service() {
             )
         }
         updateNotification(if (waitingNext) "Жду машину" else "Запись выключена")
+        finishWatch(rows)
         if (rows > 0) Thread { tripSavedNotification(t.files.csv) }.start()
     }
 
