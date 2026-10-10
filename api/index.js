@@ -47,7 +47,10 @@ async function askGemini(userText, history, searchResults) {
     }),
   });
   const data = await res.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || "Не получилось ответить.";
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (text) return text;
+  if (data.candidates?.[0]?.finishReason === "SAFETY") return "Извини, на этот вопрос я не могу ответить.";
+  return "Не получилось ответить. Попробуй переформулировать.";
 }
 
 function withTimeout(promise, ms) {
@@ -110,7 +113,7 @@ export default async function handler(request) {
 
     const geminiResult = await withTimeout(
       askGemini(questionToAsk, history.slice(-4), search),
-      2500
+      3500
     );
 
     if (!geminiResult.ok) {
