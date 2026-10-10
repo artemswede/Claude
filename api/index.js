@@ -2,7 +2,7 @@ export const config = { runtime: "edge" };
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
 
 function needsSearch(text) {
   return /сегодня|сейчас|последн|свеж|актуальн|новост|погода|курс|цена|стоимость|когда выш|когда выход|когда будет|вышел ли|вышла ли|кто победил|кто выиграл|результат|счёт|счет|202[4-9]|203\d|текущ|недавн|вчера|завтра|в этом году|в прошлом году|последний фильм|новый фильм/.test(text.toLowerCase());
