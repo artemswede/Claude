@@ -311,6 +311,8 @@ class Scenes(private val a: Activity) {
             "G3_attention" to { record(1, recording) },
             "G1b_panel_page2" to { shell(Shell.Page.RECORD, recording) { sh -> RecordView(a, sh.sc).apply { if (!sh.sc.phone) sh.setPageBar(Shell.Page.RECORD, header); bind(liveStore, recording); showTab(0); showPanelPage(1) } } },
             "G2_charts" to { record(2, recording) },
+            "G2b_charts_overlay" to { shell(Shell.Page.RECORD, recording) { sh -> RecordView(a, sh.sc).apply {
+                if (!sh.sc.phone) sh.setPageBar(Shell.Page.RECORD, header); bind(liveStore, recording); showOverlay(listOf("trim_b1", "maf_gs", "rpm")) } } },
             "H1_chat_nokey" to { shell(Shell.Page.CHAT, recording) { sh -> com.obdlogger.app.ui.ChatView(a, sh.sc, NoChat).apply {
                 bind(com.obdlogger.core.ChatState(), null, false, "Ответы — по данным этой машины: Avensis 2.0 D-4 · поездок 4 · проверочных логов 1", null) } } },
             "H2_chat" to { shell(Shell.Page.CHAT, recording) { sh -> com.obdlogger.app.ui.ChatView(a, sh.sc, object : com.obdlogger.app.ui.ChatActions by NoChat {

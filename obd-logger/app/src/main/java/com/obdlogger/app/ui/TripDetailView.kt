@@ -329,13 +329,14 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
         lanes.windowMs = (t.ms.lastOrNull() ?: 60_000L).coerceAtLeast(60_000L) + 1000
         val codes = (RecordView.LANES + d.rating(AttentionSort.DEVIATION).map { it.code }).filter { it in store.columns }.distinct()
         // All rated sensors; a few at a time, swipe up and down under the fixed time axis.
-        lanes.perScreen = if (narrow) 3 else 5
         lanes.set(store, codes, false, com.obdlogger.core.LiveMode.IDLE)
+        val bar = ChartBar(context, sc, p, lanes, "trip", onClose = {})
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(8), dp(16), dp(8))
+            addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6) })
             addView(lanes, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-            addTo(this, context.text("вся поездка · листайте вверх-вниз · подложка — норма для прогретого холостого", 13f, p.t3).apply { gravity = Gravity.END }, dp(4))
+            addTo(this, context.text("вся поездка · щипок — масштаб · держите дорожку — наложить · подложка — норма", 13f, p.t3).apply { gravity = Gravity.END }, dp(4))
         }
     }
 

@@ -88,6 +88,9 @@ class SeriesStore(private val capacity: Int = 20_000) {
     @Synchronized
     fun lastTime(): Long? = rows.lastOrNull()?.time
 
+    @Synchronized
+    fun firstTime(): Long? = rows.firstOrNull()?.time
+
     /** Times and values of [name] from [fromMs] on, gaps (not polled) skipped. */
     @Synchronized
     fun series(name: String, fromMs: Long): Pair<LongArray, DoubleArray> {

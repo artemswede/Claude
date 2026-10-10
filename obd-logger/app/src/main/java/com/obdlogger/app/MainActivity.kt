@@ -799,6 +799,11 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         refreshChat()
     }
 
+    override fun openLive(codes: List<String>) {
+        shell.show(Shell.Page.RECORD)
+        record.showOverlay(codes)
+    }
+
     override fun unwatch(rule: com.obdlogger.core.WatchRule) {
         WatchStore.remove(this, rule)
         refreshChat()

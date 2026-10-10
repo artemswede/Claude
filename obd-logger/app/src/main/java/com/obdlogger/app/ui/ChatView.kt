@@ -32,6 +32,8 @@ interface ChatActions {
     /** The owner agreed to watch a condition in the next trips. */
     fun watch(rule: com.obdlogger.core.WatchRule) {}
     fun unwatch(rule: com.obdlogger.core.WatchRule) {}
+    /** «Открыть в Графиках»: the live overlay on the record page, with its zoom and cursor. */
+    fun openLive(codes: List<String>) {}
 }
 
 /**
@@ -185,6 +187,9 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
                 addTo(list, card(v, p, dp(12), dp(10)).apply {
                     layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(if (sc.phone) 200 else 230)).apply { topMargin = dp(8); rightMargin = dp(40) }
                 })
+                if (req is ChartRequest.Live) addTo(list, ctx.text("⤢ Открыть в Графиках — масштаб, курсор, весь экран", sc.p, p.acc, 600).apply {
+                    setOnClickListener { actions.openLive(req.sensors) }
+                }.tap(), dp(2), width = ViewGroup.LayoutParams.WRAP_CONTENT)
             }
         }
         busy?.let { addTo(list, ctx.text(it, sc.p, p.t3), dp(10)) }

@@ -68,35 +68,10 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
     private val lanes = LanesView(ctx, p)
     private var sort = AttentionSort.DEVIATION
     private var attnPage = 0
-    /** Lanes on screen at once (1–4); the others scroll up and down under the time axis. */
-    private var lanesPer = Prefs.of(ctx).getInt("chart_lanes", if (sc === Bt.TABLET) 4 else 3).coerceIn(1, 4)
-    /** «2/4 ›» next to the time window on «Графики». */
-    private val chartPageText = ctx.text("", if (sc.phone) 13f else 15f, p.t2, 600, maxLines = 1).apply {
-        setPadding(dp(10), dp(8), dp(10), dp(8))
-        setOnClickListener {
-            lanesPer = lanesPer % 4 + 1
-            Prefs.of(context).edit().putInt("chart_lanes", lanesPer).apply()
-            refresh()
-        }
-    }.tap()
-    private val chartsRight = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+    /** [−] window [+], lanes per screen, overlay, full screen, saved views — above the lanes. */
+    private lateinit var chartBar: ChartBar
     private var lastRanks: Map<String, Int> = emptyMap()
     private val attnCount = ctx.text("", if (sc.phone) 13f else 16f, p.t2)
-    private val windowSeg = Segment(ctx, sc, p, listOf("1 мин", "5 мин", "15 мин"), 1) { i ->
-        lanes.windowMs = listOf(1, 5, 15)[i] * 60_000L
-        refresh()
-    }
-    private var windowIdx = 1
-    private val windowText = ctx.text("окно 5 мин ▾", if (sc.phone) 13f else 15f, p.acc, 600, maxLines = 1).apply {
-        setPadding(dp(10), dp(8), dp(10), dp(8))
-        setOnClickListener {
-            windowIdx = (windowIdx + 1) % 3
-            val m = listOf(1, 5, 15)[windowIdx]
-            lanes.windowMs = m * 60_000L
-            text = "окно $m мин ▾"
-            refresh()
-        }
-    }.tap()
     private var store: SeriesStore? = null
     private var snapshot = LoggerState.Snapshot()
     /** Not on a phone: the tabs go up into the service line (see [header]), a whole row less here. */
@@ -120,15 +95,9 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         // Swipe through every sensor, 6 lanes a page (4 on a phone).
         // Every sensor; swipe up and down, the time axis stays at the bottom.
         charts.addView(lanes, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-        // Short screens: one «3 · 5 мин ▾» button with a menu for both; elsewhere density + window switch.
-        if (sc.compact) {
-            chartPageText.setOnClickListener { chartsMenu() }
-            addTo(chartsRight, chartPageText)
-        } else {
-            addTo(chartsRight, chartPageText)
-            addTo(chartsRight, windowSeg, dp(8))
-        }
-        if (!sc.compact) addTo(charts, ctx.text("точка = реальный замер · подпись у конца линии · подложка — норма", 13f, p.t3).apply { gravity = Gravity.END }, dp(4))
+        chartBar = ChartBar(ctx, sc, p, lanes, "record", onClose = {})
+        charts.addView(chartBar, 0, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6) })
+        if (!sc.compact) addTo(charts, ctx.text("точка = реальный замер · подложка — норма · держите дорожку — наложить", 13f, p.t3).apply { gravity = Gravity.END }, dp(4))
         // Short screens: the mode is written on the tiles anyway; the room goes to pages and «Датчики».
         if (!sc.compact && !tabsInBar) addTo(panelRight, modeText)
         addTo(panelRight, pageText, dp(4))
@@ -205,7 +174,7 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         charts.visibility = if (i == 2) VISIBLE else GONE
         val right: View? = when (i) {
             0 -> panelRight
-            2 -> chartsRight
+            2 -> null
             else -> if (tabsInBar) null else modeText
         }
         if (i != 0 && modeText.parent === panelRight) panelRight.removeView(modeText)
@@ -213,24 +182,6 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         right?.let { (it.parent as? ViewGroup)?.removeView(it) }
         tabs.setRight(right)
         refresh()
-    }
-
-    /** Head unit: how many lanes on screen and the time window, in one menu. */
-    private fun chartsMenu() {
-        val items = arrayOf("1 график на экран", "2 графика на экран", "3 графика на экран", "4 графика на экран", "Окно 1 мин", "Окно 5 мин", "Окно 15 мин")
-        AlertDialog.Builder(context)
-            .setTitle("Вид графиков")
-            .setItems(items) { _, i ->
-                if (i < 4) {
-                    lanesPer = i + 1
-                    Prefs.of(context).edit().putInt("chart_lanes", lanesPer).apply()
-                } else {
-                    lanes.windowMs = listOf(1, 5, 15)[i - 4] * 60_000L
-                }
-                refresh()
-            }
-            .setNegativeButton("Закрыть", null)
-            .show()
     }
 
     private fun explainSort() {
@@ -450,11 +401,17 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             }
             2 -> {
                 val all = (LANES.filter { it in codes } + codes).distinct()
-                chartPageText.text = if (sc.compact) "$lanesPer · ${lanes.windowMs / 60_000} мин ▾" else "$lanesPer на экран ▾"
-                lanes.perScreen = lanesPer
                 lanes.set(s, all, !stale, mode)
             }
         }
+    }
+
+    /** Opens «Графики» with [codes] laid over each other (from the chat's live chart). */
+    fun showOverlay(codes: List<String>) {
+        tabs.select(2)
+        lanes.clearOverlay()
+        codes.forEach { lanes.addOverlay(it) }
+        lanes.reset()
     }
 
     companion object {
