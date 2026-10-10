@@ -76,7 +76,11 @@ class TripProfile(
 }
 
 /** «Your normal» for one sensor in one mode, from the reference trips. */
-class CarNorm(val code: String, val mode: DriveMode, val median: Double, val lo: Double, val hi: Double, val spread: Double, val trips: Int)
+class CarNorm(
+    val code: String, val mode: DriveMode, val median: Double, val lo: Double, val hi: Double, val spread: Double, val trips: Int,
+    /** Typical spread inside a trip: medians of the trips' p10 and p90 — for live values. */
+    val typLo: Double = lo, val typHi: Double = hi,
+)
 
 /** A change against this car's normal: how strong, since when, where it is heading, why it may be. */
 class Drift(
@@ -102,6 +106,8 @@ class Drift(
     val hot: Boolean,
     val causes: String,
     val text: String,
+    /** One line for a card: «Температура ОЖ: 100–101 вместо обычных 97–98 °C». */
+    val short: String = text,
 )
 
 /**
@@ -164,7 +170,9 @@ object Baseline {
             val mad = median(v.map { abs(it - m) }) * 1.4826
             val s = max(mad, step(code)).takeIf { it > 0 } ?: max(abs(m) * 0.05, 1e-3)
             val sorted = v.sorted()
-            CarNorm(code, mode, m, TripProfile.pct(sorted, 0.1), TripProfile.pct(sorted, 0.9), s, v.size)
+            val p10 = median(ref.mapNotNull { it.of(code, mode)?.p10 })
+            val p90 = median(ref.mapNotNull { it.of(code, mode)?.p90 })
+            CarNorm(code, mode, m, TripProfile.pct(sorted, 0.1), TripProfile.pct(sorted, 0.9), s, v.size, p10, p90)
         }
     }
 
@@ -232,7 +240,28 @@ object Baseline {
         }.replace("-", "−")
     }
 
-    private fun range(code: String, lo: Double, hi: Double): String =
+    /** The sensor and mode a comparison metric is measured in, when it is the plain median there. */
+    fun metricKey(m: Metric): Pair<String, DriveMode>? = when (m) {
+        Metric.IDLE_RPM -> "rpm" to DriveMode.WARM_IDLE
+        Metric.ROLL_RPM -> "rpm" to DriveMode.ROLL_TO_STOP
+        Metric.IDLE_MAF -> "maf_gs" to DriveMode.WARM_IDLE
+        Metric.IDLE_TRIM_B1 -> "trim_b1" to DriveMode.WARM_IDLE
+        Metric.IDLE_TRIM_B2 -> "trim_b2" to DriveMode.WARM_IDLE
+        Metric.CRUISE_TRIM_B1 -> "trim_b1" to DriveMode.CRUISE
+        Metric.CRUISE_TRIM_B2 -> "trim_b2" to DriveMode.CRUISE
+        Metric.IDLE_REAR_O2 -> "o2_b1s2_v" to DriveMode.WARM_IDLE
+        Metric.CRUISE_REAR_O2 -> "o2_b1s2_v" to DriveMode.CRUISE
+        else -> null
+    }
+
+    /** Shown in «как обычно»: a sensor whose level means something, in a mode where it is comparable. */
+    fun shown(n: CarNorm) = meaningful(n.code) && comparable(n.code, n.mode)
+
+    /** Per-trip medians of one sensor in one mode: «dd.MM» → value, oldest first. */
+    fun series(profiles: List<TripProfile>, code: String, mode: DriveMode): List<Pair<String, Double>> =
+        profiles.sortedBy { it.start }.mapNotNull { p -> p.of(code, mode)?.median?.let { p.label.take(5) to it } }
+
+    fun range(code: String, lo: Double, hi: Double): String =
         if (fmt(code, lo) == fmt(code, hi)) fmt(code, lo) else "${fmt(code, lo)}–${fmt(code, hi)}"
 
     private fun trips(n: Int) = when {
@@ -296,11 +325,39 @@ object Baseline {
                 if (hot) append(" Часть роста — жара: воздух на впуске теплее обычного.")
                 forecast?.let { append(" ${it.replaceFirstChar { c -> c.uppercase() }}.") }
             }
-            out += Drift(code, mode, norm, now, rv.min(), rv.max(), z, level, persistent, rv.size, since, sl, forecast, hot, causes(code, up), text)
+            val short = "${SensorNames.label(code)}: ${range(code, rv.min(), rv.max())} вместо обычных ${range(code, norm.lo, norm.hi)}$unit"
+            out += Drift(code, mode, norm, now, rv.min(), rv.max(), z, level, persistent, rv.size, since, sl, forecast, hot, causes(code, up), text, short)
         }
         // One line per sensor: the mode where it moved most.
         return out.groupBy { it.code }.values.map { g -> g.maxByOrNull { abs(it.z) }!! }
             .sortedWith(compareByDescending<Drift> { it.level }.thenByDescending { abs(it.z) })
+    }
+
+    /**
+     * Live bands from this car's normal, for tiles and gauges: the usual spread inside a
+     * trip, widened by the sensor's step; only sensors whose level means something.
+     */
+    fun liveNorms(profiles: List<TripProfile>): Map<Pair<String, LiveMode>, Norm> {
+        if (!ready(profiles)) return emptyMap()
+        val out = HashMap<Pair<String, LiveMode>, Norm>()
+        for (n in norms(profiles)) {
+            if (!meaningful(n.code)) continue
+            val live = when (n.mode) {
+                DriveMode.WARM_IDLE -> LiveMode.IDLE
+                DriveMode.CRUISE -> LiveMode.DRIVE
+                DriveMode.COLD -> if (n.code == "battery_v") LiveMode.COLD else continue
+                else -> continue
+            }
+            val pad = max(step(n.code), n.spread)
+            val lo = minOf(n.typLo, n.median - 2 * n.spread) - pad / 2
+            val hi = maxOf(n.typHi, n.median + 2 * n.spread) + pad / 2
+            // Only a healthy normal (inside the generic band) replaces it: what was always wrong stays
+            // flagged, and getting better after a repair is not «unusual».
+            val gen = Norms.generic(n.code, live)
+            if (gen != null && (lo < gen.lo || hi > gen.hi)) continue
+            out[n.code to live] = Norm(lo, hi, "ниже обычного", "выше обычного", personal = true)
+        }
+        return out
     }
 
     /** For the AI: the car's normal and what changed, as text. */

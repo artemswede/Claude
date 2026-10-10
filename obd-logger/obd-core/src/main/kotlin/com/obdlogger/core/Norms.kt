@@ -29,7 +29,11 @@ enum class LiveMode(val ru: String) {
 enum class NormState { IN, LOW, HIGH, NONE }
 
 /** A norm band for one sensor in one mode, with the words to describe a value against it. */
-class Norm(val lo: Double, val hi: Double, private val lowWord: String = "ниже нормы", private val highWord: String = "выше нормы") {
+class Norm(
+    val lo: Double, val hi: Double, private val lowWord: String = "ниже нормы", private val highWord: String = "выше нормы",
+    /** This car's own normal ([Baseline.liveNorms]), not a generic one. */
+    val personal: Boolean = false,
+) {
     fun state(v: Double): NormState = when {
         v.isNaN() -> NormState.NONE
         v < lo -> NormState.LOW
@@ -46,7 +50,13 @@ class Norm(val lo: Double, val hi: Double, private val lowWord: String = "ниж
 
     /** «норма 600–800», «норма ±10». */
     val text: String
-        get() = if (lo == -hi) "норма ±${Values.format(hi)}" else "норма ${Values.format(lo)?.replace("-", "−")}–${Values.format(hi)?.replace("-", "−")}"
+        get() = when {
+            personal -> "обычно ${round(lo)}–${round(hi)}"
+            lo == -hi -> "норма ±${Values.format(hi)}"
+            else -> "норма ${Values.format(lo)?.replace("-", "−")}–${Values.format(hi)?.replace("-", "−")}"
+        }
+
+    private fun round(v: Double): String = (if (abs(hi - lo) >= 5) Values.format(Math.round(v).toDouble()) else Values.format(Math.round(v * 10) / 10.0))?.replace("-", "−") ?: "—"
 
     /** How far outside, as a share of the band width (0 inside). */
     fun excess(v: Double): Double = when {
@@ -62,7 +72,13 @@ class Norm(val lo: Double, val hi: Double, private val lowWord: String = "ниж
  * decide colours and the «Внимание» ranking, not diagnoses. No norm → neutral.
  */
 object Norms {
-    fun of(code: String, mode: LiveMode): Norm? {
+    /** This car's own bands ([Baseline.liveNorms]); they win over the generic ones once learnt. */
+    @Volatile
+    var personal: Map<Pair<String, LiveMode>, Norm> = emptyMap()
+
+    fun of(code: String, mode: LiveMode): Norm? = personal[code to mode] ?: generic(code, mode)
+
+    fun generic(code: String, mode: LiveMode): Norm? {
         if (mode == LiveMode.OFF) return if (code == "battery_v") Norm(12.2, 12.9, "разряжен", "выше обычного") else null
         return when {
             code.startsWith("trim_b") -> if (mode == LiveMode.COLD) null else Norm(-10.0, 10.0, "богато", "выше нормы")

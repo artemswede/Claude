@@ -605,7 +605,7 @@ class LoggerService : Service() {
             )
         }
         updateNotification(if (waitingNext) "Жду машину" else "Запись выключена")
-        if (rows > 0) tripSavedNotification(t.files.csv)
+        if (rows > 0) Thread { tripSavedNotification(t.files.csv) }.start()
     }
 
     /** Auto mode brings the app to the front when a trip starts (needs «поверх других окон» on Android 10+). */
@@ -769,11 +769,21 @@ class LoggerService : Service() {
             top != null -> "Есть версия — ${top.headline.replaceFirstChar { it.lowercase() }} (${top.confidence})"
             else -> "Отклонений не найдено"
         }
+        // The car's own normal: a change that appeared with this trip is said right away.
+        val before = CarProfile.state?.takeIf { it.carKey == s.car?.key }?.drifts?.map { it.code }?.toSet()
+        val fresh = try {
+            CarProfile.refresh(this, s.car?.key).takeIf { it.ready }?.drifts?.filter { before == null || it.code !in before }.orEmpty()
+        } catch (e: Exception) {
+            emptyList()
+        }
+        val change = fresh.firstOrNull()?.let { "Изменилось против обычного — ${it.short}" }
+        val full = listOfNotNull(text, change).joinToString("\n")
         val open = PendingIntent.getActivity(this, 3, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val n = Compat.notificationBuilder(this, RESULT_CHANNEL_ID, "Разбор")
             .setSmallIcon(R.drawable.ic_notify)
             .setContentTitle("Поездка сохранена")
-            .setContentText(text)
+            .setContentText(change ?: text)
+            .setStyle(android.app.Notification.BigTextStyle().bigText(full))
             .setContentIntent(open)
             .setAutoCancel(true)
             .build()

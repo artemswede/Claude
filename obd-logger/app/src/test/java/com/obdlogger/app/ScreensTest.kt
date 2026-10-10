@@ -140,6 +140,12 @@ object NoDtc : com.obdlogger.app.ui.DtcActions {
     override fun shareCodes(path: String) {}
 }
 
+object NoBaseline : com.obdlogger.app.ui.BaselineActions {
+    override fun closeBaseline() {}
+    override fun resetProfile(note: String?) {}
+    override fun askAbout(question: String) {}
+}
+
 object Samples {
     private val dir = File("../obd-core/src/test/resources/trips")
     private val csvs by lazy { dir.listFiles().orEmpty().filter { it.name.endsWith(".csv") }.sortedBy { it.name } }
@@ -159,6 +165,27 @@ object Samples {
     }
 
     fun detail(item: TripItem) = TripDetail(TripAnalyzer.table(item.csv.readText())!!, item.summary)
+
+    private val realProfiles by lazy { realItems.map { com.obdlogger.core.TripProfile.of(detail(it)) } }
+
+    /**
+     * A learnt car from the real trips, repeated over [n] days; with [shift] the last
+     * three trips run the coolant 3 °C hotter in every mode — «обычно 97–98, стало 100–101».
+     */
+    fun profile(n: Int, shift: Boolean): CarProfile.State {
+        val start = java.time.LocalDateTime.of(2026, 9, 20, 8, 0)
+        val list = (0 until n).map { i ->
+            val base = realProfiles[i % realProfiles.size]
+            val hot = shift && i >= n - 3
+            val stats = base.stats.mapValues { (code, byMode) ->
+                if (!hot || code != "coolant_c") byMode
+                else byMode.mapValues { (_, st) -> com.obdlogger.core.TripProfile.Stat(st.median + 3, st.p10 + 3, st.p90 + 3, st.n) }
+            }
+            val at = start.plusDays(i.toLong())
+            com.obdlogger.core.TripProfile("t$i", at.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM HH:mm")), at, stats, base.intakeAir)
+        }
+        return CarProfile.State(real.last().car?.key, list, null, null)
+    }
 
     /** The same real trip seen differently: no version (calm) or with a stored code. */
     fun variant(t: TripSummary, findings: List<com.obdlogger.core.Finding>, dtcs: List<String>?) = TripSummary(
@@ -258,6 +285,16 @@ class Scenes(private val a: Activity) {
                 shell.render(recording)
                 shell.root
             },
+            "D8_usual_changed" to { shell(Shell.Page.OVERVIEW, recording) { sh ->
+                HomeView(a, sh.sc, {}, {}).apply { bind(HomeModel.from(real.dropLast(1), real.last(), recording), recording); bindUsual(Samples.profile(10, true)) } } },
+            "D9_usual_learning" to { shell(Shell.Page.OVERVIEW, recording) { sh ->
+                HomeView(a, sh.sc, {}, {}).apply { bind(HomeModel.from(real.dropLast(1), real.last(), recording), recording); bindUsual(Samples.profile(3, false)) } } },
+            "B1_usual" to { shell(Shell.Page.OVERVIEW, waiting) { sh -> com.obdlogger.app.ui.BaselineView(a, sh.sc, NoBaseline).apply { bind(Samples.profile(10, true)) } } },
+            "B2_usual_calm" to { shell(Shell.Page.OVERVIEW, waiting) { sh -> com.obdlogger.app.ui.BaselineView(a, sh.sc, NoBaseline).apply { bind(Samples.profile(10, false)) } } },
+            "B3_usual_learning" to { shell(Shell.Page.OVERVIEW, waiting) { sh -> com.obdlogger.app.ui.BaselineView(a, sh.sc, NoBaseline).apply { bind(Samples.profile(3, false)) } } },
+            "V3b_compare_usual" to { shell(Shell.Page.TRIPS, waiting) { sh ->
+                CarProfile.use(Samples.profile(10, true))
+                TripsView(a, sh.sc, {}).apply { bind(TripsModel.from(Samples.realItems)); showTab(1) }.also { CarProfile.use(null) } } },
             "D5_wait" to { home(waiting, real, null) },
             "D6_noconn" to { home(waiting.copy(link = Lamp.FAIL, linkText = "нет связи с адаптером"), real, null) },
             "D_off" to { home(off, real, null) },

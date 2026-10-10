@@ -73,6 +73,22 @@ class BaselineTest {
     }
 
     @Test
+    fun liveBandsNarrowOnlyAHealthyNormal() {
+        val ps = trips(listOf(97.3, 97.6, 97.4, 97.8, 97.5, 97.2, 97.6, 97.4, 97.7))
+        val live = Baseline.liveNorms(ps)
+        val c = assertNotNull(live["coolant_c" to LiveMode.DRIVE])
+        assertTrue(c.personal && c.text.startsWith("обычно"), c.text)
+        assertEquals(NormState.IN, c.state(98.0))
+        assertEquals(NormState.HIGH, c.state(100.6))
+        // A chronic problem (idle always with dips below the generic band) keeps the generic norm.
+        val dips = (0 until 9).map { i -> trip(i, mapOf(("rpm" to DriveMode.WARM_IDLE) to 650.0 + i)).let { p ->
+            TripProfile(p.name, p.label, p.start, mapOf("rpm" to mapOf(DriveMode.WARM_IDLE to TripProfile.Stat(650.0, 480.0, 700.0, 200))), 20.0)
+        } }
+        assertTrue(Baseline.liveNorms(dips)["rpm" to LiveMode.IDLE] == null)
+        assertTrue(Baseline.liveNorms(trips(listOf(97.0, 97.5))).isEmpty())
+    }
+
+    @Test
     fun profileOfARealTripRoundTrips() {
         val dir = File(javaClass.getResource("/trips")!!.toURI())
         val name = "obd_20261003_195129"

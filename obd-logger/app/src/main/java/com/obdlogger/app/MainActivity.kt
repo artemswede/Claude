@@ -52,7 +52,7 @@ import com.obdlogger.core.Hypotheses
 import com.obdlogger.core.Hypothesis
 import java.io.File
 
-class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions, VersionActions, CheckActions, com.obdlogger.app.ui.DtcActions, com.obdlogger.app.ui.ChatActions {
+class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions, VersionActions, CheckActions, com.obdlogger.app.ui.DtcActions, com.obdlogger.app.ui.ChatActions, com.obdlogger.app.ui.BaselineActions {
     private lateinit var shell: Shell
     private lateinit var home: HomeView
     private lateinit var settings: SettingsView
@@ -533,6 +533,8 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
                 if (model != null) {
                     homeModel = model
                     home.bind(model, LoggerState.snapshot)
+                    home.bindUsual(CarProfile.state)
+                    refreshProfile((model.trip ?: model.past)?.car?.key)
                     // Ready «Подробнее» in advance, so it opens on the first tap.
                     val key = (model.trip ?: model.past)?.car?.key
                     if ((model.trip?.top ?: model.past?.top) != null && versionTrips?.first != key && !versionWarming) {
@@ -542,6 +544,28 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
                 }
                 home.problem(currentProblem(LoggerState.snapshot))
             }
+        }.start()
+    }
+
+    @Volatile private var profileFiles: Pair<String?, Int>? = null
+    @Volatile private var profileLoading = false
+
+    /** The car's normal, rebuilt off the main thread when a trip is added, the car changes or the profile is reset. */
+    private fun refreshProfile(carKey: String?, force: Boolean = false) {
+        if (profileLoading) return
+        Thread {
+            val files = carKey to SessionFiles.tripCsvs(this).size
+            val st = CarProfile.state
+            if (!force && st != null && files == profileFiles) return@Thread
+            profileLoading = true
+            try {
+                CarProfile.refresh(this, carKey)
+                profileFiles = files
+            } catch (_: Exception) {
+            } finally {
+                profileLoading = false
+            }
+            runOnUiThread { home.bindUsual(CarProfile.state); baselineView?.bind(CarProfile.state) }
         }.start()
     }
 
@@ -588,6 +612,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         val top = list.removeLastOrNull() ?: return false
         if (top === checkView) checkView = null
         if (top === dtcView) dtcView = null
+        if (top === baselineView) baselineView = null
         val box = shell.containers.getValue(shell.page)
         box.removeView(top)
         (list.lastOrNull() ?: box.getChildAt(0))?.visibility = View.VISIBLE
@@ -604,7 +629,8 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
 
     private fun makeHome(night: Boolean) = HomeView(this, shell.sc, onDetails = { openHomeVersion() }, onSettings = { shell.show(Shell.Page.SETTINGS) },
         onCheck = { openCheck() }, onOpenLast = { openLastTrip() }, p = if (night) Bt.DARK else Bt.LIGHT, onCodes = { openCodes() },
-        onReconnect = { if (LoggerState.snapshot.running) startService(LoggerService.intent(this, LoggerService.ACTION_POKE)) else if (Prefs.device(this) != null && hasBluetoothPermission()) startAuto() else shell.show(Shell.Page.SETTINGS) })
+        onReconnect = { if (LoggerState.snapshot.running) startService(LoggerService.intent(this, LoggerService.ACTION_POKE)) else if (Prefs.device(this) != null && hasBluetoothPermission()) startAuto() else shell.show(Shell.Page.SETTINGS) },
+        onBaseline = { openBaseline() })
 
     // ---- AI chat ----
 
@@ -650,8 +676,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     }
 
     /** This car's trip fingerprints since the profile was last reset (heavy the first time: cached next to the trips). */
-    private fun carProfiles(m: TripsModel): List<com.obdlogger.core.TripProfile> =
-        m.profiles(m.car?.key?.let { Prefs.profileSince(this, it) })
+    private fun carProfiles(m: TripsModel): List<com.obdlogger.core.TripProfile> = CarProfile.of(this, m).profiles
 
     override fun sendQuestion(text: String) {
         val key = AiChat.key(this)
@@ -806,6 +831,37 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     override fun setAiOrModel(i: Int) = AiChat.setOrModel(this, AiChat.OR_MODELS[i].first)
     override fun aiModel(): Int = if (AiChat.thinking(this)) 0 else 1
     override fun setAiModel(i: Int) = AiChat.setThinking(this, AiChat.MODES[i].second)
+
+    // ---- «Как обычно у вашей машины» ----
+
+    private var baselineView: com.obdlogger.app.ui.BaselineView? = null
+
+    private fun openBaseline() {
+        if (baselineView != null) return
+        val v = com.obdlogger.app.ui.BaselineView(this, shell.sc, this)
+        baselineView = v
+        v.bind(CarProfile.state)
+        push(Shell.Page.OVERVIEW, v)
+        refreshProfile((homeModel?.trip ?: homeModel?.past)?.car?.key)
+    }
+
+    override fun closeBaseline() {
+        pop()
+    }
+
+    override fun resetProfile(note: String?) {
+        val key = CarProfile.state?.carKey ?: (homeModel?.trip ?: homeModel?.past)?.car?.key ?: return
+        CarProfile.reset(this, key, note)
+        baselineView?.bind(null)
+        home.bindUsual(null)
+        refreshProfile(key, force = true)
+    }
+
+    override fun askAbout(question: String) {
+        while (pop()) Unit
+        shell.show(Shell.Page.CHAT)
+        sendQuestion(question)
+    }
 
     // ---- trouble codes ----
 

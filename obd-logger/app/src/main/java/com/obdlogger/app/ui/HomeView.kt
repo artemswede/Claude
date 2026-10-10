@@ -21,8 +21,8 @@ import com.obdlogger.core.Metric
 import com.obdlogger.core.TripAnalyzer
 
 /**
- * Главный экран (Д1–Д9): вывод слева, график коррекции справа, внизу последняя
- * поездка, тренд и проверочный лог. Светлая тема днём.
+ * Главный экран (Д1–Д9): вывод слева, график справа, внизу последняя поездка, тренд
+ * и «как обычно у вашей машины» — что изменилось против её собственной нормы.
  */
 class HomeView(
     ctx: Context,
@@ -38,6 +38,8 @@ class HomeView(
     private val onCodes: () -> Unit = {},
     /** «Нет связи»: try the adapter again now. */
     private val onReconnect: () -> Unit = {},
+    /** «Как обычно у вашей машины»: the car's normal and what changed. */
+    private val onBaseline: () -> Unit = {},
 ) : FrameLayout(ctx) {
     private val chartCol = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
     private val leftCol = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
@@ -49,22 +51,16 @@ class HomeView(
     private val spark = Sparkline(ctx)
     private val trendTitle = ctx.text("", if (sc.phone) 15f else if (sc === Bt.TABLET) 17f else 14f, p.t1, 600, maxLines = 2)
     private val trendValues = ctx.text("", if (sc.phone) 13f else if (sc === Bt.TABLET) 15f else 13f, p.t2, 400, mono = true, maxLines = 1)
-    // Head unit: the short label leaves the trip and trend lines their room.
-    private val testButton = ctx.text(if (sc === Bt.WIDE) "Проверочный лог" else "Записать проверочный лог", sc.btnBigFont, p.accInk, 600).apply {
-        gravity = Gravity.CENTER
-        setPadding(dp(if (sc === Bt.WIDE) 18 else 28), 0, dp(if (sc === Bt.WIDE) 18 else 28), 0)
-        background = roundRect(p.acc, dp(16).toFloat())
-        val ic = context.getDrawable(R.drawable.ic_timer)!!.tinted(p.accInk)
-        val s = dp(if (sc === Bt.TABLET) 28 else 22)
-        ic.setBounds(0, 0, s, s)
-        setCompoundDrawables(ic, null, null, null)
-        compoundDrawablePadding = dp(12)
-        elevation = dp(2).toFloat()
-        setOnClickListener { onCheck() }
+    // «Как обычно у вашей машины»: learning, all as usual, or what changed — one tap to the details.
+    private val usualTitle = ctx.text("", if (sc.phone) 15f else if (sc === Bt.TABLET) 17f else 14f, p.t1, 600, maxLines = 1)
+    private val usualText = ctx.text("", if (sc.phone) 14f else if (sc === Bt.TABLET) 16f else 13f, p.t2, maxLines = 2)
+    private val usualBox = column(ctx, dp(2), usualTitle, usualText).apply {
+        setPadding(dp(14), dp(8), dp(14), dp(8))
+        minimumHeight = dp(sc.btnH)
+        gravity = Gravity.CENTER_VERTICAL
+        setOnClickListener { onBaseline() }
+        contentDescription = "Как обычно у вашей машины"
     }
-    private val testCap = ctx.text("4 минуты: ХХ → 2500 об/мин → ХХ", sc.cap, p.t3).apply { if (sc.compact) visibility = View.GONE }
-    private val testBlock = column(ctx, dp(4), testButton, testCap).apply { gravity = Gravity.END }
-    private val noTest = ctx.text("", if (sc.phone) 15f else if (sc === Bt.TABLET) 17f else 14f, p.t2).apply { gravity = Gravity.END }
     private val bottomBar = LinearLayout(ctx)
 
     init {
@@ -92,18 +88,15 @@ class HomeView(
         // Head units: one line per column, the bar must not eat the short screen.
         if (wide) { lastTrip.maxLines = 2; trendTitle.maxLines = 2; trendValues.visibility = View.GONE }
         addTo(c2, column(ctx, dp(2), trendTitle, trendValues), dp(16), 1f)
-        val c3 = FrameLayout(ctx)
-        c3.addView(testBlock, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.END or Gravity.CENTER_VERTICAL))
-        c3.addView(noTest, FrameLayout.LayoutParams(dp(300), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.END or Gravity.CENTER_VERTICAL))
-        testButton.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(sc.btnBigH))
+        bindUsual(null)
         if (sc.phone) {
             addTo(bottomBar, c1)
             addTo(bottomBar, c2, dp(12))
-            addTo(bottomBar, c3, dp(12))
+            addTo(bottomBar, usualBox, dp(12))
         } else {
             addTo(bottomBar, c1, 0, 1f)
-            addTo(bottomBar, c2, dp(sc.gap), 1.4f)
-            addTo(bottomBar, c3, dp(sc.gap))
+            addTo(bottomBar, c2, dp(sc.gap), 1.2f)
+            addTo(bottomBar, usualBox, dp(sc.gap), 1.4f)
         }
 
         if (sc.phone) {
@@ -240,17 +233,39 @@ class HomeView(
         val empty = m.state == HomeState.NO_TRIPS
         chartCol.visibility = if (empty) View.GONE else View.VISIBLE
         bottomBar.visibility = if (empty) View.GONE else View.VISIBLE
-        val speed = s.values.firstOrNull { it.first == "speed_kmh" }?.second?.toDoubleOrNull() ?: 0.0
-        val moving = s.recording && speed > 0
-        // The check log compares with a result: offered once there is one, not while data is still being collected.
-        val canTest = s.recording && !moving && m.state != HomeState.COLLECTING
-        testBlock.visibility = if (canTest) View.VISIBLE else View.GONE
-        noTest.visibility = if (canTest) View.GONE else View.VISIBLE
-        noTest.text = when {
-            moving -> "Проверочный лог доступен на стоянке"
-            m.state == HomeState.COLLECTING -> "Проверочный лог — когда будет вывод"
-            else -> "Проверочный лог — после запуска двигателя"
+    }
+
+    private var usualKey: Any? = null
+
+    /** The car's own normal: «Изучаю…», «Всё как обычно» or the strongest changes. */
+    fun bindUsual(st: com.obdlogger.app.CarProfile.State?) {
+        val d = st?.takeIf { it.ready }?.drifts.orEmpty()
+        val key = listOf(st?.key, d.map { it.short })
+        if (key == usualKey) return
+        usualKey = key
+        val (have, need) = st?.learning ?: (0 to com.obdlogger.core.Baseline.MIN_TRIPS + com.obdlogger.core.Baseline.RECENT)
+        val warn = d.any { it.level >= com.obdlogger.core.Severity.WARN }
+        val frame = when {
+            d.isEmpty() -> p.line2
+            warn -> p.amb
+            else -> p.acc
         }
+        usualBox.background = roundRect(p.bg, dp(12).toFloat(), dp(if (d.isEmpty()) 1 else 2), frame)
+        when {
+            st == null || !st.ready -> {
+                usualTitle.text = "Изучаю вашу машину"
+                usualText.text = "$have из $need поездок — потом покажу, что меняется против её обычного"
+            }
+            d.isEmpty() -> {
+                usualTitle.text = "✓ Всё как обычно у вашей машины"
+                usualText.text = "Датчики в своих обычных пределах · подробнее →"
+            }
+            else -> {
+                usualTitle.text = "Изменилось против обычного" + if (d.size > 1) " · ${d.size}" else ""
+                usualText.text = d.first().short + if (d.size > 1) "; ещё ${d.size - 1} →" else " →"
+            }
+        }
+        usualTitle.setTextColor(if (warn) p.amb else p.t1)
     }
 
     // ---- left column per state ----

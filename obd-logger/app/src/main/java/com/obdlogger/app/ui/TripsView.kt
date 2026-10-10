@@ -268,7 +268,7 @@ class TripsView(
             addTo(box, context.text("Нужно хотя бы 2 поездки с прогретым холостым ходом. Сейчас: ${t.trips.size}. Тренды и прогноз появятся сами.", sc.p, p.t2), dp(10))
             return box
         }
-        addTo(box, context.text("Сверху — самое проблемное сейчас: устраните одно — поднимется следующее. Значения на прогретом холостом стоя, если не указано иное; для точного «до / после» — проверочный лог.", if (sc.phone) 13f else 15f, p.t2))
+        addTo(box, context.text("Сверху — самое проблемное сейчас: устраните одно — поднимется следующее. Значения на прогретом холостом стоя, если не указано иное; «обычно у вас» — норма этой машины по её прошлым поездкам.", if (sc.phone) 13f else 15f, p.t2))
         val days = t.trips.map { it.start?.format(dayFmt) ?: "?" }
         // Several trips on one day: add the time so the columns differ.
         val dates = when {
@@ -277,6 +277,9 @@ class TripsView(
             days.toSet().size < days.size -> t.trips.map { it.start?.format(DateTimeFormatter.ofPattern("dd.MM HH:mm")) ?: "?" }
             else -> days
         }
+        // This car's own normal next to the trips, once it is learnt.
+        val usual = com.obdlogger.app.CarProfile.state?.takeIf { it.ready && it.carKey == m.car?.key }
+        val nVal = dates.size + if (usual != null) 1 else 0
         val table = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         val nameW = dp(if (sc.phone) 170 else if (sc.compact) 200 else 300)
         val valW = dp(if (sc.phone) 80 else if (sc.compact) 96 else 124)
@@ -286,10 +289,11 @@ class TripsView(
             setPadding(dp(12), dp(14), 0, dp(14))
             addView(name, LinearLayout.LayoutParams(nameW, ViewGroup.LayoutParams.WRAP_CONTENT))
             cells.forEachIndexed { i, v ->
-                addView(v, LinearLayout.LayoutParams(if (i < dates.size) valW else if (i == dates.size) dp(76) else ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+                addView(v, LinearLayout.LayoutParams(if (i < nVal) valW + if (i == dates.size) dp(12) else 0 else if (i == nVal) dp(76) else ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             }
         }
         val head = rowOf(dates.map { d -> context.label(d, sc, p).apply { gravity = Gravity.END } } +
+            listOfNotNull(usual?.let { context.label("Обычно", sc, p, p.acc).apply { gravity = Gravity.END } }) +
             listOf(context.label("Тренд", sc, p).apply { gravity = Gravity.CENTER }, context.label("Вывод", sc, p).apply { setPadding(dp(16), 0, 0, 0) }),
             context.label("Показатель", sc, p))
         table.addView(head)
@@ -313,7 +317,11 @@ class TripsView(
                 setPadding(dp(16), 0, 0, 0)
                 addView(context.chip(r.verdict, fg, bg, if (sc.phone) 12f else 15f))
             }
-            table.addView(rowOf(cells + listOf(arrow, chip), name))
+            val usualCell = usual?.let { st ->
+                val n = com.obdlogger.core.Baseline.metricKey(r.metric)?.let { (c, md) -> com.obdlogger.core.Baseline.norm(st.norms, c, md) }
+                context.text(n?.let { com.obdlogger.core.Baseline.range(it.code, it.lo, it.hi) } ?: "—", if (sc.phone) 13f else 16f, p.acc, 600, mono = true).apply { gravity = Gravity.END }
+            }
+            table.addView(rowOf(cells + listOfNotNull(usualCell) + listOf(arrow, chip), name))
             table.addView(hline(context, p.line))
         }
         addTo(box, HorizontalScrollView(context).apply { addView(table); isHorizontalScrollBarEnabled = false }, dp(16))

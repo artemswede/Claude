@@ -58,11 +58,14 @@ class HomeModel(
                     val info = SessionFiles.infoOf(f).takeIf { it.exists() }?.readText()
                     runCatching { TripAnalyzer.analyze(f.nameWithoutExtension, f.readText(), info) }.getOrNull()
                 }
-            return from(saved.filter { it.name != current?.name }, current, s, com.obdlogger.app.Prefs.seenTrip(ctx))
+            val drift = com.obdlogger.app.CarProfile.state?.takeIf { it.ready }?.drifts?.firstOrNull()?.code
+            return from(saved.filter { it.name != current?.name }, current, s, com.obdlogger.app.Prefs.seenTrip(ctx), drift)
         }
 
         /** Pure part of [build]: decides the state from already analysed trips. */
-        fun from(allSaved: List<TripSummary>, current: TripSummary?, s: LoggerState.Snapshot, seenTrip: String? = null): HomeModel {
+        fun from(allSaved: List<TripSummary>, current: TripSummary?, s: LoggerState.Snapshot, seenTrip: String? = null,
+            /** Strongest change against this car's own normal: charted when there is no version. */
+            driftCode: String? = null): HomeModel {
             // Only this car's trips: the tablet is moved between cars, their data must not mix.
             val car = (current ?: allSaved.maxByOrNull { it.start ?: java.time.LocalDateTime.MIN })?.car?.key
             val saved = allSaved.filter { it.car?.key == car }.sortedBy { it.start }.takeLast(8)
@@ -79,7 +82,7 @@ class HomeModel(
             val top = (trip?.top ?: past?.top)
             val worstRow = TripComparison.table(history).rows.firstOrNull { it.problem > 0.5 }
             val metric = top?.kind?.let(Focus::metric) ?: worstRow?.metric ?: Metric.IDLE_TRIM_B1
-            val focus = (top?.kind?.let(Focus::code) ?: worstRow?.metric?.let(Focus::code) ?: "rpm")
+            val focus = (top?.kind?.let(Focus::code) ?: driftCode?.takeIf { c -> trip?.trace?.of(c) != null } ?: worstRow?.metric?.let(Focus::code) ?: "rpm")
                 .takeIf { c -> trip?.trace?.of(c) != null } ?: listOf("trim_b1", "rpm").firstOrNull { trip?.trace?.of(it) != null } ?: "trim_b1"
             return HomeModel(state, trip, live, past, trend(history, metric), lastTrip(trip, live), !live && trip != null && trip.name != seenTrip, focus)
         }

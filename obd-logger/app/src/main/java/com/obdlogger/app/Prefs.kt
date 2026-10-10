@@ -85,8 +85,12 @@ object Prefs {
     /** «Обнулить профиль»: trips before this moment no longer count as the car's normal. */
     fun profileSince(ctx: Context, carKey: String): java.time.LocalDateTime? =
         of(ctx).getString("profile_since_$carKey", null)?.let { runCatching { java.time.LocalDateTime.parse(it) }.getOrNull() }
-    fun setProfileSince(ctx: Context, carKey: String, at: java.time.LocalDateTime?) =
-        of(ctx).edit().apply { if (at == null) remove("profile_since_$carKey") else putString("profile_since_$carKey", at.toString()) }.apply()
+    fun setProfileSince(ctx: Context, carKey: String, at: java.time.LocalDateTime?, note: String? = null) =
+        of(ctx).edit().apply {
+            if (at == null) remove("profile_since_$carKey") else putString("profile_since_$carKey", at.toString())
+            if (note.isNullOrBlank()) remove("profile_note_$carKey") else putString("profile_note_$carKey", note.trim())
+        }.apply()
+    fun profileNote(ctx: Context, carKey: String): String? = of(ctx).getString("profile_note_$carKey", null)
 
     fun seenTrip(ctx: Context): String? = of(ctx).getString(SEEN_TRIP, null)
     fun setSeenTrip(ctx: Context, name: String) = of(ctx).edit().putString(SEEN_TRIP, name).apply()
