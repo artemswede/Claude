@@ -39,7 +39,11 @@ async function askGemini(userText, history, searchResults) {
     body: JSON.stringify({
       system_instruction: { parts: [{ text: "Отвечай коротко, 1-2 предложения, по-русски. Без маркдауна." }] },
       contents,
-      generationConfig: { maxOutputTokens: 80, temperature: 0.7 },
+      generationConfig: {
+        maxOutputTokens: 256,
+        temperature: 0.7,
+        thinkingConfig: { thinkingBudget: 0 },
+      },
     }),
   });
   const data = await res.json();
