@@ -48,20 +48,28 @@ async function askGemini(userText, history, searchResults) {
   if (searchResults) prompt += "\n\nДанные из интернета:\n" + searchResults + "\n\nОтветь коротко.";
   contents.push({ role: "user", parts: [{ text: prompt }] });
 
-  const res = await fetch(GEMINI_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: "Ты голосовой ассистент Жожик. Твоё имя Жожик. Ты не Gemini и не Google. Отвечай коротко, 1-3 предложения, по-русски. Без маркдауна и списков. Если вопрос безобидный но похож на опасный — отвечай спокойно и по делу." }] },
-      contents,
-      generationConfig: {
-        maxOutputTokens: 200,
-        temperature: 0.7,
-        thinkingConfig: { thinkingBudget: 0 },
-      },
-    }),
-  });
-  if (!res.ok) return "Не получилось ответить. Попробуй переформулировать.";
+  let res;
+  try {
+    res = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: "Ты голосовой ассистент Жожик. Твоё имя Жожик. Ты не Gemini и не Google. Отвечай коротко, 1-3 предложения, по-русски. Без маркдауна и списков. Если вопрос безобидный но похож на опасный — отвечай спокойно и по делу." }] },
+        contents,
+        generationConfig: {
+          maxOutputTokens: 200,
+          temperature: 0.7,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
+      }),
+    });
+  } catch (e) {
+    return "[fetch error] " + e.message;
+  }
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    return "[HTTP " + res.status + "] " + errText.slice(0, 200);
+  }
   const data = await res.json();
   const parts = data.candidates?.[0]?.content?.parts;
   if (parts) {
@@ -70,7 +78,7 @@ async function askGemini(userText, history, searchResults) {
     }
   }
   if (data.candidates?.[0]?.finishReason === "SAFETY") return "Извини, на этот вопрос я не могу ответить.";
-  return "Не получилось ответить. Попробуй переформулировать.";
+  return "[no text] " + JSON.stringify(data).slice(0, 300);
 }
 
 function withTimeout(promise, ms) {
