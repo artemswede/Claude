@@ -70,6 +70,16 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
     private var attnPage = 0
     /** [−] window [+], lanes per screen, overlay, full screen, saved views — above the lanes. */
     private lateinit var chartBar: ChartBar
+    /** «⤢ на весь экран» in the tab line, next to the lamps (there is room there, none in the row). */
+    private val fullBtn = ctx.text("⤢", 22f, p.t1, 600).apply {
+        gravity = Gravity.CENTER
+        minWidth = dp(48)
+        contentDescription = "На весь экран"
+        setOnClickListener { ChartBar.full(context, sc, p, lanes, "record") }
+    }.tap()
+    /** «В движении»: two big lanes (coolant, voltage) instead of the chart — one glance, no buttons. */
+    private val drive = DriveCharts(ctx, p)
+    private var movingSince: Long? = null
     private var lastRanks: Map<String, Int> = emptyMap()
     private val attnCount = ctx.text("", if (sc.phone) 13f else 16f, p.t2)
     private var store: SeriesStore? = null
@@ -91,13 +101,14 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         addView(col)
         buildPanel()
         buildAttention()
-        charts.setPadding(dp(if (sc.phone) 8 else 16), dp(8), dp(if (sc.phone) 8 else 16), dp(8))
-        // Swipe through every sensor, 6 lanes a page (4 on a phone).
-        // Every sensor; swipe up and down, the time axis stays at the bottom.
+        charts.setPadding(dp(if (sc.phone) 8 else 12), dp(4), dp(if (sc.phone) 8 else 12), 0)
+        // The chart fills the page; the control row is at the bottom, near the hand (макет «Графики», Г1).
         charts.addView(lanes, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-        chartBar = ChartBar(ctx, sc, p, lanes, "record", onClose = {})
-        charts.addView(chartBar, 0, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6) })
-        if (!sc.compact) addTo(charts, ctx.text("точка = реальный замер · подложка — норма · держите дорожку — наложить", 13f, p.t3).apply { gravity = Gravity.END }, dp(4))
+        charts.addView(drive, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        drive.visibility = GONE
+        // The phone has no tab line: «на весь экран» goes into the row.
+        chartBar = ChartBar(ctx, sc, p, lanes, "record", onFull = if (tabsInBar) null else ({ ChartBar.full(context, sc, p, lanes, "record") }))
+        charts.addView(chartBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         // Short screens: the mode is written on the tiles anyway; the room goes to pages and «Датчики».
         if (!sc.compact && !tabsInBar) addTo(panelRight, modeText)
         addTo(panelRight, pageText, dp(4))
@@ -174,7 +185,7 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         charts.visibility = if (i == 2) VISIBLE else GONE
         val right: View? = when (i) {
             0 -> panelRight
-            2 -> null
+            2 -> if (tabsInBar) fullBtn else null
             else -> if (tabsInBar) null else modeText
         }
         if (i != 0 && modeText.parent === panelRight) panelRight.removeView(modeText)
@@ -405,7 +416,17 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             }
             2 -> {
                 val all = (LANES.filter { it in codes } + codes).distinct()
-                lanes.set(s, all, !stale, mode)
+                lanes.set(s, chartBar.visible(all), !stale, mode)
+                chartBar.update()
+                // Moving for more than 3 s while recording: the «в движении» view; the cursor, panning and choice wait for a stop.
+                val speed = s.last("speed_kmh")
+                val now = android.os.SystemClock.elapsedRealtime()
+                movingSince = if (!stale && !speed.isNaN() && speed > 0) movingSince ?: now else null
+                val moving = movingSince?.let { now - it > 3_000 } == true
+                lanes.visibility = if (moving) GONE else VISIBLE
+                chartBar.visibility = if (moving) GONE else VISIBLE
+                drive.visibility = if (moving) VISIBLE else GONE
+                if (moving) drive.set(s, mode)
             }
         }
     }
@@ -413,8 +434,8 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
     /** Opens «Графики» with [codes] laid over each other (from the chat's live chart). */
     fun showOverlay(codes: List<String>) {
         tabs.select(2)
-        lanes.clearOverlay()
-        codes.forEach { lanes.addOverlay(it) }
+        lanes.setOverlay(codes)
+        chartBar.setMode(true)
         lanes.reset()
     }
 

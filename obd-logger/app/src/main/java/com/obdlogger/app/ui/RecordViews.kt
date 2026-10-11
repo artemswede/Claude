@@ -358,13 +358,13 @@ class GaugeView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
 }
 
 /**
- * Lanes of the «Графики» page (Г2): one lane per sensor with its own scale, a dot
- * per real reading, the label at the end of the line, gaps where the ECU was silent.
- * Gestures: pinch to zoom the time, swipe sideways to go back in time, up and down to
- * scroll the lanes (the time axis stays), tap for a cursor with every value at that
- * second, long press to put a lane on the overlay (the top lane: up to 4 sensors on one
- * time axis, each on its own scale). The right edge is «сейчас» only while recording
- * and not panned back.
+ * The «Графики» chart (Г2, макет Claude Design «Графики»). Two modes:
+ * - «Дорожки»: one lane per chosen sensor with its own scale, the value and name at the end
+ *   of the line, 1–4 lanes a screen, the rest scroll under a fixed time axis;
+ * - «Наложение»: one big chart, up to [Series.MAX] sensors, each line on its own range, a
+ *   legend of chips (marker, name, value) on top; the scale shown is the chosen chip's.
+ * Gestures, each with a button in [ChartBar]: pinch — time zoom, sideways swipe — back in
+ * time, tap — cursor with every value at that second, long press on a lane — onto the overlay.
  */
 class LanesView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
     private var store: SeriesStore? = null
@@ -377,10 +377,27 @@ class LanesView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
     /** The second under the cursor; null — no cursor. */
     var cursorT: Long? = null
         set(v) { field = v; invalidate() }
-    /** Sensors drawn together on the top lane. */
+    /** «Наложение»: one big chart of [overlay]. */
+    var overlayMode = false
+        set(v) { field = v; offset = 0f; invalidate(); onChange() }
+    /** Sensors of the overlay, in the order chosen (colour = position). */
     val overlay = ArrayList<String>()
-    /** Something the bar shows changed (window, pan, overlay). */
+    /** The overlay chip whose scale is shown. */
+    var selected = 0
+        set(v) { field = v; invalidate() }
+    // View switches («⋯ → Вид»).
+    var showNorm = true
+        set(v) { field = v; invalidate() }
+    var showDots = true
+        set(v) { field = v; invalidate() }
+    var scaleByWindow = false
+        set(v) { field = v; invalidate() }
+    var showGrid = true
+        set(v) { field = v; invalidate() }
+    /** Something the bar shows changed (window, pan, overlay, cursor). */
     var onChange: () -> Unit = {}
+    /** «+» in the overlay legend: open the sensor list. */
+    var onAdd: () -> Unit = {}
     private var live = true
     private var mode = LiveMode.OFF
     /** Lanes visible at once (0 = all); the rest scroll under a fixed time axis. */
@@ -388,11 +405,10 @@ class LanesView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
         set(v) { field = v; offset = offset.coerceIn(0f, maxOffset()); invalidate() }
     /** Scroll position in lanes. */
     private var offset = 0f
-    private val colors = listOf(p.chart, p.acc, p.amb, p.red)
 
-    private fun lanes(): List<String> = if (overlay.isEmpty()) codes else listOf(OVERLAY) + codes.filter { it !in overlay }
-    private fun shown() = if (perScreen <= 0) lanes().size.coerceAtLeast(1) else perScreen
-    private fun maxOffset() = (lanes().size - shown()).coerceAtLeast(0).toFloat()
+    private fun lanes(): List<String> = codes
+    private fun shown() = if (overlayMode) 1 else if (perScreen <= 0) lanes().size.coerceAtLeast(1) else perScreen
+    private fun maxOffset() = if (overlayMode) 0f else (lanes().size - shown()).coerceAtLeast(0).toFloat()
     private fun span(): Long {
         val s = store ?: return 0L
         val first = s.firstTime() ?: return 0L
@@ -402,21 +418,34 @@ class LanesView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
     private fun maxWindow() = span().let { if (it <= 0) 6 * 3600_000L else maxOf(MIN_WINDOW, minOf(it + 1000, 6 * 3600_000L)) }
     private fun maxPan() = (span() - windowMs).coerceAtLeast(0L)
 
+    /** Series index of [code]: its place in the overlay, else among the lanes; null — 7th and on, no colour. */
+    fun seriesOf(code: String): Int? {
+        val i = if (overlayMode) overlay.indexOf(code) else codes.indexOf(code)
+        return i.takeIf { it in 0 until Series.MAX }
+    }
+
     fun addOverlay(code: String) {
-        if (code == OVERLAY || code in overlay || overlay.size >= 4) return
+        if (code in overlay || overlay.size >= Series.MAX) return
         overlay += code
-        offset = 0f
         invalidate(); onChange()
     }
 
     fun removeOverlay(code: String) {
         overlay.remove(code)
-        offset = offset.coerceIn(0f, maxOffset())
+        selected = selected.coerceIn(0, (overlay.size - 1).coerceAtLeast(0))
         invalidate(); onChange()
     }
 
     fun clearOverlay() {
         overlay.clear()
+        selected = 0
+        invalidate(); onChange()
+    }
+
+    fun setOverlay(list: List<String>) {
+        overlay.clear()
+        overlay.addAll(list.distinct().take(Series.MAX))
+        selected = 0
         invalidate(); onChange()
     }
 
@@ -427,11 +456,22 @@ class LanesView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
         onChange()
     }
 
+    /** Half a window back (−1) or forward (+1). */
+    fun shift(dir: Int) {
+        panMs = (panMs - dir * windowMs / 2).coerceIn(0L, maxPan())
+        onChange()
+    }
+
+    val pannedBack get() = panMs > 0
+
     // ---- gestures ----
 
     private val density get() = resources.displayMetrics.density
-    private fun plotRight() = width - min(220 * density, width * 0.26f) - 12 * density
+    private fun labelW() = if (overlayMode) 0f else min(124 * density, width * 0.26f)
+    private fun plotLeft() = if (overlayMode) 48 * density else 0f
+    private fun plotRight() = width - labelW() - if (overlayMode) 8 * density else 12 * density
     private var axisLock = 0 // 0 undecided, 1 horizontal, 2 vertical
+    private val chipRects = ArrayList<Pair<android.graphics.RectF, Int>>() // index, -1 = «+»
     private val scaler = android.view.ScaleGestureDetector(ctx, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(det: android.view.ScaleGestureDetector): Boolean {
             val prev = det.previousSpanX.coerceAtLeast(1f)
@@ -452,10 +492,10 @@ class LanesView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
             if (axisLock == 0) axisLock = if (abs(dx) > abs(dy)) 1 else 2
             if (axisLock == 1) {
                 // Finger to the right = further back in time.
-                panMs = (panMs - (dx / plotRight().coerceAtLeast(1f) * windowMs).toLong()).coerceIn(0L, maxPan())
+                panMs = (panMs - (dx / (plotRight() - plotLeft()).coerceAtLeast(1f) * windowMs).toLong()).coerceIn(0L, maxPan())
                 onChange()
             } else if (maxOffset() > 0f) {
-                val laneH = (height - 28 * density) / shown()
+                val laneH = (height - 24 * density) / shown()
                 offset = (offset + dy / laneH).coerceIn(0f, maxOffset())
                 invalidate()
             } else parent?.requestDisallowInterceptTouchEvent(false)
@@ -463,14 +503,21 @@ class LanesView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
         }
 
         override fun onSingleTapUp(e: android.view.MotionEvent): Boolean {
+            // Legend chips: the scale of that series, or «+».
+            chipRects.firstOrNull { it.first.contains(e.x, e.y) }?.let { (_, k) ->
+                if (k < 0) onAdd() else selected = k
+                return true
+            }
             val t = timeAt(e.x)
             // A second tap near the cursor takes it away.
             cursorT = if (t == null || (cursorT != null && abs(x(cursorT!!) - e.x) < 24 * density)) null else t
+            onChange()
             return true
         }
 
         override fun onLongPress(e: android.view.MotionEvent) {
-            val laneH = (height - 28 * density) / shown()
+            if (overlayMode) return
+            val laneH = (height - 24 * density) / shown()
             val k = (e.y / laneH + offset).toInt()
             lanes().getOrNull(k)?.let { addOverlay(it) }
             performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
@@ -498,31 +545,59 @@ class LanesView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
         this.codes = codes
         this.live = live
         this.mode = mode
+        offset = offset.coerceIn(0f, maxOffset())
         invalidate()
         mirror?.set(store, codes, live, mode)
     }
 
-    /** Same data and view in [other]: window, pan, cursor, overlay. */
+    /** Same data and view in [other]: mode, window, pan, cursor, overlay, switches. */
     fun copyTo(other: LanesView) {
         store?.let { other.set(it, codes, live, mode) }
         other.overlay.clear()
         other.overlay.addAll(overlay)
+        other.selected = selected
+        other.overlayMode = overlayMode
         other.windowMs = windowMs
         other.panMs = panMs
         other.cursorT = cursorT
+        other.showNorm = showNorm; other.showDots = showDots; other.scaleByWindow = scaleByWindow; other.showGrid = showGrid
+        other.perScreen = perScreen
     }
 
-    /** The sensors that have data here (for presets). */
+    /** The sensors that have data here. */
     fun has(code: String) = store?.columns?.contains(code) == true
+    fun columns(): List<String> = store?.columns.orEmpty()
+    fun last(code: String): Double = store?.last(code) ?: Double.NaN
+    /** The rows of the window on screen as CSV («⋯ → Окно в CSV»). */
+    fun windowCsv(): String {
+        val s = store ?: return ""
+        val end = (s.lastTime() ?: return "") - panMs
+        val start = end - windowMs
+        val cols = (if (overlayMode) overlay else codes).filter { it in s.columns }
+        val series = cols.map { s.series(it, start) }
+        val times = series.flatMap { it.first.toList() }.filter { it in start..end }.distinct().sorted()
+        val f = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.ROOT)
+        return buildString {
+            append("time,").append(cols.joinToString(",")).append('\n')
+            for (t in times) {
+                append(f.format(Date(t)))
+                for ((ts, vs) in series) { append(','); val i = ts.indexOf(t); if (i >= 0 && !vs[i].isNaN()) append(Values.format(vs[i])) }
+                append('\n')
+            }
+        }
+    }
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND }
+    private val dashP = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
 
     private var drawStart = 0L
+    private var drawLeft = 0f
     private var drawRight = 1f
 
-    private fun x(t: Long) = drawRight * ((t - drawStart).toFloat() / windowMs)
-    private fun timeAt(px: Float): Long? = if (px < 0 || px > drawRight || store?.lastTime() == null) null else drawStart + (px / drawRight * windowMs).toLong()
+    private fun x(t: Long) = drawLeft + (drawRight - drawLeft) * ((t - drawStart).toFloat() / windowMs)
+    private fun timeAt(px: Float): Long? = if (px < drawLeft || px > drawRight || store?.lastTime() == null) null
+        else drawStart + ((px - drawLeft) / (drawRight - drawLeft) * windowMs).toLong()
 
     /** Index of the last reading at or before [t] (-1 if none). */
     private fun at(t: LongArray, time: Long): Int {
@@ -534,6 +609,21 @@ class LanesView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
             if (t[mid] <= time) { ans = mid; lo = mid + 1 } else hi = mid - 1
         }
         return ans
+    }
+
+    /** Range of [code] for its line: its whole recording (stable while panning) or, when chosen, the window. */
+    private val rangeCache = HashMap<String, Triple<Int, Double, Double>>()
+
+    private fun rangeOf(s: SeriesStore, code: String, t: LongArray, v: DoubleArray, n: Int, from: Int): Pair<Double, Double> {
+        if (!scaleByWindow) rangeCache[code]?.takeIf { it.first == s.size() }?.let { return it.second to it.third }
+        val vals = if (scaleByWindow) (from.coerceAtLeast(0) until n).map { v[it] } else s.values(code).toList()
+        val sorted = vals.filter { !it.isNaN() }.sorted()
+        if (sorted.isEmpty()) return 0.0 to 1.0
+        var lo = sorted[(sorted.size * 0.01).toInt()]
+        var hi = sorted[(sorted.size * 0.99).toInt().coerceAtMost(sorted.size - 1)]
+        if (hi - lo < 1e-9) { lo -= 1; hi += 1 }
+        if (!scaleByWindow) rangeCache[code] = Triple(s.size(), lo, hi)
+        return lo to hi
     }
 
     override fun onDraw(c: Canvas) {
@@ -550,90 +640,48 @@ class LanesView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
         val start = end - windowMs
         drawStart = start
         val axisP = paint(13f, p.t3, 400, mono = true)
-        val labelW = min(220 * d, w * 0.26f)
-        val left = 0f
-        val right = w - labelW - 12 * d
+        val left = plotLeft()
+        val right = plotRight()
+        drawLeft = left
         drawRight = right
-        val axisH = 28 * d
+        val axisH = 24 * d
         val laneH = (h - axisH) / shown()
 
-        // Gaps (ECU silent > 15 s), over all lanes.
+        // Gaps (ECU silent > 15 s), over all lanes: hatch and «ЭБУ молчал N с».
         val (allT, _) = s.series("rpm".takeIf { it in s.columns } ?: s.columns.first(), start)
-        fill.color = p.s2
         val gapP = paint(13f, p.t2, 600)
         for (i in 1 until allT.size) {
             if (allT[i - 1] > end) break
             if (allT[i] - allT[i - 1] > 15_000) {
-                val x1 = x(allT[i - 1]); val x2 = min(x(allT[i]), right)
+                val x1 = x(allT[i - 1]).coerceAtLeast(left); val x2 = min(x(allT[i]), right)
+                if (x2 <= x1) continue
+                fill.color = p.s2
                 c.drawRect(x1, 0f, x2, h - axisH, fill)
-                val txt = "ЭБУ молчал · ${(allT[i] - allT[i - 1]) / 1000} с"
+                fill.color = p.line
+                var hx = x1 - (h - axisH)
+                while (hx < x2) {
+                    c.save(); c.clipRect(x1, 0f, x2, h - axisH)
+                    line.color = p.line; line.strokeWidth = d
+                    c.drawLine(hx, h - axisH, hx + (h - axisH), 0f, line)
+                    c.restore()
+                    hx += 10 * d
+                }
+                val txt = "ЭБУ молчал ${(allT[i] - allT[i - 1]) / 1000} с"
                 if (x2 - x1 > gapP.measureText(txt) + 8 * d) c.drawText(txt, (x1 + x2) / 2 - gapP.measureText(txt) / 2, (h - axisH) / 2, gapP)
             }
         }
 
-        val nameP = paint(15f, p.t2)
-        val valP = paint(19f, p.t1, 500, mono = true)
-        val unitP = paint(13f, p.t2)
-        val scaleP = paint(12f, p.t3, 400, mono = true)
         val cur = cursorT?.takeIf { it in start..end }
+        chipRects.clear()
         c.save()
         c.clipRect(0f, 0f, w, h - axisH)
-        lanes().forEachIndexed { k, code ->
-            val top = (k - offset) * laneH
-            if (top + laneH < 0 || top > h - axisH) return@forEachIndexed
-            val bottom = top + laneH
-            fill.color = p.line
-            c.drawRect(left, bottom - d, w, bottom, fill)
-            if (code == OVERLAY) {
-                drawOverlay(c, s, top, bottom, start, end, cur, right, w)
-                return@forEachIndexed
-            }
-            val (t, v) = s.series(code, start)
-            val n = at(t, end) + 1
-            val norm = Norms.of(code, mode)
-            var lo = if (n == 0) 0.0 else (0 until n).minOf { v[it] }
-            var hi = if (n == 0) 1.0 else (0 until n).maxOf { v[it] }
-            norm?.let { if (it.lo > -1e6) { lo = min(lo, it.lo); hi = max(hi, it.hi) } }
-            if (hi - lo < 1e-9 || hi.isNaN() || lo.isNaN()) { lo = if (lo.isNaN()) 0.0 else lo - 1; hi = lo + 2 }
-            val pt = top + laneH * 0.22f
-            val pb = bottom - laneH * 0.12f
-            fun y(x: Double) = (pb - (pb - pt) * (x - lo) / (hi - lo)).toFloat()
-            norm?.let {
-                fill.color = p.accZ
-                c.drawRect(left, y(it.hi).coerceAtLeast(pt), right, y(it.lo).coerceAtMost(pb), fill)
-            }
-            c.drawText("${Num.fmt(code, lo)}…${Num.fmt(code, hi)}", left + 8 * d, top + scaleP.textSize + 6 * d, scaleP)
-            if (n == 0) return@forEachIndexed
-            line.color = p.t1
-            line.strokeWidth = 1.6f * d
-            val path = Path()
-            for (i in 0 until n) {
-                val px = x(t[i]); val py = y(v[i])
-                if (i == 0 || t[i] - t[i - 1] > 15_000) path.moveTo(px, py) else path.lineTo(px, py)
-            }
-            c.drawPath(path, line)
-            fill.color = p.t1
-            if (n < 400) for (i in 0 until n) c.drawCircle(x(t[i]), y(v[i]), 2.2f * d, fill)
-            // The label at the end of the line — or the cursor's value.
-            val li = cur?.let { at(t, it) }?.takeIf { it >= 0 } ?: (n - 1)
-            if (cur != null) {
-                fill.color = p.amb
-                c.drawCircle(x(t[li]), y(v[li]), 4.5f * d, fill)
-            }
-            val ly = y(v[li]).clamp(top + nameP.textSize + 2 * d, bottom - valP.textSize - 2 * d)
-            fill.color = if (cur != null) p.amb else p.line2
-            c.drawRect(right + 8 * d, ly - nameP.textSize, right + 10 * d, ly + valP.textSize + 4 * d, fill)
-            val lx = right + 16 * d
-            c.drawText(ellipsize(SensorNames.label(code), nameP, w - lx - 4 * d), lx, ly, nameP)
-            val vt = Num.fmt(code, v[li])
-            c.drawText(vt, lx, ly + valP.textSize + 2 * d, valP)
-            c.drawText(" " + SensorNames.unit(code), lx + valP.measureText(vt), ly + valP.textSize + 2 * d, unitP)
-        }
+        if (overlayMode) drawOverlay(c, s, 0f, h - axisH, start, end, cur, left, right, w)
+        else drawLanes(c, s, laneH, h - axisH, start, end, cur, left, right, w)
         c.restore()
         // The cursor: one line through every lane.
         cur?.let {
             fill.color = p.amb
-            c.drawRect(x(it) - d, 0f, x(it) + d, h - axisH, fill)
+            c.drawRect(x(it) - d, if (overlayMode) 48 * d else 0f, x(it) + d, h - axisH, fill)
         }
         // Where in the list we are: a thin bar at the right edge while there are more lanes than fit.
         if (maxOffset() > 0f) {
@@ -642,8 +690,19 @@ class LanesView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
             val barTop = (trackH - barH) * (offset / maxOffset())
             fill.color = p.line2
             c.drawRoundRect(w - 4 * d, barTop, w, barTop + barH, 2 * d, 2 * d, fill)
+            val below = (lanes().size - shown() - offset.toInt()).coerceAtLeast(0)
+            if (below > 0) {
+                val more = "ещё $below ниже ⌄"
+                val mp = paint(12f, p.t2, 600)
+                val mw = mp.measureText(more) + 16 * d
+                fill.color = p.s1
+                c.drawRoundRect(right - mw, h - axisH - 22 * d, right, h - axisH - 2 * d, 10 * d, 10 * d, fill)
+                c.drawText(more, right - mw + 8 * d, h - axisH - 8 * d, mp)
+            }
         }
         // Time axis (fixed under the scrolling lanes).
+        fill.color = p.line
+        c.drawRect(left, h - axisH, right, h - axisH + d, fill)
         val step = when {
             windowMs <= 60_000 -> 15_000L
             windowMs <= 2 * 60_000 -> 30_000L
@@ -657,73 +716,182 @@ class LanesView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
         while (tick < end - step / 3) {
             val tx = x(tick)
             val lbl = fmt.format(Date(tick))
-            c.drawText(lbl, (tx - axisP.measureText(lbl) / 2).coerceAtLeast(0f), h - 8 * d, axisP)
+            c.drawText(lbl, (tx - axisP.measureText(lbl) / 2).coerceAtLeast(left), h - 6 * d, axisP)
             tick += step
         }
         val endLbl = if (live && panMs == 0L) "сейчас" else Num.clock(end)
-        c.drawText(endLbl, right - axisP.measureText(endLbl), h - 8 * d, axisP)
+        c.drawText(endLbl, right - axisP.measureText(endLbl), h - 6 * d, axisP)
         cur?.let {
-            val lbl = SimpleDateFormat("HH:mm:ss", Locale.ROOT).format(Date(it))
+            val lbl = SimpleDateFormat("HH:mm:ss", Locale.ROOT).format(Date(it)) + "  ✕"
             val tw = axisP.measureText(lbl) + 12 * d
-            val cx = (x(it) - tw / 2).clamp(0f, right - tw)
+            val cx = (x(it) - tw / 2).clamp(left, right - tw)
             fill.color = p.amb
             c.drawRoundRect(cx, h - axisH + 2 * d, cx + tw, h - 2 * d, 6 * d, 6 * d, fill)
             val ink = paint(13f, p.accInk, 600, mono = true)
-            c.drawText(lbl, cx + 6 * d, h - 8 * d, ink)
+            c.drawText(lbl, cx + 6 * d, h - 7 * d, ink)
         }
     }
 
-    /** The overlay lane: each sensor on its own scale and colour, the legend with values at the top. */
-    private fun drawOverlay(c: Canvas, s: SeriesStore, top: Float, bottom: Float, start: Long, end: Long, cur: Long?, right: Float, w: Float) {
+    private fun drawLanes(c: Canvas, s: SeriesStore, laneH: Float, plotBottom: Float, start: Long, end: Long, cur: Long?, left: Float, right: Float, w: Float) {
         val d = density
-        fill.color = p.s2
-        c.drawRect(0f, top, w, bottom - d, fill)
-        val legend = paint(13f, p.t1, 600)
-        var lx = 8 * d
-        var ly = top + legend.textSize + 4 * d
-        val parts = overlay.mapIndexed { k, code -> k to code }
-        for ((k, code) in parts) {
-            val (t, v) = s.series(code, start)
+        val nameP = paint(13f, p.t2)
+        val valP = paint(20f, p.t1, 500, mono = true)
+        val unitP = paint(13f, p.t2)
+        val scaleP = paint(12f, p.t3, 400, mono = true)
+        val noP = paint(13f, p.t3)
+        lanes().forEachIndexed { k, code ->
+            val top = (k - offset) * laneH
+            if (top + laneH < 0 || top > plotBottom) return@forEachIndexed
+            val bottom = top + laneH
+            fill.color = p.line
+            c.drawRect(left, bottom - d, w, bottom, fill)
+            val (t, v) = s.series(code, start - windowMs)
             val n = at(t, end) + 1
-            val li = cur?.let { at(t, it) }?.takeIf { it >= 0 } ?: (n - 1)
-            val value = if (li >= 0 && li < v.size) Num.fmt(code, v[li]) else "—"
-            val label = "● ${SensorNames.label(code)} $value ${SensorNames.unit(code)}".trim()
-            val lw = legend.measureText(label) + 14 * d
-            if (lx > 8 * d && lx + lw > w) { lx = 8 * d; ly += legend.textSize + 4 * d }
-            legend.color = colors[k % colors.size]
-            c.drawText(label, lx, ly, legend)
-            lx += lw
-        }
-        val pt = ly + 8 * d
-        val pb = bottom - (bottom - top) * 0.08f
-        if (pb - pt < 12 * d) return
-        for ((k, code) in parts) {
-            val (t, v) = s.series(code, start)
-            val n = at(t, end) + 1
-            if (n < 2) continue
-            val vals = (0 until n).map { v[it] }.filter { !it.isNaN() }.sorted()
-            if (vals.size < 2) continue
-            var lo = vals[(vals.size * 0.02).toInt()]
-            var hi = vals[(vals.size * 0.98).toInt().coerceAtMost(vals.size - 1)]
-            if (hi - lo < 1e-9) { lo -= 1; hi += 1 }
+            val i0 = at(t, start).coerceAtLeast(0)
+            val norm = Norms.of(code, mode)
+            var (lo, hi) = rangeOf(s, code, t, v, n, i0)
+            if (showNorm) norm?.let { if (it.lo > -1e6) { lo = min(lo, it.lo); hi = max(hi, it.hi) } }
+            val pt = top + laneH * 0.18f
+            val pb = bottom - laneH * 0.12f
             fun y(x: Double) = (pb - (pb - pt) * ((x - lo) / (hi - lo)).coerceIn(-0.05, 1.05)).toFloat()
-            val path = Path()
-            for (i in 0 until n) {
-                if (v[i].isNaN()) continue
-                if (i == 0 || t[i] - t[i - 1] > 15_000) path.moveTo(x(t[i]), y(v[i])) else path.lineTo(x(t[i]), y(v[i]))
+            if (showGrid) { fill.color = p.line; c.drawRect(left, (pt + pb) / 2, right, (pt + pb) / 2 + d / 2, fill) }
+            if (showNorm) norm?.let {
+                fill.color = p.accZ
+                c.drawRect(left, y(it.hi).coerceAtLeast(pt), right, y(it.lo).coerceAtMost(pb), fill)
             }
-            line.color = colors[k % colors.size]
-            line.strokeWidth = (if (k == 0) 2.2f else 1.8f) * d
+            c.drawText("${Num.fmt(code, hi)}", left + 6 * d, top + scaleP.textSize + 4 * d, scaleP)
+            c.drawText("${Num.fmt(code, lo)}", left + 6 * d, bottom - 5 * d, scaleP)
+            val k6 = seriesOf(code)
+            val color = k6?.let { Series.color(p, it) } ?: p.t1
+            val inWindow = (i0 until n).any { !v[it].isNaN() }
+            val lx = right + 12 * d
+            c.drawText(ellipsize(SensorNames.label(code), nameP, w - lx - 4 * d), lx, top + nameP.textSize + 6 * d, nameP)
+            if (!inWindow) {
+                // No data in this window: a dashed frame and the time of the last value.
+                dashP.color = p.line2; dashP.strokeWidth = d
+                dashP.pathEffect = DashPathEffect(floatArrayOf(5 * d, 4 * d), 0f)
+                c.drawRect(left + 2 * d, top + 4 * d, right - 2 * d, bottom - 4 * d, dashP)
+                val lastAt = s.lastTimeOf(code)
+                val msg = if (lastAt == null) "нет данных" else "нет данных в окне · последнее ${Num.clock(lastAt)}"
+                c.drawText(msg, left + 16 * d, (top + bottom) / 2 + 5 * d, noP)
+                c.drawText("—", lx, top + nameP.textSize + valP.textSize + 10 * d, valP)
+                return@forEachIndexed
+            }
+            line.color = color
+            line.strokeWidth = 1.8f * d
+            val path = Path()
+            var started = false
+            for (i in i0 until n) {
+                if (v[i].isNaN()) { started = false; continue }
+                val px = x(t[i]); val py = y(v[i])
+                if (!started || (i > 0 && t[i] - t[i - 1] > 15_000)) { path.moveTo(px, py); started = true } else path.lineTo(px, py)
+            }
             c.drawPath(path, line)
-            cur?.let { at(t, it) }?.takeIf { it >= 0 }?.let { i ->
-                fill.color = colors[k % colors.size]
-                c.drawCircle(x(t[i]), y(v[i]), 4.5f * d, fill)
+            fill.color = color
+            if (showDots && n - i0 < 400) for (i in i0 until n) if (!v[i].isNaN()) c.drawCircle(x(t[i]), y(v[i]), 2f * d, fill)
+            val li = cur?.let { at(t, it) }?.takeIf { it >= 0 } ?: (n - 1)
+            if (li >= 0 && !v[li].isNaN()) {
+                fill.color = color
+                if (k6 != null) Series.shape(c, k6, x(t[li]), y(v[li]), 4.5f * d, fill) else c.drawCircle(x(t[li]), y(v[li]), 3.5f * d, fill)
+                val vt = Num.fmt(code, v[li])
+                val vy = top + nameP.textSize + valP.textSize + 10 * d
+                valP.color = p.t1
+                c.drawText(vt, lx, vy, valP)
+                c.drawText(" " + SensorNames.unit(code), lx + valP.measureText(vt), vy, unitP)
+                val st = norm?.state(v[li])
+                if (st == NormState.LOW || st == NormState.HIGH) {
+                    val ap = paint(12f, p.amb, 600)
+                    c.drawText(norm.word(st), lx, vy + 16 * d, ap)
+                }
+            }
+        }
+    }
+
+    private fun drawOverlay(c: Canvas, s: SeriesStore, top: Float, bottom: Float, start: Long, end: Long, cur: Long?, left: Float, right: Float, w: Float) {
+        val d = density
+        // Legend: chips with marker, name and value (at the cursor, else the latest), «+» while there is room.
+        val nameP = paint(13f, p.t2)
+        val valP = paint(15f, p.t1, 500, mono = true)
+        var cx = 0f
+        val cy = top + 4 * d
+        val chipH = 40 * d
+        overlay.forEachIndexed { k, code ->
+            val (t, v) = s.series(code, start - windowMs)
+            val i = (cur ?: end).let { at(t, it) }
+            val value = if (i >= 0 && !v[i].isNaN()) Num.fmt(code, v[i]) else "—"
+            val nm = SensorNames.label(code)
+            val vt = "$value ${SensorNames.unit(code)}".trim()
+            val cw = 26 * d + max(nameP.measureText(nm), valP.measureText(vt)) + 12 * d
+            if (cx + cw > w) return@forEachIndexed
+            val r = android.graphics.RectF(cx, cy, cx + cw, cy + chipH)
+            fill.color = if (k == selected) p.s1 else p.bg
+            c.drawRoundRect(r, 10 * d, 10 * d, fill)
+            if (k == selected) { line.color = Series.color(p, k); line.strokeWidth = 2 * d; c.drawRoundRect(r, 10 * d, 10 * d, line) }
+            fill.color = Series.color(p, k)
+            Series.shape(c, k, cx + 13 * d, cy + chipH / 2, 5 * d, fill)
+            c.drawText(ellipsize(nm, nameP, cw - 32 * d), cx + 24 * d, cy + 16 * d, nameP)
+            c.drawText(vt, cx + 24 * d, cy + 34 * d, valP)
+            chipRects += r to k
+            cx += cw + 6 * d
+        }
+        if (overlay.size < Series.MAX && cx + 44 * d <= w) {
+            val r = android.graphics.RectF(cx, cy, cx + 44 * d, cy + chipH)
+            line.color = p.line2; line.strokeWidth = d
+            c.drawRoundRect(r, 10 * d, 10 * d, line)
+            val pp = paint(22f, p.acc, 600)
+            c.drawText("+", r.centerX() - pp.measureText("+") / 2, r.centerY() + 8 * d, pp)
+            chipRects += r to -1
+        }
+        val pt = top + 56 * d
+        val pb = bottom - 8 * d
+        if (overlay.isEmpty()) {
+            c.drawText("Выберите датчики: «Датчики ⌄» или «+»", left, (pt + pb) / 2, paint(15f, p.t3))
+            return
+        }
+        if (showGrid) {
+            fill.color = p.line
+            for (f in listOf(0f, 0.5f, 1f)) c.drawRect(left, pb - (pb - pt) * f, right, pb - (pb - pt) * f + d / 2, fill)
+        }
+        overlay.forEachIndexed { k, code ->
+            val (t, v) = s.series(code, start - windowMs)
+            val n = at(t, end) + 1
+            val i0 = at(t, start).coerceAtLeast(0)
+            val (lo, hi) = rangeOf(s, code, t, v, n, i0)
+            fun y(x: Double) = (pb - (pb - pt) * ((x - lo) / (hi - lo)).coerceIn(-0.05, 1.05)).toFloat()
+            if (k == selected) {
+                // The one scale on screen: the chosen series', with its colour bar and its norm.
+                val norm = Norms.of(code, mode)
+                if (showNorm) norm?.let { nr ->
+                    fill.color = p.accZ
+                    c.drawRect(left, y(nr.hi).coerceAtLeast(pt), right, y(nr.lo).coerceAtMost(pb), fill)
+                }
+                fill.color = Series.color(p, k)
+                c.drawRect(0f, pt, 3 * d, pb, fill)
+                val sp = paint(12f, p.t2, 400, mono = true)
+                for (f in listOf(0.0, 0.5, 1.0)) {
+                    val value = lo + (hi - lo) * f
+                    c.drawText(Num.fmt(code, value), 6 * d, y(value) + 4 * d, sp)
+                }
+                c.drawText(SensorNames.unit(code), 6 * d, pt - 4 * d, paint(11f, p.t3))
+            }
+            line.color = Series.color(p, k)
+            line.strokeWidth = (if (k == selected) 2.4f else 1.8f) * d
+            val path = Path()
+            var started = false
+            for (i in i0 until n) {
+                if (v[i].isNaN()) { started = false; continue }
+                if (!started || (i > 0 && t[i] - t[i - 1] > 15_000)) { path.moveTo(x(t[i]), y(v[i])); started = true } else path.lineTo(x(t[i]), y(v[i]))
+            }
+            c.drawPath(path, line)
+            val li = cur?.let { at(t, it) }?.takeIf { it >= 0 } ?: (n - 1)
+            if (li >= 0 && li < v.size && !v[li].isNaN()) {
+                fill.color = Series.color(p, k)
+                Series.shape(c, k, x(t[li]).coerceAtMost(right), y(v[li]), 5 * d, fill)
             }
         }
     }
 
     companion object {
-        const val OVERLAY = "⧉"
         const val MIN_WINDOW = 30_000L
     }
 }

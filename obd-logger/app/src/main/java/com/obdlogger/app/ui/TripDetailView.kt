@@ -328,16 +328,45 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
         val lanes = LanesView(context, p)
         lanes.windowMs = (t.ms.lastOrNull() ?: 60_000L).coerceAtLeast(60_000L) + 1000
         val codes = (RecordView.LANES + d.rating(AttentionSort.DEVIATION).map { it.code }).filter { it in store.columns }.distinct()
-        // All rated sensors; a few at a time, swipe up and down under the fixed time axis.
         lanes.set(store, codes, false, com.obdlogger.core.LiveMode.IDLE)
-        val bar = ChartBar(context, sc, p, lanes, "trip", onClose = {})
+        val bar = ChartBar(context, sc, p, lanes, "trip", onFull = { ChartBar.full(context, sc, p, lanes, "trip") })
+        lanes.set(store, bar.visible(codes), false, com.obdlogger.core.LiveMode.IDLE)
+        chartLanes = lanes
+        chartBar = bar
+        pendingChart?.let { (c, from, mark) -> applyChart(c, from, mark); pendingChart = null }
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(8), dp(16), dp(8))
-            addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6) })
+            setPadding(dp(12), dp(4), dp(12), 0)
             addView(lanes, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-            addTo(this, context.text("вся поездка · щипок — масштаб · держите дорожку — наложить · подложка — норма", 13f, p.t3).apply { gravity = Gravity.END }, dp(4))
+            addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
+    }
+
+    private var chartLanes: LanesView? = null
+    private var chartBar: ChartBar? = null
+    private var pendingChart: Triple<List<String>, LongRange?, Long?>? = null
+
+    /**
+     * «В Графиках ↗» from the chat: the overlay of [codes] over the [range] (ms from the trip
+     * start) with the cursor on [mark]. Applied when the charts tab is built.
+     */
+    fun openChart(codes: List<String>, range: LongRange?, mark: Long?) {
+        if (chartLanes == null) pendingChart = Triple(codes, range, mark) else applyChart(codes, range, mark)
+    }
+
+    private fun applyChart(codes: List<String>, range: LongRange?, mark: Long?) {
+        val lanes = chartLanes ?: return
+        val bar = chartBar ?: return
+        lanes.setOverlay(codes)
+        bar.setMode(true)
+        val start = startMs()
+        val total = s.durationMin.times(60_000).toLong()
+        if (range != null) {
+            lanes.windowMs = (range.last - range.first).coerceAtLeast(30_000L)
+            lanes.panMs = (total - range.last).coerceAtLeast(0L)
+        }
+        mark?.let { lanes.cursorT = start + it }
+        bar.update()
     }
 
     private fun startMs(): Long = s.start?.atZone(java.time.ZoneId.systemDefault())?.toInstant()?.toEpochMilli() ?: 0L
