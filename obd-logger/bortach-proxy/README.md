@@ -17,6 +17,11 @@
 5. Проверка в браузере не нужна (без токена сервер ответит 401). В Бортаче:
    **Настройки → ИИ-чат → Свой сервер (без VPN)** → адрес и токен → «Сохранить» — Бортач сам проверит связь и модель.
 
+Если проект Vercel уже был создан для другой ветки: Settings → Build and Deployment → Root Directory —
+вписать `obd-logger/bortach-proxy` → Save; после пуша в ветку `claude/car-scanner-pro-obd2-94kz80` появится
+Preview-сборка — в Deployments у неё «⋯» → **Promote to Production** (или Settings → Environments → Production →
+Branch Tracking → эта ветка). Проверка: `https://<проект>.vercel.app/api/chat` должен ответить «Токен сервера не подходит».
+
 Если `*.vercel.app` с магнитолы не открывается без VPN — привяжите к проекту свой домен (Vercel → Domains).
 
 ## Как устроено
