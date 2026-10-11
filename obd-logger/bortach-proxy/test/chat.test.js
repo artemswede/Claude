@@ -4,10 +4,10 @@ import { gzipSync } from "node:zlib";
 import { Readable } from "node:stream";
 import handler, { pickGemini, provider, authorized, upstreamBody } from "../api/chat.js";
 
-test("picks the newest stable Flash", () => {
-  const ids = ["models/gemini-2.5-flash", "models/gemini-2.5-flash-lite", "models/gemini-3.0-flash-preview", "models/gemini-3.0-flash", "models/gemini-2.5-pro", "models/text-embedding-004", "models/gemini-3.0-flash-image"];
-  assert.equal(pickGemini(ids), "gemini-3.0-flash");
-  assert.equal(pickGemini([]), "gemini-2.5-flash");
+test("Flash-Lite first, the newest stable one", () => {
+  const ids = ["models/gemini-2.5-flash", "models/gemini-2.5-flash-lite", "models/gemini-3.0-flash-lite", "models/gemini-3.0-flash-lite-preview", "models/gemini-3.0-flash", "models/gemini-2.5-pro", "models/text-embedding-004", "models/gemini-3.0-flash-image"];
+  assert.equal(pickGemini(ids), "gemini-3.0-flash-lite");
+  assert.equal(pickGemini([]), "gemini-2.5-flash-lite");
 });
 
 test("provider and token", () => {
@@ -73,4 +73,24 @@ test("retries without reasoning fields on 400", async () => {
   const r = await call("POST", { authorization: "Bearer t0ken" }, Buffer.from(JSON.stringify({ messages: [{ role: "user", content: "x" }] })));
   assert.equal(r.status, 200);
   assert.equal(n, 2);
+});
+
+test("overloaded model: pause, then the next one answers", async () => {
+  process.env.GEMINI_MODEL = "";
+  const { ask, rankGemini, resetModels } = await import("../api/chat.js");
+  resetModels();
+  assert.deepEqual(rankGemini(["models/gemini-3.0-flash", "models/gemini-3.0-flash-lite", "models/gemini-2.5-flash"]).slice(0, 3),
+    ["gemini-3.0-flash-lite", "gemini-3.0-flash", "gemini-2.5-flash"]);
+  const tried = [];
+  globalThis.fetch = async (url, opts) => {
+    if (url.endsWith("/models")) return new Response(JSON.stringify({ data: [{ id: "models/gemini-3.0-flash-lite" }, { id: "models/gemini-3.0-flash" }] }));
+    const m = JSON.parse(opts.body).model;
+    tried.push(m);
+    if (m === "gemini-3.0-flash-lite") return new Response(JSON.stringify([{ error: { code: 503, message: "The model is overloaded." } }]), { status: 503 });
+    return new Response(JSON.stringify({ choices: [{ message: { content: "ок" } }] }), { status: 200 });
+  };
+  const { r, model } = await ask("gemini", { messages: [{ role: "user", content: "x" }] }, { pause: 1 });
+  assert.equal(r.status, 200);
+  assert.equal(model, "gemini-3.0-flash");
+  assert.deepEqual(tried, ["gemini-3.0-flash-lite", "gemini-3.0-flash"]);
 });

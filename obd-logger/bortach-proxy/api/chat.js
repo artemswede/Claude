@@ -35,35 +35,63 @@ function target(p, env = process.env) {
   return { base: OPENROUTER, key: env.OPENROUTER_API_KEY };
 }
 
-/** The newest general Gemini model (Flash): not lite, not image/audio/embedding. */
-export function pickGemini(ids) {
-  const ok = ids
+const version = (id) => parseFloat(id.match(/^gemini-(\d+(?:\.\d+)?)/)[1]);
+
+/**
+ * Gemini models to try in order: the newest stable Flash-Lite first (the largest free
+ * limits, rarely overloaded), then Flash — when one is overloaded (503) the next answers.
+ */
+export function rankGemini(ids) {
+  const all = ids
     .map((id) => id.replace(/^models\//, ""))
     .filter((id) => /^gemini-\d/.test(id) && /flash/.test(id))
-    .filter((id) => !/lite|image|tts|audio|live|embedding|exp|thinking|8b/.test(id));
-  const version = (id) => parseFloat(id.match(/^gemini-(\d+(?:\.\d+)?)/)[1]);
-  ok.sort((a, b) => version(b) - version(a) || Number(/preview/.test(a)) - Number(/preview/.test(b)) || a.length - b.length);
-  return ok[0] || "gemini-2.5-flash";
+    .filter((id) => !/image|tts|audio|live|embedding|exp|thinking|8b/.test(id));
+  const order = (a, b) =>
+    Number(/lite/.test(b)) - Number(/lite/.test(a)) ||
+    version(b) - version(a) ||
+    Number(/preview/.test(a)) - Number(/preview/.test(b)) ||
+    a.length - b.length;
+  const out = [...new Set(all)].sort(order);
+  for (const d of ["gemini-2.5-flash-lite", "gemini-2.5-flash"]) if (!out.includes(d)) out.push(d);
+  return out.slice(0, 4);
 }
 
-let cachedModel = null;
+/** The first model to ask (see [rankGemini]). */
+export function pickGemini(ids) {
+  return rankGemini(ids)[0];
+}
+
+let cachedModels = null;
+/** For tests: forget the remembered model list. */
+export function resetModels() {
+  cachedModels = null;
+}
+
+/** Models to try in order (the first one is «the» model). */
+async function models(p, env = process.env) {
+  if (p === "gemini") {
+    if (!cachedModels) {
+      try {
+        const r = await fetch(`${GEMINI}/models`, { headers: { Authorization: `Bearer ${env.GEMINI_API_KEY}` } });
+        const j = await r.json();
+        cachedModels = rankGemini((j.data || []).map((m) => m.id || ""));
+      } catch {
+        cachedModels = rankGemini([]);
+      }
+    }
+    return env.GEMINI_MODEL ? [env.GEMINI_MODEL, ...cachedModels.filter((m) => m !== env.GEMINI_MODEL)] : cachedModels;
+  }
+  if (p === "deepseek") return [env.DEEPSEEK_MODEL || "deepseek-chat"];
+  return [env.OPENROUTER_MODEL || "deepseek/deepseek-v4-flash"];
+}
 
 async function model(p, env = process.env) {
-  if (p === "gemini") {
-    if (env.GEMINI_MODEL) return env.GEMINI_MODEL;
-    if (cachedModel) return cachedModel;
-    try {
-      const r = await fetch(`${GEMINI}/models`, { headers: { Authorization: `Bearer ${env.GEMINI_API_KEY}` } });
-      const j = await r.json();
-      cachedModel = pickGemini((j.data || []).map((m) => m.id || ""));
-    } catch {
-      cachedModel = "gemini-2.5-flash";
-    }
-    return cachedModel;
-  }
-  if (p === "deepseek") return env.DEEPSEEK_MODEL || "deepseek-chat";
-  return env.OPENROUTER_MODEL || "deepseek/deepseek-v4-flash";
+  return (await models(p, env))[0];
 }
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Overloaded or rate-limited for a moment: worth another try (another model, after a pause). */
+export const transient = (status) => status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
 
 export function authorized(header, token) {
   if (!token) return false;
@@ -93,21 +121,34 @@ export function upstreamBody(p, m, body, extras) {
   return out;
 }
 
-async function ask(p, body) {
+export async function ask(p, body, { pause = 2000 } = {}) {
   const { base, key } = target(p);
-  const m = await model(p);
-  const call = (extras) =>
+  const list = await models(p);
+  const call = (m, extras) =>
     fetch(`${base}/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       body: JSON.stringify(upstreamBody(p, m, body, extras)),
     });
-  let r = await call(true);
-  // A model that does not know the reasoning fields: the same question without them.
-  if (r.status === 400) r = await call(false);
-  // The remembered Gemini model was retired: pick again next time.
-  if (r.status === 404 && p === "gemini") cachedModel = null;
-  return { r, model: m };
+  let last = null;
+  // Up to 4 tries: an overloaded model (503/429) gets a pause, then the next model on the list.
+  for (let i = 0; i < 4; i++) {
+    const m = list[Math.min(i, list.length - 1)];
+    let r = await call(m, true);
+    // A model that does not know the reasoning fields: the same question without them.
+    if (r.status === 400) r = await call(m, false);
+    // A retired model: drop the cached list so the next question picks again.
+    if (r.status === 404 && p === "gemini") {
+      cachedModels = null;
+      last = { r, model: m };
+      if (i + 1 < list.length) continue;
+      return last;
+    }
+    if (!transient(r.status)) return { r, model: m };
+    last = { r, model: m };
+    if (i < 3) await sleep(pause * (i + 1));
+  }
+  return last;
 }
 
 function send(res, status, obj) {
