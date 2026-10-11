@@ -102,7 +102,9 @@ object Relations {
         }
     }
 
-    class Event(val kind: String, val count: Int, val around: Map<String, Pair<Double, Double>>)
+    class Event(val kind: String, val count: Int, val around: Map<String, Pair<Double, Double>>,
+        /** The rows where it happened — for the times of its episodes. */
+        val rows: List<Int> = emptyList())
 
     /**
      * Events and what the other sensors did: mean in the [window] rows before the event
@@ -136,7 +138,7 @@ object Relations {
                 val all = base.mapNotNull { s[it] }
                 if (b.size < 3 || all.size < 10) null else c to (b.average() to all.average())
             }.toMap()
-            Event(kind, rows.size, around)
+            Event(kind, rows.size, around, rows)
         }
     }
 
@@ -184,7 +186,9 @@ object Relations {
         val series = codes.map { t.raw(it) }
         val letter = mapOf(DriveMode.COLD to "П", DriveMode.WARM_IDLE to "Х", DriveMode.ROLL_TO_STOP to "К", DriveMode.CRUISE to "Д", DriveMode.HEAVY to "Г")
         val step = ((t.rows.size + maxRows - 1) / maxRows).coerceAtLeast(1)
+        val t0 = t.times.firstNotNullOfOrNull { it }?.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"))
         appendLine("СЫРЫЕ ДАННЫЕ · поездка ${d.summary.label}, ${t.rows.size} строк" + (if (step > 1) " (каждая $step-я)" else "") +
+            (t0?.let { " · t_s=0 соответствует $it" } ?: "") +
             ". Режим: П прогрев, Х холостой, К подкат, Д движение, Г сильный газ; пусто — нет замера.")
         appendLine("t_s,режим," + codes.joinToString(","))
         for (i in t.rows.indices step step) {

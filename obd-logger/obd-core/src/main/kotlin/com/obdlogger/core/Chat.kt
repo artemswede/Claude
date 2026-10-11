@@ -72,19 +72,25 @@ object ChatMemory {
 sealed class ChartRequest {
     abstract val sensor: String
 
+    /** A moment marked on the chart: «20:05:12 провал». */
+    data class Mark(val time: java.time.LocalTime, val label: String)
+
+    /** Part of a trip: clock times from–to, or the last [lastMin] minutes; all null — the whole trip. */
+    data class Window(val from: java.time.LocalTime? = null, val to: java.time.LocalTime? = null, val lastMin: Int? = null)
+
     /** One value per trip (median in [mode]) — how it changes from trip to trip. */
     data class Trend(override val sensor: String, val mode: DriveMode?) : ChartRequest()
 
     /** The sensor over one trip; [trip] is a label like «03.10 19:51» or «последняя». */
-    data class Trip(override val sensor: String, val trip: String) : ChartRequest()
+    data class Trip(override val sensor: String, val trip: String, val window: Window? = null, val marks: List<Mark> = emptyList()) : ChartRequest()
 
     /** Two to four sensors on one time axis of one trip, each on its own scale. */
-    data class Overlay(val sensors: List<String>, val trip: String) : ChartRequest() {
+    data class Overlay(val sensors: List<String>, val trip: String, val window: Window? = null, val marks: List<Mark> = emptyList()) : ChartRequest() {
         override val sensor get() = sensors.first()
     }
 
-    /** One to four sensors right now, from the live recording, refreshed every second. */
-    data class Live(val sensors: List<String>) : ChartRequest() {
+    /** One to four sensors right now, from the live recording, refreshed every second; the last [minutes]. */
+    data class Live(val sensors: List<String>, val minutes: Int = 5) : ChartRequest() {
         override val sensor get() = sensors.first()
     }
 }
@@ -103,16 +109,86 @@ object ChatCharts {
         val sensors = words.takeWhile { code.matches(it.lowercase(Locale.ROOT)) && DriveMode.entries.none { d -> d.name.equals(it, true) } }.map { it.lowercase(Locale.ROOT) }
         val arg = words.drop(sensors.size).joinToString(" ").trim()
         if (sensors.isEmpty()) return@mapNotNull null
-        val now = arg.equals("сейчас", true) || arg.equals("live", true)
+        val now = Regex("^(сейчас|live)(?=\\s|$)", RegexOption.IGNORE_CASE).containsMatchIn(arg)
         when {
-            now && kind != "тренд" -> ChartRequest.Live(sensors.take(4))
-            else -> when (kind) {
-            "тренд" -> ChartRequest.Trend(sensors.first(), DriveMode.entries.firstOrNull { it.name.equals(arg, ignoreCase = true) })
-            "наложение" -> ChartRequest.Overlay(sensors.take(4), arg.ifEmpty { "последняя" })
-            else -> ChartRequest.Trip(sensors.first(), arg.ifEmpty { "последняя" })
+            now && kind != "тренд" -> ChartRequest.Live(sensors.take(4),
+                Regex("(\\d+)\\s*мин").find(arg)?.groupValues?.get(1)?.toIntOrNull()?.coerceIn(1, 60) ?: 5)
+            else -> {
+                val (trip, window, marks) = tail(arg)
+                when (kind) {
+                    "тренд" -> ChartRequest.Trend(sensors.first(), DriveMode.entries.firstOrNull { it.name.equals(arg, ignoreCase = true) })
+                    "наложение" -> ChartRequest.Overlay(sensors.take(4), trip, window, marks)
+                    else -> ChartRequest.Trip(sensors.first(), trip, window, marks)
+                }
             }
         }
     }.distinct().take(4).toList()
+
+    private const val T = "(\\d{1,2}:\\d{2}(?::\\d{2})?)"
+
+    private fun time(s: String): java.time.LocalTime? = runCatching {
+        val p = s.split(":").map { it.toInt() }
+        java.time.LocalTime.of(p[0], p[1], p.getOrElse(2) { 0 })
+    }.getOrNull()
+
+    /**
+     * After the sensors: the trip, then an optional window — «20:02–20:12», «последние 10 мин»,
+     * «с 20:05 10 мин» — and up to 3 marks «отметка 20:05:12 провал». A window that does not
+     * parse is dropped (the whole trip is drawn).
+     */
+    private fun tail(arg: String): Triple<String, ChartRequest.Window?, List<ChartRequest.Mark>> {
+        val parts = arg.split(Regex("\\s*отметка\\s+", RegexOption.IGNORE_CASE))
+        val marks = parts.drop(1).mapNotNull { m ->
+            val r = Regex("^$T\\s*(.*)$").find(m.trim()) ?: return@mapNotNull null
+            time(r.groupValues[1])?.let { ChartRequest.Mark(it, r.groupValues[2].trim().take(30)) }
+        }.take(3)
+        var rest = parts.first()
+        var window: ChartRequest.Window? = null
+        Regex("$T\\s*[–—-]\\s*$T").find(rest)?.let { m ->
+            val a = time(m.groupValues[1])
+            val b = time(m.groupValues[2])
+            if (a != null && b != null) window = ChartRequest.Window(a, b)
+            rest = rest.removeRange(m.range)
+        }
+        Regex("последни[ейх]\\s+(\\d+)\\s*мин", RegexOption.IGNORE_CASE).find(rest)?.let { m ->
+            window = ChartRequest.Window(lastMin = m.groupValues[1].toInt().coerceIn(1, 600))
+            rest = rest.removeRange(m.range)
+        }
+        Regex("(?:^|\\s)с\\s+$T\\s+(\\d+)\\s*мин", RegexOption.IGNORE_CASE).find(rest)?.let { m ->
+            val a = time(m.groupValues[1])
+            if (a != null) window = ChartRequest.Window(a, a.plusMinutes(m.groupValues[2].toLong()))
+            rest = rest.removeRange(m.range)
+        }
+        val trip = rest.trim().ifEmpty { "последняя" }
+        return Triple(trip, window, marks)
+    }
+
+    /** Milliseconds from the trip start of a clock [time] in trip [d] (the trip may cross midnight). */
+    fun msOf(d: TripDetail, time: java.time.LocalTime): Long? {
+        val start = d.summary.start ?: return null
+        var at = start.toLocalDate().atTime(time)
+        if (at.isBefore(start.minusHours(1))) at = at.plusDays(1)
+        return java.time.Duration.between(start, at).toMillis()
+    }
+
+    /**
+     * The part of trip [d] to draw, in ms from its start: the window, else 5 minutes around
+     * the first mark, else null (the whole trip). A window outside the trip is dropped.
+     */
+    fun range(d: TripDetail, window: ChartRequest.Window?, marks: List<ChartRequest.Mark> = emptyList()): LongRange? {
+        val end = d.table.ms.lastOrNull() ?: return null
+        val r = when {
+            window?.lastMin != null -> (end - window.lastMin * 60_000L).coerceAtLeast(0)..end
+            window?.from != null && window.to != null -> {
+                val a = msOf(d, window.from) ?: return null
+                val b = msOf(d, window.to) ?: return null
+                a.coerceAtLeast(0)..b.coerceAtMost(end)
+            }
+            marks.isNotEmpty() -> msOf(d, marks.first().time)?.let { m -> (m - 150_000).coerceAtLeast(0)..(m + 150_000).coerceAtMost(end) }
+            else -> null
+        } ?: return null
+        return if (r.last - r.first < 10_000) null else r
+    }
 
     /** The text without the chart tags. */
     fun strip(text: String): String = text.replace(tag, "").replace(Regex("\\n{3,}"), "\n\n").trim()
@@ -139,6 +215,107 @@ object ChatCharts {
  * the recent trips — so the model can look for patterns itself. Never raw CSV.
  */
 object ChatPrompt {
+    /**
+     * Who the assistant is and how it answers — Victor Cheng's case method (answer first,
+     * one hypothesis tested against the data, MECE tree, a number behind every claim, «so
+     * what»), a fixed short format the app lays out, the tags for charts and actions, and one
+     * example (small models follow an example better than a description).
+     */
+    val ROLE = """Ты — диагност-консультант в приложении «Бортач». Перед тобой данные OBD-II одной машины: её поездки, расчёты Бортача, «как обычно у этой машины», коды ошибок, проверки. Собеседник — водитель, не механик.
+
+КАК ДУМАТЬ (метод Виктора Ченга):
+1. Сначала вывод, потом доказательства. Первая строка ответа — ответ на вопрос.
+2. От гипотез: назови самую вероятную причину и проверь её данными. Не перечисляй всё подряд.
+3. Дерево причин без пересечений: воздух / топливо / зажигание / охлаждение / зарядка / датчики и проводка / механика. Ветки без признаков в данных отбрасывай одной фразой. Ветки, которых у этой машины нет (нет датчиков), пропускай.
+4. Каждый довод — с числом: датчик, значение, режим, время или поездка. Например: «коррекция Б1 +19 % на холостом в 20:05, обычно у вас +4 %».
+5. «И что?» — после факта скажи, что он значит для машины и для водителя.
+6. Сравнивай с тем, как обычно у ЭТОЙ машины (блок ОБЫЧНО У ЭТОЙ МАШИНЫ), общие нормы — вторично. Начинающееся изменение важнее разового выброса: скажи, что меняется, с какой скоростью и когда станет проблемой.
+
+ПРАВИЛА:
+- Только данные ниже. Нет данных — так и скажи и предложи, что их даст: обычная поездка, проверка или наблюдение. Не выдумывай чисел, кодов датчиков и кодов ошибок.
+- Коды датчиков в тегах — только из СТАТИСТИКИ ДАТЧИКОВ.
+- Пиши по-русски, просто, без жаргона; термин один раз поясни в скобках.
+- Без жирного шрифта и заголовков с #. Списки — строками, начинающимися с «- ».
+- Длина: обычный вопрос — до 8 строк текста плюс графики. «Поиск гипотез» — по его формату.
+- Не советуй опасного. Если ехать нельзя — скажи это первой строкой.
+- Помни разговор и прежние гипотезы (ПАМЯТЬ ЧАТА).
+
+ФОРМАТ ОБЫЧНОГО ОТВЕТА:
+Коротко: <вывод одной фразой, до 90 знаков: что случилось и на что похоже>
+Почему:
+- <факт с числом и временем> → <что это значит>
+- <2–4 факта, в том же порядке, что датчики на графике>
+Что сделать: <1–3 шага, сначала дешёвые и решающие>
+Уверенность: высокая / средняя / низкая — <почему>
+<теги графиков и действий, каждый отдельной строкой>
+
+ГРАФИКИ — показывай ровно то, о чём говоришь:
+- Окно 3–15 минут вокруг нужного момента, а не вся поездка (часовой график не разглядеть). Вся поездка — только для тренда за поездку.
+- 2–4 датчика, которые вместе доказывают мысль. Отметь ключевой момент — время бери из блока КЛЮЧЕВЫЕ МОМЕНТЫ или из сырых данных.
+- Не больше 3 графиков. Если водитель просит конкретное окно и датчики — сделай ровно так.
+Теги (каждый отдельной строкой):
+  [график: наложение <датчик1> <датчик2> [<датчик3> <датчик4>] <поездка> <окно> отметка <ЧЧ:ММ:СС> <подпись>]
+    поездка — «последняя» или дата и время из списка поездок («03.10 19:51»);
+    окно — «20:02–20:12», «последние 10 мин» или «с 20:05 10 мин»; отметок до 3, каждая со словом «отметка».
+  [график: поездка <датчик> <поездка> <окно> отметка …] — один датчик.
+  [график: тренд <датчик> <режим>] — медиана по поездкам; режим: COLD / WARM_IDLE / ROLL_TO_STOP / CRUISE / HEAVY или пусто.
+  [график: наложение <датчик1> <датчик2> … сейчас 10 мин] — живой график идущей записи за последние N минут.
+
+ДЕЙСТВИЯ — предлагаешь ты, запускает водитель:
+  [проверка: холостой|смесь|зарядка|прогрев] — короткая проверка (холостой 2 мин стоя; смесь 4 мин ХХ→2500→ХХ; зарядка 2 мин без нагрузки и с фарами, печкой, обогревом; прогрев от холодного пуска до 80 °C). Только когда она решающая.
+  [наблюдать: <датчик> <знак> <число> [когда WARM_IDLE|CRUISE|COLD]] — Бортач следит за условием в следующих ${WatchRule.TRIPS} поездках и пришлёт результат. Знаки: > < >= <=.
+Когда приходит «Результат проверки» или «Наблюдение» — дай вердикт: гипотеза подтверждена, опровергнута или нужна ещё поездка, и что дальше.
+
+ПРИМЕР:
+Вопрос: почему дёргает на светофоре?
+Коротко: на прогретом холостом обороты проваливаются до 540 (обычно 690) — похоже на подсос воздуха.
+Почему:
+- В 20:05:12 обороты 540 при ДМРВ 1.4 г/с → мотор получает воздух мимо ДМРВ.
+- Коррекция Б1 в тот же момент +22 % (обычно +4 %) → ЭБУ доливает топливо, компенсируя неучтённый воздух.
+Что сделать: осмотреть шланги после ДМРВ и вентиляцию картера; затем проверка «Холостой ход».
+Уверенность: средняя — один эпизод, нужна ещё поездка.
+[график: наложение rpm maf_gs trim_b1 последняя 20:02–20:09 отметка 20:05:12 провал]
+[проверка: холостой]"""
+
+    private val HMS = java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")
+
+    /**
+     * «Ключевые моменты» of one trip with exact clock times — so the assistant can pick the
+     * window of a chart: start and end, the first episodes and the longest of each event,
+     * the coolant peak and the voltage low.
+     */
+    fun moments(d: TripDetail): String = buildString {
+        val t = d.table
+        val times = t.times
+        val first = times.firstNotNullOfOrNull { it } ?: return@buildString
+        val last = times.lastOrNull { it != null } ?: first
+        appendLine("КЛЮЧЕВЫЕ МОМЕНТЫ · поездка ${d.summary.label} (${first.format(HMS)}–${last.format(HMS)}; t_s=0 в сырых данных = ${first.format(HMS)}):")
+        fun at(i: Int) = times.getOrNull(i)?.format(HMS) ?: "?"
+        for (e in Relations.events(t)) {
+            if (e.rows.isEmpty()) continue
+            // Episodes: runs of rows no more than 2 apart.
+            val eps = ArrayList<IntRange>()
+            var a = e.rows.first()
+            var b = a
+            for (r in e.rows.drop(1)) {
+                if (r - b <= 2) b = r else { eps += a..b; a = r; b = r }
+            }
+            eps += a..b
+            fun dur(ep: IntRange) = ((t.ms[ep.last] - t.ms[ep.first]) / 1000).coerceAtLeast(1)
+            val longest = eps.maxByOrNull { dur(it) }!!
+            appendLine("  ${e.kind}: ${eps.size} эпиз.; первые: " + eps.take(3).joinToString(", ") { "${at(it.first)} (${dur(it)} с)" } +
+                "; самый долгий: ${at(longest.first)} (${dur(longest)} с)")
+        }
+        fun extreme(code: String, max: Boolean, label: String, unit: String) {
+            val v = t.raw(code)
+            val i = v.indices.filter { v[it] != null }.let { idx -> if (max) idx.maxByOrNull { v[it]!! } else idx.minByOrNull { v[it]!! } } ?: return
+            appendLine("  $label ${Values.format(v[i]!!)} $unit в ${at(i)}")
+        }
+        extreme("coolant_c", true, "максимум ОЖ", "°C")
+        extreme("battery_v", false, "минимум напряжения", "В")
+        extreme("rpm", true, "максимум оборотов", "об/мин")
+    }
+
     fun system(
         car: String,
         trips: List<TripSummary>,
@@ -152,31 +329,8 @@ object ChatPrompt {
         /** This car's own normal and the changes against it ([Baseline.render]). */
         baseline: String = "",
     ): String = buildString {
-        appendLine(
-            "Ты — помощник-диагност в приложении «Бортач» (OBD-II логгер на ELM327). Отвечай по-русски, для водителя без спецподготовки, " +
-                "но не упрощай выводы. Работай как исследователь: ищи закономерности между датчиками, режимами и поездками, " +
-                "выдвигай гипотезы, для каждой — какие данные её подтверждают, какие опровергают и чем её проверить. " +
-                "Отделяй факт из данных от предположения. Главное — сравнение с тем, КАК ОБЫЧНО У ЭТОЙ МАШИНЫ (блок ниже), а не только с общими нормами: " +
-                "начинающееся изменение важнее разового выброса — говори, что меняется, с какой скоростью и когда станет проблемой (раннее предупреждение). " +
-                "Смотри все системы (охлаждение, зарядку, смесь, наддув, датчики), не своди всё к холостому ходу. " +
-                "Если данных не хватает — скажи, что именно сузит выбор: обычная поездка, короткая проверка или наблюдение. " +
-                "Помни разговор и прежние гипотезы (см. ПАМЯТЬ ЧАТА). Не советуй опасного.",
-        )
-        appendLine()
-        appendLine("ГРАФИКИ: если график поможет, вставь в ответ отдельной строкой тег — приложение нарисует его под текстом:")
-        appendLine("  [график: тренд <датчик> <режим>] — медиана датчика по поездкам; режим: ${DriveMode.entries.joinToString("/") { it.name }} или пусто (вся поездка);")
-        appendLine("  [график: поездка <датчик> <дата время поездки или «последняя»>] — датчик по ходу одной поездки;")
-        appendLine("  [график: наложение <датчик1> <датчик2> [<датчик3> <датчик4>] <поездка или «последняя»>] — 2–4 датчика на одной оси времени, " +
-            "у каждого своя шкала: так видно, что за чем идёт.")
-        appendLine("  [график: наложение <датчик1> <датчик2> … сейчас] или [график: поездка <датчик> сейчас] — живой график идущей записи, обновляется каждую секунду.")
-        appendLine("Датчики — коды из статистики ниже (trim_b1 = LTFT+STFT банк 1, o2_b1s2_v = лямбда после катализатора и т. д.). Не больше 3 графиков в ответе.")
-        appendLine()
-        appendLine("ДЕЙСТВИЯ: проверить гипотезу можно двумя способами — водитель запускает их сам, ты только предлагаешь:")
-        appendLine("  [проверка: холостой|смесь|зарядка|прогрев] — кнопка короткой проверки (холостой 2 мин стоя; смесь 4 мин: ХХ→2500→ХХ; " +
-            "зарядка 2 мин: без нагрузки и с фарами, печкой, обогревом; прогрев — от холодного пуска до 80 °C). Только когда проверка решающая.")
-        appendLine("  [наблюдать: <датчик> <знак> <число> [когда WARM_IDLE|CRUISE|COLD]] — Бортач следит за условием в следующих ${WatchRule.TRIPS} поездках " +
-            "и пришлёт в чат, сколько раз и когда оно выполнялось и что было рядом. Знаки: > < >= <=. Пример: [наблюдать: trim_b1 > 15 когда WARM_IDLE].")
-        appendLine("Когда в чат приходит «Результат проверки» или «Наблюдение» — дай вердикт по гипотезе: подтверждена, опровергнута или нужна ещё поездка, и что дальше.")
+        // The fixed part first: the same opening of every request lets the model cache it.
+        appendLine(ROLE)
         appendLine()
         appendLine("МАШИНА: ${car.ifBlank { "не названа" }}")
         if (memory.isNotBlank()) {
@@ -255,7 +409,7 @@ object ChatPrompt {
 РАННЕЕ ПРЕДУПРЕЖДЕНИЕ — что меняется по сравнению с обычным у этой машины, темп, через сколько поездок станет проблемой, что проверить сейчас.
 РИСКИ — что будет, если не делать; когда ехать нельзя.
 ЧТО ДАЛЬШЕ — что сузит выбор: обычная поездка, короткая проверка или наблюдение.
-Вставь 2–3 графика тегами (тренд по поездкам и наложение по последней поездке). Факты отделяй от предположений. Без воды, без общих советов, только по данным этой машины."""
+Вставь 2–3 графика тегами: тренд по поездкам и наложение за окно 3–15 минут вокруг ключевого момента, с отметкой (не всю поездку). Факты отделяй от предположений. Без воды, без общих советов, только по данным этой машины."""
     private fun n(v: Double?): String = v?.let { String.format(Locale.ROOT, if (kotlin.math.abs(it) >= 100) "%.0f" else "%.2f", it).trimEnd('0').trimEnd('.') } ?: "—"
 
     /**
@@ -285,6 +439,10 @@ object ChatPrompt {
      */
     fun research(details: List<TripDetail>, rawTrips: Int): String = buildString {
         val sorted = details.sortedBy { it.summary.start }
+        for (d in sorted.takeLast(3)) {
+            appendLine(moments(d).trim())
+            appendLine()
+        }
         for (d in sorted.takeLast(3)) {
             appendLine(Relations.render(d).trim())
             appendLine()

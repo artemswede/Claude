@@ -758,7 +758,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     override fun chartView(req: com.obdlogger.core.ChartRequest): View? {
         if (req is com.obdlogger.core.ChartRequest.Live) {
             val codes = req.sensors.filter { it in LiveData.store.columns }
-            return if (codes.isEmpty()) null else com.obdlogger.app.ui.LiveOverlayView(this, Bt.LIGHT, LiveData.store, codes, { LoggerState.snapshot.recording })
+            return if (codes.isEmpty()) null else com.obdlogger.app.ui.LiveOverlayView(this, Bt.LIGHT, LiveData.store, codes, { LoggerState.snapshot.recording }, req.minutes * 60_000L)
         }
         val details = chatDetails
         if (details.isEmpty()) return null
@@ -775,7 +775,11 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
             is com.obdlogger.core.ChartRequest.Trip -> {
                 val d = com.obdlogger.core.ChatCharts.trip(details, req.trip) ?: return null
                 val trace = d.summary.trace
-                if (trace != null && (trace.of(req.sensor) != null || req.sensor == "trim_b1")) {
+                // A window or a mark: the minutes the answer is about, not the whole trip.
+                val range = com.obdlogger.core.ChatCharts.range(d, req.window, req.marks)
+                if ((range != null || req.marks.isNotEmpty()) && d.table.has(req.sensor)) {
+                    com.obdlogger.app.ui.OverlayChartView(this, Bt.LIGHT, d, listOf(req.sensor), range, marks(d, req.marks))
+                } else if (trace != null && (trace.of(req.sensor) != null || req.sensor == "trim_b1")) {
                     com.obdlogger.app.ui.TrimChartView(this).apply { set(trace, Bt.LIGHT, shell.sc, false, req.sensor) }
                 } else if (d.table.has(req.sensor)) {
                     com.obdlogger.app.ui.OverlayChartView(this, Bt.LIGHT, d, listOf(req.sensor))
@@ -784,10 +788,15 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
             is com.obdlogger.core.ChartRequest.Overlay -> {
                 val d = com.obdlogger.core.ChatCharts.trip(details, req.trip) ?: return null
                 val codes = req.sensors.filter { d.table.has(it) }
-                if (codes.isEmpty()) null else com.obdlogger.app.ui.OverlayChartView(this, Bt.LIGHT, d, codes)
+                if (codes.isEmpty()) null else com.obdlogger.app.ui.OverlayChartView(this, Bt.LIGHT, d, codes,
+                    com.obdlogger.core.ChatCharts.range(d, req.window, req.marks), marks(d, req.marks))
             }
         }
     }
+
+    /** Marks of a chart request as ms from the trip start. */
+    private fun marks(d: com.obdlogger.core.TripDetail, marks: List<com.obdlogger.core.ChartRequest.Mark>) =
+        marks.mapNotNull { m -> com.obdlogger.core.ChatCharts.msOf(d, m.time)?.let { it to m.label } }
 
     /** A check the assistant offered: its result comes back into the chat. */
     @Volatile private var checkFromChat = false

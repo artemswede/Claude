@@ -27,6 +27,8 @@ object Bt {
         val amb: Int, val ambT: Int, val ambZ: Int,
         val red: Int, val redT: Int, val l0: Int, val chart: Int,
         val dark: Boolean,
+        /** Six series colours (charts, chat), each with its own marker shape — see [Series]. */
+        val series: List<Int> = emptyList(),
     )
 
     private fun c(hex: String) = Color.parseColor(hex)
@@ -39,6 +41,7 @@ object Bt {
         acc = c("#2F6B5E"), accInk = c("#F6F3EC"), accT = rgba(47, 107, 94, .13), accZ = rgba(47, 107, 94, .16),
         amb = c("#8F5A0E"), ambT = rgba(176, 116, 24, .16), ambZ = rgba(176, 116, 24, .22),
         red = c("#A3352B"), redT = rgba(163, 53, 43, .10), l0 = c("#A39C8F"), chart = c("#23211E"), dark = false,
+        series = listOf(c("#3845AE"), c("#A16BE2"), c("#922B62"), c("#0294A4"), c("#706D09"), c("#E05571")),
     )
 
     /** Тёмная тема: запись в салоне, ожидание, ночь. */
@@ -48,6 +51,7 @@ object Bt {
         acc = c("#5E9C8B"), accInk = c("#10120F"), accT = rgba(94, 156, 139, .16), accZ = rgba(94, 156, 139, .18),
         amb = c("#C9973F"), ambT = rgba(201, 151, 63, .16), ambZ = rgba(201, 151, 63, .20),
         red = c("#D2705C"), redT = rgba(210, 112, 92, .14), l0 = c("#5C574F"), chart = c("#E6E1D6"), dark = true,
+        series = listOf(c("#5765C8"), c("#B765FD"), c("#CB0296"), c("#2DA2C3"), c("#72801F"), c("#C3737B")),
     )
 
     /** Type scale per screen class (sizes in sp, as in the mock-ups where 1 px = 1 dp). */
