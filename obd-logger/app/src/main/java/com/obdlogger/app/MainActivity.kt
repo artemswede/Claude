@@ -812,6 +812,46 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         refreshChat()
     }
 
+    /** «В Графиках ↗» under a chat chart: the trip's charts with the same sensors, window and mark. */
+    override fun openChart(req: com.obdlogger.core.ChartRequest) {
+        if (req is com.obdlogger.core.ChartRequest.Live) return openLive(req.sensors)
+        val label = when (req) {
+            is com.obdlogger.core.ChartRequest.Overlay -> req.trip
+            is com.obdlogger.core.ChartRequest.Trip -> req.trip
+            else -> return
+        }
+        val d = com.obdlogger.core.ChatCharts.trip(chatDetails, label) ?: return
+        val (codes, window, marks) = when (req) {
+            is com.obdlogger.core.ChartRequest.Overlay -> Triple(req.sensors, req.window, req.marks)
+            is com.obdlogger.core.ChartRequest.Trip -> Triple(listOf(req.sensor), req.window, req.marks)
+            else -> return
+        }
+        Thread {
+            val m = TripsModel.build(this, Prefs.currentCar(this)).also { tripsModel = it }
+            val item = m.trips.firstOrNull { it.summary.name == d.summary.name } ?: return@Thread
+            runOnUiThread {
+                shell.show(Shell.Page.TRIPS)
+                while (pop()) Unit
+                val v = TripDetailView(this, shell.sc, item, this)
+                push(Shell.Page.TRIPS, v)
+                v.openChart(codes.filter { d.table.has(it) }, com.obdlogger.core.ChatCharts.range(d, window, marks),
+                    marks.firstOrNull()?.let { com.obdlogger.core.ChatCharts.msOf(d, it.time) })
+                Thread {
+                    val det = TripCache.detail(item)
+                    runOnUiThread { v.bind(det); v.showTab(3) }
+                }.start()
+            }
+        }.start()
+    }
+
+    override fun retry() {
+        val key = AiChat.key(this)
+        if (key.isEmpty()) return editAiKey()
+        if (chatBusy != null || chatState.messages.lastOrNull()?.role != "user") return
+        chatError = null
+        answer(key)
+    }
+
     override fun openLive(codes: List<String>) {
         shell.show(Shell.Page.RECORD)
         record.showOverlay(codes)

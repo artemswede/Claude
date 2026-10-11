@@ -71,3 +71,24 @@ class ChatWindowTest {
         assertTrue(ChatMemory.tokens(ChatPrompt.ROLE) < 3000)
     }
 }
+
+class ChatAnswerTest {
+    @Test
+    fun theFixedFormatIsSplit() {
+        val a = ChatAnswer.parse("""Коротко: на холостом обороты проваливаются до 540 — похоже на подсос воздуха.
+Почему:
+- В 20:05:12 обороты 540 при ДМРВ 1.4 г/с → мотор получает воздух мимо ДМРВ.
+- **Коррекция Б1** +22 % → ЭБУ доливает топливо.
+Что сделать: осмотреть шланги после ДМРВ; затем проверка «Холостой ход».
+Уверенность: средняя — один эпизод.""")
+        assertTrue(a.structured)
+        assertTrue(a.short.startsWith("на холостом"))
+        assertEquals(2, a.why.size)
+        assertEquals("Коррекция Б1 +22 % → ЭБУ доливает топливо.", a.why[1])
+        assertTrue(a.todo.startsWith("осмотреть"))
+        assertTrue(a.confidence.startsWith("средняя"))
+        val free = ChatAnswer.parse("Просто текст без формата.")
+        assertTrue(!free.structured)
+        assertEquals("Просто текст без формата.", free.rest)
+    }
+}

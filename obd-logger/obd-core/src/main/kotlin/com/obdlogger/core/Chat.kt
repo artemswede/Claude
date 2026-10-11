@@ -68,6 +68,51 @@ object ChatMemory {
     }
 }
 
+/**
+ * An answer in the fixed format of [ChatPrompt.ROLE] — «Коротко / Почему / Что сделать /
+ * Уверенность» — split for the chat layout; [structured] false: free text, shown as it is.
+ */
+class ChatAnswer(val short: String, val why: List<String>, val todo: String, val confidence: String, val rest: String) {
+    val structured get() = short.isNotBlank() && (why.isNotEmpty() || todo.isNotBlank())
+
+    companion object {
+        private val heads = listOf("коротко", "почему", "что сделать", "уверенность")
+
+        fun parse(text: String): ChatAnswer {
+            var section = ""
+            val short = StringBuilder()
+            val why = ArrayList<String>()
+            val todo = StringBuilder()
+            val conf = StringBuilder()
+            val rest = StringBuilder()
+            for (raw in text.lines()) {
+                val line = raw.trim().replace("**", "")
+                if (line.isEmpty()) continue
+                val head = heads.firstOrNull { line.lowercase(Locale.ROOT).startsWith("$it:") || line.lowercase(Locale.ROOT) == it }
+                if (head != null) {
+                    section = head
+                    val after = line.substringAfter(':', "").trim()
+                    if (after.isNotEmpty()) when (head) {
+                        "коротко" -> short.append(after)
+                        "почему" -> why += after
+                        "что сделать" -> todo.append(after)
+                        else -> conf.append(after)
+                    }
+                    continue
+                }
+                when (section) {
+                    "коротко" -> short.append(' ').append(line)
+                    "почему" -> why += line.removePrefix("-").removePrefix("•").trim()
+                    "что сделать" -> todo.append(if (todo.isEmpty()) "" else "\n").append(line.removePrefix("-").trim())
+                    "уверенность" -> conf.append(' ').append(line)
+                    else -> rest.append(line).append('\n')
+                }
+            }
+            return ChatAnswer(short.toString().trim(), why, todo.toString().trim(), conf.toString().trim(), rest.toString().trim())
+        }
+    }
+}
+
 /** A chart the assistant asked for in its answer. */
 sealed class ChartRequest {
     abstract val sensor: String

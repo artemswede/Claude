@@ -34,6 +34,10 @@ interface ChatActions {
     fun unwatch(rule: com.obdlogger.core.WatchRule) {}
     /** «Открыть в Графиках»: the live overlay on the record page, with its zoom and cursor. */
     fun openLive(codes: List<String>) {}
+    /** «В Графиках ↗» under a chart: the same sensors, window and mark in «Графики». */
+    fun openChart(req: ChartRequest) { if (req is ChartRequest.Live) openLive(req.sensors) }
+    /** «Повторить» after an error: the last question again. */
+    fun retry() {}
 }
 
 /**
@@ -150,51 +154,154 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
             }
             addTo(list, HorizontalScrollView(ctx).apply { addView(chips); isHorizontalScrollBarEnabled = false }, dp(8))
         }
-        for (m in history) {
+        var lastQuestion: View? = null
+        for ((idx, m) in history.withIndex()) {
             val mine = m.role == "user"
-            val shown = if (mine) (if (m.text == com.obdlogger.core.ChatPrompt.HYPOTHESIS_BRIEF) "🔬 Поиск гипотез: глубокое исследование двигателя по всем данным" else m.text)
-                else com.obdlogger.app.AiChat.plain(com.obdlogger.core.ChatTests.strip(ChatCharts.strip(m.text)))
-            val bubble = ctx.text(shown, if (sc.phone) 15f else 17f, p.t1, lineHeight = if (sc.phone) 21f else 24f).apply {
-                setPadding(dp(14), dp(10), dp(14), dp(10))
-                background = if (mine) roundRect(p.accT, dp(14).toFloat()) else roundRect(p.s1, dp(14).toFloat(), dp(1), p.line)
-                setTextIsSelectable(!mine)
+            if (mine && m.text.startsWith("📋")) {
+                // From Бортач (a check result, a watch report): not a person, not the AI — a measurement.
+                addTo(list, system(m.text.removePrefix("📋").trim()), dp(10))
+                continue
             }
-            val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = if (mine) Gravity.END else Gravity.START }
-            row.addView(bubble, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                if (mine) leftMargin = dp(60) else rightMargin = dp(40)
-            })
-            addTo(list, row, dp(10))
-            // Checks and watches the assistant offers: the owner starts them, never the app.
-            if (!mine) {
-                for (k in com.obdlogger.core.ChatTests.parse(m.text)) {
-                    val blocked = moving && k.parked
-                    val b = ctx.button(if (blocked) "▶ ${k.title}: на стоянке" else "▶ Проверка: ${k.title}", sc, p, primary = !blocked) { if (!blocked) actions.runCheck(k) }
-                    b.isEnabled = !blocked
-                    b.alpha = if (blocked) 0.5f else 1f
-                    addTo(list, b, dp(8), width = ViewGroup.LayoutParams.WRAP_CONTENT)
-                    addTo(list, ctx.text(k.short, sc.cap, p.t3), dp(2))
+            if (mine) {
+                val shown = if (m.text == com.obdlogger.core.ChatPrompt.HYPOTHESIS_BRIEF) "Поиск гипотез: глубокое исследование двигателя по всем данным" else m.text
+                // The question above a new answer folds into one line: the answer gets the screen.
+                val folded = idx == history.lastIndex - 1 && history.last().role == "assistant"
+                val bubble = ctx.text(shown, if (sc.phone) 15f else 15f, p.t1, maxLines = if (folded) 1 else Int.MAX_VALUE).apply {
+                    setPadding(dp(12), dp(6), dp(12), dp(6))
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        setColor(p.s2)
+                        val r = dp(16).toFloat()
+                        cornerRadii = floatArrayOf(r, r, r, r, dp(4).toFloat(), dp(4).toFloat(), r, r)
+                    }
                 }
-                for (w in com.obdlogger.core.WatchRule.parse(m.text)) {
-                    val on = watches.any { it.code == w.code && it.op == w.op && it.value == w.value && it.mode == w.mode }
-                    val b = ctx.button(if (on) "✓ Наблюдаю: ${w.text}" else "👁 Наблюдать: ${w.text}", sc, p, primary = false) { if (!on) actions.watch(w) }
-                    addTo(list, b, dp(8), width = ViewGroup.LayoutParams.WRAP_CONTENT)
-                    if (!on) addTo(list, ctx.text("Бортач будет следить за этим в следующих ${com.obdlogger.core.WatchRule.TRIPS} поездках и пришлёт результат сюда.", sc.cap, p.t3), dp(2))
-                }
+                val row = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.END }
+                row.addView(bubble, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { leftMargin = dp(60) })
+                addTo(list, row, dp(10))
+                lastQuestion = row
+                continue
             }
-            // Charts the assistant asked for, under its answer.
-            if (!mine) for (req in ChatCharts.parse(m.text)) {
-                val v = actions.chartView(req) ?: continue
-                addTo(list, card(v, p, dp(12), dp(10)).apply {
-                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(if (sc.phone) 200 else 230)).apply { topMargin = dp(8); rightMargin = dp(40) }
-                })
-                if (req is ChartRequest.Live) addTo(list, ctx.text("⤢ Открыть в Графиках — масштаб, курсор, весь экран", sc.p, p.acc, 600).apply {
-                    setOnClickListener { actions.openLive(req.sensors) }
-                }.tap(), dp(2), width = ViewGroup.LayoutParams.WRAP_CONTENT)
-            }
+            answer(m.text, watches, moving)
         }
         busy?.let { addTo(list, ctx.text(it, sc.p, p.t3), dp(10)) }
-        error?.let { addTo(list, card(ctx.text(it, sc.p, p.amb, 600), p, dp(14), dp(10), p.amb), dp(10)) }
-        scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
+        error?.let { e ->
+            val box = column(ctx, dp(8), ctx.text(e, sc.p, p.amb, 600))
+            addTo(box, ctx.button("Повторить", sc, p, primary = false) { actions.retry() }, dp(4), width = ViewGroup.LayoutParams.WRAP_CONTENT)
+            addTo(list, card(box, p, dp(14), dp(10), p.amb), dp(10))
+        }
+        // After a new answer the question is the first line on screen and the answer follows (Ч2):
+        // «Коротко» and the chart are seen at once, the rest below.
+        val q = lastQuestion
+        scroll.post {
+            if (q != null && history.lastOrNull()?.role == "assistant" && error == null && busy == null) scroll.scrollTo(0, (q.top - dp(4)).coerceAtLeast(0))
+            else scroll.fullScroll(View.FOCUS_DOWN)
+        }
+    }
+
+    /** A message from Бортач: dashed frame on s2, «Результат проверки · от Бортача». */
+    private fun system(text: String): View {
+        val ctx = context
+        val title = when {
+            text.startsWith("Результат проверки") -> "Результат проверки"
+            text.startsWith("Наблюдение") -> "Наблюдение"
+            else -> "Сообщение"
+        }
+        val box = column(ctx, dp(4),
+            row(ctx, dp(6), Gravity.CENTER_VERTICAL, ctx.text(title, sc.p, p.t1, 700), ctx.text("· от Бортача", sc.cap, p.t3)),
+            ctx.text(text, if (sc.phone) 14f else 15f, p.t2, lineHeight = if (sc.phone) 20f else 21f))
+        box.setPadding(dp(14), dp(10), dp(14), dp(10))
+        box.background = roundRect(p.s2, dp(12).toFloat(), dp(1), p.line2, dash = dp(5).toFloat())
+        return box
+    }
+
+    /**
+     * The AI's answer, without a bubble, across the width (Ч1): «Коротко», the chart card,
+     * ПОЧЕМУ with the series marker before each fact, ЧТО СДЕЛАТЬ, the action buttons and the
+     * confidence. Free text (an older answer, a deep research) is shown as it is.
+     */
+    private fun answer(text: String, watches: List<com.obdlogger.core.WatchRule>, moving: Boolean) {
+        val ctx = context
+        val body = com.obdlogger.app.AiChat.plain(com.obdlogger.core.ChatTests.strip(ChatCharts.strip(text)))
+        val a = com.obdlogger.core.ChatAnswer.parse(body)
+        val charts = ChatCharts.parse(text)
+        val box = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        addTo(box, ctx.label("Ответ ИИ", sc, p))
+        if (a.structured) {
+            addTo(box, ctx.text(a.short, if (moving) 22f else 17f, p.t1, 600, lineHeight = if (moving) 28f else 23f).apply { setTextIsSelectable(true) }, dp(2))
+        }
+        // Charts right under «Коротко»: the picture with the moment marked.
+        val sensors = charts.firstOrNull()?.let { r -> when (r) { is ChartRequest.Overlay -> r.sensors; is ChartRequest.Live -> r.sensors; else -> listOf(r.sensor) } }.orEmpty()
+        for (req in charts) chartCard(box, req)
+        if (a.structured) {
+            if (a.why.isNotEmpty()) {
+                addTo(box, ctx.label("Почему", sc, p), dp(10))
+                a.why.forEachIndexed { i, fact ->
+                    val r = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
+                    // The marker of the series the fact is about (facts follow the legend order).
+                    val k = i.takeIf { it < sensors.size && it < Series.MAX }
+                    addTo(r, ctx.text(k?.let { Series.glyph(it) } ?: "–", 14f, k?.let { Series.color(p, it) } ?: p.t3, 700).apply { minWidth = dp(20) }, 0, width = ViewGroup.LayoutParams.WRAP_CONTENT)
+                    addTo(r, ctx.text(fact, if (sc.phone) 15f else 16f, p.t1, lineHeight = if (sc.phone) 21f else 22f).apply { setTextIsSelectable(true) }, 0, 1f)
+                    addTo(box, r, dp(4))
+                }
+            }
+            if (a.todo.isNotBlank()) {
+                addTo(box, ctx.label("Что сделать", sc, p), dp(10))
+                addTo(box, ctx.text(a.todo, if (sc.phone) 15f else 16f, p.t1, lineHeight = if (sc.phone) 21f else 22f).apply { setTextIsSelectable(true) }, dp(4))
+            }
+            if (a.rest.isNotBlank()) addTo(box, ctx.text(a.rest, if (sc.phone) 15f else 16f, p.t1, lineHeight = if (sc.phone) 21f else 22f).apply { setTextIsSelectable(true) }, dp(8))
+        } else {
+            addTo(box, ctx.text(body, if (sc.phone) 15f else 16f, p.t1, lineHeight = if (sc.phone) 21f else 23f).apply { setTextIsSelectable(true) }, dp(4))
+        }
+        // Checks and watches the assistant offers: the owner starts them, never the app.
+        for (k in com.obdlogger.core.ChatTests.parse(text)) {
+            val blocked = moving && k.parked
+            val b = ctx.button(if (blocked) "▶  Проверка · на стоянке" else "▶  Проверка: ${k.title.lowercase()} · ${k.short.substringBefore(':')}", sc, p, primary = false) { if (!blocked) actions.runCheck(k) }
+            b.isEnabled = !blocked
+            if (blocked) b.background = roundRect(p.s2, dp(12).toFloat())
+            addTo(box, b, dp(8), width = ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        for (w in com.obdlogger.core.WatchRule.parse(text)) {
+            val on = watches.any { it.code == w.code && it.op == w.op && it.value == w.value && it.mode == w.mode }
+            val b = ctx.button(if (on) "✓  Наблюдаю: ${w.text}" else "◎  Наблюдать: ${w.text} · ${com.obdlogger.core.WatchRule.TRIPS} поездки", sc, p, primary = false) { if (!on) actions.watch(w) }
+            if (on) b.background = roundRect(p.accT, dp(12).toFloat())
+            addTo(box, b, dp(8), width = ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        if (a.structured && a.confidence.isNotBlank()) addTo(box, ctx.text("Уверенность: ${a.confidence}", sc.cap, p.t3), dp(8))
+        addTo(list, box, dp(12))
+    }
+
+    /** Chart card (Ч1): header «датчики · окно · В Графиках ↗», the chart with legend and marks, tap — full screen. */
+    private fun chartCard(box: LinearLayout, req: ChartRequest) {
+        val ctx = context
+        val v = actions.chartView(req) ?: return
+        val names = when (req) {
+            is ChartRequest.Overlay -> req.sensors
+            is ChartRequest.Live -> req.sensors
+            else -> listOf(req.sensor)
+        }.joinToString(", ") { com.obdlogger.core.SensorNames.label(it) }
+        val win = when (req) {
+            is ChartRequest.Overlay -> windowText(req.window)
+            is ChartRequest.Trip -> windowText(req.window)
+            is ChartRequest.Live -> "сейчас · ${req.minutes} мин"
+            is ChartRequest.Trend -> "по поездкам"
+        }
+        val card = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        val head = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        addTo(head, ctx.text(listOf(names, win).filter { it.isNotBlank() }.joinToString(" · "), sc.cap + 1, p.t2, 600, maxLines = 1), 0, 1f)
+        if (req !is ChartRequest.Trend) addTo(head, ctx.text("В Графиках ↗", sc.cap + 1, p.acc, 600).apply {
+            setPadding(dp(10), 0, dp(4), 0)
+            setOnClickListener { actions.openChart(req) }
+        }.tap(), 0, width = ViewGroup.LayoutParams.WRAP_CONTENT)
+        addTo(card, head)
+        card.addView(v, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(if (sc.phone) 220 else 150)).apply { topMargin = dp(2) })
+        v.setOnClickListener { actions.openChart(req) }
+        addTo(box, card(card, p, dp(12), dp(6)), dp(8))
+    }
+
+    private fun windowText(w: ChartRequest.Window?): String = when {
+        w == null -> ""
+        w.lastMin != null -> "последние ${w.lastMin} мин"
+        w.from != null && w.to != null -> "${w.from.toString().take(5)}–${w.to.toString().take(5)}"
+        else -> ""
     }
 }
 
