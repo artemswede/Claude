@@ -1,4 +1,5 @@
 export const config = { runtime: "edge" };
+// v2 - force redeploy
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
