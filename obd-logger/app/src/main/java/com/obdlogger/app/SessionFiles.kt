@@ -103,6 +103,42 @@ class SessionFiles(dir: File, baseName: String) {
                 .sortedBy { it.name }
 
         fun infoOf(csv: File) = File(csv.parentFile, csv.name.removeSuffix(".csv") + "_info.txt")
+
+        private val STAMP = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
+
+        /** «obd_20070101_000315» → its time, null if the name carries none. */
+        fun stampOf(csv: File): Long? = Regex("(\\d{8}_\\d{6})").find(csv.name)?.let { m ->
+            try { synchronized(STAMP) { STAMP.parse(m.groupValues[1])?.time } } catch (_: Exception) { null }
+        }
+
+        /**
+         * The trip was named by a wrong clock (a head unit without a clock battery starts in
+         * 2007): renames its files after the [start] counted back from the correct time. Returns
+         * the CSV to use from now on (the same one when the name was right or a rename failed).
+         */
+        fun renameTo(csv: File, start: Long): File {
+            val old = stampOf(csv) ?: return csv
+            if (kotlin.math.abs(old - start) < 5 * 60_000L) return csv
+            val prefix = csv.name.substringBefore(Regex("\\d{8}_\\d{6}").find(csv.name)!!.value)
+            val base = prefix + synchronized(STAMP) { STAMP.format(Date(start)) }
+            val dir = csv.parentFile ?: return csv
+            val target = File(dir, "$base.csv")
+            if (target.exists()) return csv
+            val pairs = listOf(csv to target, infoOf(csv) to File(dir, "${base}_info.txt"), elmOf(csv) to File(dir, "${base}_elm.log"),
+                profileOf(csv) to File(dir, "${base}_profile.txt"))
+            if (!csv.renameTo(target)) return csv
+            pairs.drop(1).forEach { (a, b) -> if (a.exists()) a.renameTo(b) }
+            return target
+        }
+
+        /** Writes [text] and forces it to storage: the head unit may lose power any second. */
+        fun writeSynced(file: File, text: String) {
+            try {
+                java.io.FileOutputStream(file).use { o -> o.write(text.toByteArray(Charsets.UTF_8)); o.fd.sync() }
+            } catch (_: Exception) {
+                file.writeText(text)
+            }
+        }
         fun elmOf(csv: File) = File(csv.parentFile, csv.name.removeSuffix(".csv") + "_elm.log")
         /** The trip's fingerprint for the car's profile (`TripProfile`), computed once. */
         fun profileOf(csv: File) = File(csv.parentFile, csv.name.removeSuffix(".csv") + "_profile.txt")
@@ -134,12 +170,48 @@ class SessionFiles(dir: File, baseName: String) {
             t.rows.forEachIndexed { i, r -> store.add(base + t.ms[i], idx.map { r.getOrNull(it)?.ifEmpty { null } }) }
         }
 
-        /** Deletes recordings older than [days] (0 = keep everything). Returns how many files were removed. */
+        /**
+         * Deletes recordings older than [days] (0 = keep everything). Age is the trip's own start
+         * (from its name, corrected by the analysis), never the file date: a head unit without a
+         * clock battery writes files dated 2007 that would look ancient. Undated or pre-2015 trips
+         * and the newest [KEEP_NEWEST] trips are never deleted. Returns how many files were removed.
+         */
         fun cleanup(ctx: Context, days: Int): Int {
             if (days <= 0) return 0
             val cutoff = System.currentTimeMillis() - days * 24L * 3600 * 1000
-            return dir(ctx).listFiles().orEmpty().count { it.lastModified() < cutoff && it.delete() }
+            val plausible = 1_420_070_400_000L // 2015-01-01
+            val recordings = (tripCsvs(ctx) + checkCsvs(ctx)).mapNotNull { f -> stampOf(f)?.let { f to it } }
+            val newest = recordings.filter { it.second >= plausible }.sortedByDescending { it.second }.take(KEEP_NEWEST).map { it.first }.toSet()
+            var n = 0
+            for ((csv, stamp) in recordings) {
+                if (csv in newest || stamp < plausible || stamp >= cutoff) continue
+                n += listOf(csv, infoOf(csv), elmOf(csv), profileOf(csv)).count { it.exists() && it.delete() }
+            }
+            // Reports and other side files: by date only when the clock is plausible.
+            if (System.currentTimeMillis() >= plausible) {
+                n += dir(ctx).listFiles().orEmpty().count { f ->
+                    (f.name.startsWith("report_") || f.name.startsWith("plan_")) && f.lastModified() in plausible until cutoff && f.delete()
+                }
+            }
+            return n
         }
+
+        /**
+         * Recordings named by a wrong clock (before 2015 — a head unit that started in 2007):
+         * renamed after their start as the analysis counts it back from the real time.
+         */
+        fun fixNames(ctx: Context): Int {
+            val plausible = 1_420_070_400_000L
+            return (tripCsvs(ctx) + checkCsvs(ctx)).count { f ->
+                val stamp = stampOf(f) ?: return@count false
+                if (stamp >= plausible) return@count false
+                val start = analyze(f)?.start?.atZone(java.time.ZoneId.systemDefault())?.toInstant()?.toEpochMilli() ?: return@count false
+                start >= plausible && renameTo(f, start) != f
+            }
+        }
+
+        /** Trips never removed by [cleanup], however old. */
+        const val KEEP_NEWEST = 20
 
         /** «46 поездок · 112 МБ · свободно 9.4 ГБ» */
         fun storageSummary(ctx: Context): String {

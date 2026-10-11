@@ -15,6 +15,7 @@ import android.content.IntentFilter
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock
 import android.provider.Settings
 import com.obdlogger.core.AdapterInfo
 import com.obdlogger.core.CarId
@@ -49,6 +50,8 @@ class LoggerService : Service() {
         var logger: DataLogger? = null
         var report: SessionReport? = null
         var lastDataMs = System.currentTimeMillis()
+        /** The same moment on the monotonic clock: gaps and timers never trip on a corrected wall clock. */
+        var lastMono = SystemClock.elapsedRealtime()
         var engineOffSinceMs: Long? = null
     }
 
@@ -218,7 +221,7 @@ class LoggerService : Service() {
 
                     // In auto mode a long pause means the previous trip is over.
                     val previous = trip
-                    if (auto && previous != null && System.currentTimeMillis() - previous.lastDataMs > TRIP_GAP_MS) {
+                    if (auto && previous != null && SystemClock.elapsedRealtime() - previous.lastMono > TRIP_GAP_MS) {
                         finishTrip(previous, null)
                         trip = null
                         traceTarget = waitLog
@@ -241,7 +244,9 @@ class LoggerService : Service() {
                     if (stopRequested) break
                     lamps(link = if (auto) Lamp.WAIT else Lamp.FAIL, linkText = "нет связи с адаптером", engine = Lamp.OFF, engineText = "неизвестно")
                     val current = trip
-                    if (auto && current != null && System.currentTimeMillis() - current.lastDataMs > TRIP_GAP_MS) {
+                    // The adapter dropped (often: ignition off, the head unit is about to lose power): to storage now.
+                    current?.let { syncTrip(it, force = true) }
+                    if (auto && current != null && SystemClock.elapsedRealtime() - current.lastMono > TRIP_GAP_MS) {
                         finishTrip(current, null)
                         trip = null
                         traceTarget = waitLog
@@ -337,9 +342,10 @@ class LoggerService : Service() {
         trace("trip start; app ${BuildConfig.VERSION_NAME}; Android ${Build.VERSION.RELEASE} (${Build.MANUFACTURER} ${Build.MODEL}); auto=$auto")
         trace("adapter: $adapterInfo; protocol: ${s.protocolName} (#${s.protocolNumber})")
         tripLock?.acquire(12 * 60 * 60 * 1000L)
+        // commit, not apply: the power may go any second, Recovery must find this trip.
         Prefs.of(this).edit().putLong(Prefs.RECORDING_SINCE, System.currentTimeMillis())
             .putString(Prefs.RECORDING_BOOT, Recovery.bootId()).putLong(Prefs.RECORDING_SLEEP, Recovery.slept())
-            .remove(Prefs.RECORDING_SHUTDOWN).apply()
+            .remove(Prefs.RECORDING_SHUTDOWN).commit()
         LoggerState.resetMarkers()
         LoggerState.update { it.copy(recording = true, rows = 0, markers = 0, exported = emptyList(), status = "Чтение VIN, датчиков и ошибок…") }
         if (auto) openUi()
@@ -364,11 +370,17 @@ class LoggerService : Service() {
         val stream = java.io.FileOutputStream(files.csv).also { t.csvStream = it }
         val writer = stream.bufferedWriter().also { t.csv = it }
         currentTrip = t
-        Prefs.of(this).edit().putString(Prefs.RECORDING_FILE, files.csv.absolutePath).apply()
-        val logger = DataLogger(items, writer, defaultHeader = s.defaultHeader).also { it.writeHeader() }
+        Prefs.of(this).edit().putString(Prefs.RECORDING_FILE, files.csv.absolutePath).commit()
+        val logger = DataLogger(items, writer, defaultHeader = s.defaultHeader, mono = SystemClock::elapsedRealtime).also { it.writeHeader() }
+        logger.onClockJump = { delta ->
+            // The head unit got the real time (no clock battery): charts stay continuous.
+            LiveData.store.shift(delta)
+            trace("wall clock corrected by ${delta / 1000} s")
+        }
         t.logger = logger
+        syncTrip(t, force = true)
         LiveData.store.reset(logger.columns.map { it.name })
-        t.report = SessionReport(carName, adapterInfo, info).also { files.info.writeText(it.render(logger, null, null)) }
+        t.report = SessionReport(carName, adapterInfo, info).also { SessionFiles.writeSynced(files.info, it.render(logger, null, null)) }
         LoggerState.update {
             it.copy(dtcInfo = dtcSummary(info.dtcs) + "\nПротокол: ${info.protocol}", currentCsv = files.csv.absolutePath, protocol = info.protocol)
         }
@@ -401,13 +413,14 @@ class LoggerService : Service() {
             val checkMarker = check?.state?.marker
             val r = logger.cycle(elm, listOfNotNull(autoMarker, marker, checkMarker).joinToString(" ").ifEmpty { null })
             val now = System.currentTimeMillis()
+            val mono = SystemClock.elapsedRealtime()
             check?.let { c ->
-                if (checkStopRequested) c.test.stop(now)
+                if (checkStopRequested) c.test.stop(mono)
                 val idx = logger.columns.indexOfFirst { it.name == "speed_kmh" }
                 val speed = logger.lastRow.getOrNull(idx)?.toDoubleOrNull()
                 val rpmNow = if (r.wroteRow) logger.lastRow.getOrNull(rpmIndex)?.toDoubleOrNull() else null
                 val coolantNow = logger.lastRow.getOrNull(logger.columns.indexOfFirst { it.name == "coolant_c" })?.toDoubleOrNull()
-                val st = c.test.update(now, rpmNow, speed, coolantNow)
+                val st = c.test.update(mono, rpmNow, speed, coolantNow)
                 c.state = st
                 LoggerState.update { it.copy(check = st) }
                 if (st.phase != com.obdlogger.core.CheckTest.Phase.RUNNING) {
@@ -421,6 +434,7 @@ class LoggerService : Service() {
                 autoMarker = null
                 silentCycles = 0
                 t.lastDataMs = now
+                t.lastMono = mono
                 LiveData.store.add(logger.lastRowMs, logger.lastRow)
                 watchRow(logger.lastRowMs)
                 val rpm = logger.lastRow.getOrNull(rpmIndex)?.toDoubleOrNull()
@@ -431,7 +445,11 @@ class LoggerService : Service() {
                         lamps(link = Lamp.OK, linkText = "ЭБУ на связи", engine = Lamp.OK, engineText = "работает, ${rpm.toInt()} об/мин")
                     }
                     else -> {
-                        if (t.engineOffSinceMs == null) t.engineOffSinceMs = now
+                        if (t.engineOffSinceMs == null) {
+                            t.engineOffSinceMs = mono
+                            // Engine off: the head unit may lose power with the ignition — to storage now.
+                            syncTrip(t, force = true)
+                        }
                         lamps(link = Lamp.OK, linkText = "ЭБУ на связи", engine = Lamp.OFF, engineText = "заглушен")
                     }
                 }
@@ -444,7 +462,7 @@ class LoggerService : Service() {
                         else -> "ЭБУ не отвечает (${r.error}) — двигатель заглушен?"
                     },
                     rows = logger.rows,
-                    elapsedSec = (now - logger.startMs) / 1000,
+                    elapsedSec = logger.elapsedMs() / 1000,
                     cycleMs = r.durationMs,
                     lastDataMs = t.lastDataMs,
                     values = logger.latest.entries.map { e -> e.key to e.value },
@@ -453,7 +471,7 @@ class LoggerService : Service() {
             updateNotification("Идёт запись", force = false)
             // Ignition on, engine off for long enough: the trip is over.
             val offSince = t.engineOffSinceMs
-            if (auto && offSince != null && now - offSince > TRIP_GAP_MS) {
+            if (auto && offSince != null && mono - offSince > TRIP_GAP_MS) {
                 trace("engine off for ${TRIP_GAP_MS / 1000} s: trip finished")
                 return true
             }
@@ -467,7 +485,7 @@ class LoggerService : Service() {
                 updateNotification("Ожидание ЭБУ…")
                 s.initAdapter()
                 while (!stopRequested && !s.connectEcu()) {
-                    if (auto && System.currentTimeMillis() - t.lastDataMs > TRIP_GAP_MS) {
+                    if (auto && SystemClock.elapsedRealtime() - t.lastMono > TRIP_GAP_MS) {
                         trace("ecu silent for ${TRIP_GAP_MS / 1000} s: trip finished")
                         return true
                     }
@@ -486,8 +504,8 @@ class LoggerService : Service() {
             }
         }
         check?.let { c ->
-            c.test.stop(System.currentTimeMillis())
-            c.state = c.test.update(System.currentTimeMillis(), null, null)
+            c.test.stop(SystemClock.elapsedRealtime())
+            c.state = c.test.update(SystemClock.elapsedRealtime(), null, null)
             LoggerState.update { it.copy(check = c.state) }
             finishCheck(logger, c)
         }
@@ -506,8 +524,8 @@ class LoggerService : Service() {
         val w = files.csv.bufferedWriter()
         logger.tee = w
         trace("check log start: ${files.csv.name}")
-        val run = CheckRun(com.obdlogger.core.CheckTest(System.currentTimeMillis(), kind), files, w)
-        LoggerState.update { it.copy(check = run.test.update(System.currentTimeMillis(), null, null)) }
+        val run = CheckRun(com.obdlogger.core.CheckTest(SystemClock.elapsedRealtime(), kind), files, w)
+        LoggerState.update { it.copy(check = run.test.update(SystemClock.elapsedRealtime(), null, null)) }
         return run
     }
 
@@ -540,8 +558,8 @@ class LoggerService : Service() {
      * writer already flushes every row; fsync makes it survive a power cut.
      */
     private fun syncTrip(t: Trip, force: Boolean = false) {
-        val now = System.currentTimeMillis()
-        if (!force && now - t.lastSyncMs < 15_000) return
+        val now = SystemClock.elapsedRealtime()
+        if (!force && now - t.lastSyncMs < 5_000) return
         t.lastSyncMs = now
         try {
             t.csv?.flush()
@@ -570,14 +588,14 @@ class LoggerService : Service() {
     }
 
     /** At the end of a trip: each watched rule's answer goes to the chat queue. */
-    private fun finishWatch(rows: Int) {
+    private fun finishWatch(rows: Int, minutesRecorded: Double) {
         val tallies = watchTallies
         val start = watchStartMs
         watchTallies = LinkedHashMap()
         watchStartMs = null
         if (tallies.isEmpty() || rows == 0 || start == null) return
-        val label = java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.ROOT).format(java.util.Date(start))
-        val minutes = (System.currentTimeMillis() - start) / 60_000.0
+        val label = java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.ROOT).format(java.util.Date(System.currentTimeMillis() - (minutesRecorded * 60_000).toLong()))
+        val minutes = minutesRecorded
         tallies.values.forEach { WatchStore.postReport(this, it.report(label, minutes)) }
         WatchStore.tripDone(this)
     }
@@ -599,7 +617,7 @@ class LoggerService : Service() {
         val logger = t.logger
         val rows = logger?.rows ?: 0
         if (logger != null) {
-            t.report?.let { t.files.info.writeText(it.render(logger, finalDtcs, System.currentTimeMillis())) }
+            t.report?.let { t.files.info.writeText(it.render(logger, finalDtcs, logger.startMs + logger.elapsedMs())) }
             if (rows > 0) {
                 val analysis = try {
                     SessionFiles.compareRecent(this)
@@ -622,7 +640,10 @@ class LoggerService : Service() {
             listOf(t.files.csv, t.files.info, t.files.elmLog, SessionFiles.profileOf(t.files.csv)).forEach { it.delete() }
             return
         }
-        val toExport = t.files.existing()
+        // Named by a wrong clock (2007 at start-up)? Rename after the start counted back from the real time.
+        val csv = logger?.let { SessionFiles.renameTo(t.files.csv, it.startMs) } ?: t.files.csv
+        val files = SessionFiles(csv.parentFile!!, csv.nameWithoutExtension)
+        val toExport = files.existing()
         val results = toExport.map { SessionFiles.exportToDownloads(this, it) }
         val saved = results.count { it.ok }
         val folder = "Загрузки/${SessionFiles.DOWNLOAD_FOLDER}"
@@ -632,9 +653,9 @@ class LoggerService : Service() {
                 recording = false,
                 status = when {
                     saved < toExport.size -> "Не удалось сохранить ${toExport.size - saved} из ${toExport.size} файлов в $folder"
-                    rows > 0 -> "Поездка сохранена: $rows строк → $folder/${t.files.csv.name}" +
+                    rows > 0 -> "Поездка сохранена: $rows строк → $folder/${files.csv.name}" +
                         if (waitingNext) "\nАвтозапись: жду следующего запуска двигателя" else ""
-                    else -> "Данные не записаны. Журнал подключения: $folder/${t.files.elmLog.name}"
+                    else -> "Данные не записаны. Журнал подключения: $folder/${files.elmLog.name}"
                 },
                 dtcInfo = finalDtcs?.let { d -> "В конце поездки:\n" + dtcSummary(d) } ?: it.dtcInfo,
                 exported = results.mapNotNull { r -> r.uri },
@@ -643,8 +664,8 @@ class LoggerService : Service() {
             )
         }
         updateNotification(if (waitingNext) "Жду машину" else "Запись выключена")
-        finishWatch(rows)
-        if (rows > 0) Thread { tripSavedNotification(t.files.csv) }.start()
+        finishWatch(rows, (logger?.elapsedMs() ?: 0L) / 60_000.0)
+        if (rows > 0) Thread { tripSavedNotification(files.csv) }.start()
     }
 
     /** Auto mode brings the app to the front when a trip starts (needs «поверх других окон» on Android 10+). */

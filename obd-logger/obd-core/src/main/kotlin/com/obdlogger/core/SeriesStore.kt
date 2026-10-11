@@ -64,6 +64,15 @@ class SeriesStore(private val capacity: Int = 20_000) {
         while (rows.size > capacity) rows.removeFirst()
     }
 
+    /** The wall clock was corrected while recording: move the rows already kept by [deltaMs], so the charts stay continuous. */
+    @Synchronized
+    fun shift(deltaMs: Long) {
+        if (deltaMs == 0L) return
+        val moved = rows.map { Row(it.time + deltaMs, it.values) }
+        rows.clear()
+        rows.addAll(moved)
+    }
+
     /** Last known value of [name], NaN if never seen. */
     @Synchronized
     fun last(name: String): Double {

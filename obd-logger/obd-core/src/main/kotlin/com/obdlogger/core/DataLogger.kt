@@ -54,11 +54,45 @@ class DataLogger(
     zone: ZoneId = ZoneId.systemDefault(),
     /** Protocol default header; items with their own header are switched to and back. */
     private val defaultHeader: String? = null,
+    /**
+     * A clock that never jumps (Android: SystemClock.elapsedRealtime). Head units without
+     * a clock battery start in a wrong year and then jump to the real time: durations and
+     * t_s come from this clock, row times follow the wall clock only through an anchor
+     * that moves when the wall clock is corrected. Null: the wall clock is trusted.
+     */
+    private val mono: (() -> Long)? = null,
 ) {
     private var currentHeader = defaultHeader
     private val timeFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").withZone(zone)
     val columns: List<Column> = items.flatMap { it.columns }
-    val startMs = clock()
+    private fun monoNow() = (mono ?: clock)()
+    private val monoStart = monoNow()
+    private var anchorMono = monoStart
+    private var anchorWall = if (mono == null) monoStart else clock()
+
+    /** Start of the recording, counted back from the latest correct wall time. */
+    val startMs: Long get() = anchorWall - (anchorMono - monoStart)
+
+    /** How long it has been recording, whatever the wall clock did. */
+    fun elapsedMs(): Long = monoNow() - monoStart
+
+    /** The wall clock was corrected by [Long] ms (row times jump by that much from now on). */
+    var onClockJump: (Long) -> Unit = {}
+
+    /** Wall time of the monotonic moment [m]; re-anchors when the wall clock moved away by more than 2 min. */
+    private fun wallAt(m: Long): Long {
+        val expected = anchorWall + (m - anchorMono)
+        if (mono == null) return expected
+        val w = clock()
+        if (kotlin.math.abs(w - expected) > CLOCK_JUMP_MS) {
+            anchorWall = w
+            anchorMono = m
+            onClockJump(w - expected)
+            return w
+        }
+        return expected
+    }
+
     var lastRowMs = startMs
         private set
     var rows = 0
@@ -104,7 +138,8 @@ class DataLogger(
     fun cycle(elm: ElmIo, marker: String?): CycleResult {
         val includeSlow = cycles % slowEvery == 0
         cycles++
-        val t = clock()
+        val m = monoNow()
+        val t = wallAt(m)
         val values = ArrayList<String?>(columns.size)
         var ecuAnswered = 0
         var ecuFailed = 0
@@ -141,11 +176,11 @@ class DataLogger(
             }
             values.addAll(parsed)
         }
-        val duration = clock() - t
+        val duration = monoNow() - m
         if (adapterReset) return CycleResult(false, duration, "адаптер перезагрузился", adapterReset = true)
         if (ecuAnswered == 0) return CycleResult(false, duration, lastError)
 
-        val line = Csv.row(listOf(formatTime(t), Values.format((t - startMs) / 1000.0)) + values + marker)
+        val line = Csv.row(listOf(formatTime(t), Values.format((m - monoStart) / 1000.0)) + values + marker)
         out.write(line)
         out.write("\n")
         out.flush()
@@ -170,5 +205,7 @@ class DataLogger(
     companion object {
         const val MAX_CONSECUTIVE_TIMEOUTS = 5
         const val SILENT_REQUESTS_TO_GIVE_UP = 4
+        /** A wall clock this far from the expected time was set (network/GPS), not drifting. */
+        const val CLOCK_JUMP_MS = 2 * 60_000L
     }
 }

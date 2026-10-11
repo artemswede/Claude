@@ -140,7 +140,11 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         } else {
             requestNeededPermissions()
         }
-        Thread { SessionFiles.cleanup(this, Prefs.keepDays(this)) }.start()
+        Thread {
+            // Trips named by the head unit's 2007 clock first get their real names, then old ones go.
+            SessionFiles.fixNames(this)
+            SessionFiles.cleanup(this, Prefs.keepDays(this))
+        }.start()
         // Auto mode is on but the service is not running (app was updated, killed or the tablet rebooted).
         if (Prefs.auto(this) && !LoggerState.snapshot.running && Prefs.device(this) != null && hasBluetoothPermission()) {
             startAuto()

@@ -50,11 +50,12 @@ class TripsModel(
 
         /** [carKey] null = the car of the newest recording. */
         fun from(items: List<TripItem>, carKey: String? = null): TripsModel {
-            val all = items.filter { it.summary.rows >= 10 }.sortedByDescending { it.summary.start }
+            // Short trips stay in the journal (marked «мало данных»), they are just not compared.
+            val all = items.filter { it.summary.rows >= 2 }.sortedByDescending { it.summary.start }
             val cars = all.mapNotNull { it.summary.car }.distinctBy { it.key }
             val car = cars.firstOrNull { it.key == carKey } ?: all.firstOrNull()?.summary?.car
             val sorted = all.filter { it.summary.car?.key == car?.key }
-            val trips = sorted.filter { !it.isCheck }.map { it.summary }
+            val trips = sorted.filter { !it.isCheck && it.summary.rows >= 10 }.map { it.summary }
             return TripsModel(sorted, TripComparison.table(trips), sorted.filter { it.isCheck }, cars, car)
         }
     }

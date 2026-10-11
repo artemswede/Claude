@@ -239,6 +239,44 @@ object TripAnalyzer {
     fun dipBelow(idleRpm: Double?): Double = idleRpm?.let { it - maxOf(100.0, it * 0.15) } ?: 560.0
     private const val MIN_SAMPLES = 5
 
+    /**
+     * Row times and milliseconds since the start, robust to a head unit whose clock jumped
+     * (no clock battery: it starts in 2007 and later gets the real time). Elapsed time comes
+     * from the monotonic t_s when it is sane, otherwise from the wall times with jumps over
+     * an hour replaced by the usual polling step; the start is counted back from the last
+     * row, whose time is the most likely to be right.
+     */
+    fun clockFix(wall: List<LocalDateTime?>, ts: List<Double?>): Pair<List<LocalDateTime?>, List<Long>> {
+        val n = wall.size
+        if (n == 0) return wall to emptyList()
+        val tsOk = ts.count { it != null } >= n / 2 && ts.filterNotNull().zipWithNext().all { (a, b) -> b >= a && b - a < 3600 }
+        val ms = LongArray(n)
+        if (tsOk) {
+            val t0 = ts.firstNotNullOf { it }
+            var last = 0L
+            for (i in 0 until n) { ts[i]?.let { last = ((it - t0) * 1000).toLong() }; ms[i] = last }
+        } else {
+            val epoch = wall.map { w -> w?.let { Duration.between(LocalDateTime.of(2000, 1, 1, 0, 0), it).toMillis() } }
+            val steps = epoch.filterNotNull().zipWithNext { a, b -> b - a }.filter { it in 1..3_600_000 }.sorted()
+            val usual = if (steps.isEmpty()) 1000L else steps[steps.size / 2]
+            var prev: Long? = null
+            var acc = 0L
+            for (i in 0 until n) {
+                val e = epoch[i]
+                if (e != null && prev != null) {
+                    val d = e - prev
+                    acc += if (d < -60_000 || d > 3_600_000) usual else d.coerceAtLeast(0)
+                }
+                if (e != null) prev = e
+                ms[i] = acc
+            }
+        }
+        val lastIdx = (n - 1 downTo 0).firstOrNull { wall[it] != null } ?: return wall to ms.toList()
+        val start = wall[lastIdx]!!.minus(Duration.ofMillis(ms[lastIdx]))
+        val fixed = wall.indices.map { i -> if (wall[i] == null && ts[i] == null) null else start.plus(Duration.ofMillis(ms[i])) }
+        return fixed to ms.toList()
+    }
+
     /** Parses a CSV and classifies every row by operating mode. Null if there is nothing to analyse. */
     fun table(csv: String): TripTable? {
         val lines = csv.lineSequence().filter { it.isNotBlank() }.toList()
@@ -246,9 +284,10 @@ object TripAnalyzer {
         val header = splitCsv(lines[0])
         val timeIdx = header.indexOf("time").takeIf { it >= 0 } ?: return null
         val rows = lines.drop(1).map { splitCsv(it) }
-        val times = rows.map { r -> r.getOrNull(timeIdx)?.let { runCatching { LocalDateTime.parse(it, TIME) }.getOrNull() } }
-        val first = times.firstNotNullOfOrNull { it }
-        val ms = times.map { t -> t?.let { Duration.between(first ?: it, it).toMillis() } ?: 0L }
+        val wall = rows.map { r -> r.getOrNull(timeIdx)?.let { runCatching { LocalDateTime.parse(it, TIME) }.getOrNull() } }
+        val tsIdx = header.indexOf("t_s")
+        val ts = rows.map { r -> if (tsIdx < 0) null else r.getOrNull(tsIdx)?.toDoubleOrNull() }
+        val (times, ms) = clockFix(wall, ts)
         val t = TripTable(header, rows, times, ms)
 
         val rpm = t.raw("rpm")
