@@ -1,5 +1,4 @@
 export const config = { runtime: "edge" };
-// v2 - force redeploy
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
@@ -11,17 +10,21 @@ function needsSearch(text) {
 
 async function searchSerper(query) {
   if (!SERPER_API_KEY) return null;
-  const res = await fetch("https://google.serper.dev/search", {
-    method: "POST",
-    headers: { "X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ q: query, gl: "ru", hl: "ru", num: 2 }),
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  const parts = [];
-  if (data.answerBox) parts.push(data.answerBox.answer || data.answerBox.snippet || "");
-  if (data.organic) for (const r of data.organic.slice(0, 2)) if (r.snippet) parts.push(r.snippet);
-  return parts.length ? parts.join("\n") : null;
+  try {
+    const res = await fetch("https://google.serper.dev/search", {
+      method: "POST",
+      headers: { "X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ q: query, gl: "ru", hl: "ru", num: 2 }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const parts = [];
+    if (data.answerBox) parts.push(data.answerBox.answer || data.answerBox.snippet || "");
+    if (data.organic) for (const r of data.organic.slice(0, 2)) if (r.snippet) parts.push(r.snippet);
+    return parts.length ? parts.join("\n") : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 function quickAnswer(text) {
@@ -49,27 +52,16 @@ async function askGemini(userText, history, searchResults) {
   if (searchResults) prompt += "\n\nДанные из интернета:\n" + searchResults + "\n\nОтветь коротко.";
   contents.push({ role: "user", parts: [{ text: prompt }] });
 
-  let res;
-  try {
-    res = await fetch(GEMINI_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: "Ты голосовой ассистент Жожик. Твоё имя Жожик. Ты не Gemini и не Google. Отвечай коротко, 1-3 предложения, по-русски. Без маркдауна и списков. Если вопрос безобидный но похож на опасный — отвечай спокойно и по делу." }] },
-        contents,
-        generationConfig: {
-          maxOutputTokens: 200,
-          temperature: 0.7,
-        },
-      }),
-    });
-  } catch (e) {
-    return "[fetch error] " + e.message;
-  }
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    return "[HTTP " + res.status + "] " + errText.slice(0, 200);
-  }
+  const res = await fetch(GEMINI_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: "Ты голосовой ассистент Жожик. Твоё имя Жожик. Ты не Gemini и не Google. Отвечай коротко, 1-3 предложения, по-русски. Без маркдауна и списков." }] },
+      contents,
+      generationConfig: { maxOutputTokens: 200, temperature: 0.7 },
+    }),
+  });
+  if (!res.ok) return "Ошибка Gemini: " + res.status;
   const data = await res.json();
   const parts = data.candidates?.[0]?.content?.parts;
   if (parts) {
@@ -78,77 +70,97 @@ async function askGemini(userText, history, searchResults) {
     }
   }
   if (data.candidates?.[0]?.finishReason === "SAFETY") return "Извини, на этот вопрос я не могу ответить.";
-  return "[no text] " + JSON.stringify(data).slice(0, 300);
+  return "Не получилось ответить. Попробуй переформулировать.";
 }
 
 function withTimeout(promise, ms) {
   return Promise.race([
-    promise.then(v => ({ ok: true, value: v })),
-    new Promise(resolve => setTimeout(() => resolve({ ok: false }), ms)),
+    promise.then(function(v) { return { ok: true, value: v }; }),
+    new Promise(function(resolve) { setTimeout(function() { resolve({ ok: false }); }, ms); }),
   ]);
 }
 
-function json(body) {
-  return new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
-}
-
-function alice(text, state, end = false, tts = null) {
-  const t = text.length > 1024 ? text.slice(0, 1021) + "..." : text;
-  return json({
-    response: { text: t, tts: tts || t, end_session: end },
-    session_state: state,
-    version: "1.0",
-  });
-}
-
 function isRetry(text) {
-  return /^(ну что|готово|ответ|ну как|давай|жду|и|ну\?|что там|ответил|думал|придумал|ну давай|скажи)/i.test(text.trim());
+  return /^(ну что|готово|ответ|ну как|давай|жду|и$|ну\?|что там|ответил|думал|придумал|ну давай|скажи)/i.test(text.trim());
 }
 
 export default async function handler(request) {
-  if (request.method !== "POST") return json({ ok: true });
+  const headers = { "Content-Type": "application/json" };
+
+  if (request.method !== "POST") {
+    return new Response(JSON.stringify({ ok: true }), { headers });
+  }
 
   try {
-    const body = await request.json();
-    if (!body?.request || !body?.session) return json({ error: "Invalid" });
-
-    const userText = body.request.original_utterance || body.request.command || "";
-    const state = body.state?.session || {};
-    const history = state.h || [];
-    const pending = state.p || null;
-
-    if (body.session.new || !userText.trim()) {
-      return alice("Привет! Я Жожик — умный ассистент с доступом к интернету. Спрашивай что угодно!", { h: [] });
+    var bodyText = await request.text();
+    var body;
+    try {
+      body = JSON.parse(bodyText);
+    } catch (e) {
+      return new Response(JSON.stringify({
+        response: { text: "Ошибка разбора запроса", tts: "Ошибка разбора запроса", end_session: false },
+        version: "1.0"
+      }), { headers });
     }
 
-    if (["хватит", "стоп", "выход", "пока", "до свидания"].includes(userText.toLowerCase().trim())) {
-      return alice("Пока! Было приятно поболтать.", { h: [] }, true);
+    if (!body || !body.request || !body.session) {
+      return new Response(JSON.stringify({
+        response: { text: "Некорректный запрос", tts: "Некорректный запрос", end_session: false },
+        version: "1.0"
+      }), { headers });
     }
 
-    const quick = quickAnswer(userText);
-    if (quick) return alice(quick, { h: [...history.slice(-3), { u: userText, a: quick }] });
+    var userText = body.request.original_utterance || body.request.command || "";
+    var state = (body.state && body.state.session) || {};
+    var history = state.h || [];
+    var pending = state.p || null;
 
-    let questionToAsk = userText;
-    let searchForQuestion = userText;
+    function respond(text, sessionState, end, tts) {
+      var t = text.length > 1024 ? text.slice(0, 1021) + "..." : text;
+      return new Response(JSON.stringify({
+        response: { text: t, tts: tts || t, end_session: !!end },
+        session_state: sessionState,
+        version: "1.0"
+      }), { headers });
+    }
+
+    if (body.session["new"] || !userText.trim()) {
+      return respond("Привет! Я Жожик — умный ассистент с доступом к интернету. Спрашивай что угодно!", { h: [] });
+    }
+
+    var lower = userText.toLowerCase().trim();
+    if (lower === "хватит" || lower === "стоп" || lower === "выход" || lower === "пока" || lower === "до свидания") {
+      return respond("Пока! Было приятно поболтать.", { h: [] }, true);
+    }
+
+    var quick = quickAnswer(userText);
+    if (quick) {
+      var qh = history.slice(-3);
+      qh.push({ u: userText, a: quick });
+      return respond(quick, { h: qh });
+    }
+
+    var questionToAsk = userText;
+    var searchForQuestion = userText;
 
     if (pending && isRetry(userText)) {
       questionToAsk = pending;
       searchForQuestion = pending;
     }
 
-    let search = null;
+    var search = null;
     if (needsSearch(searchForQuestion)) {
-      const searchResult = await withTimeout(searchSerper(searchForQuestion), 1000);
+      var searchResult = await withTimeout(searchSerper(searchForQuestion), 1000);
       if (searchResult.ok) search = searchResult.value;
     }
 
-    const geminiResult = await withTimeout(
+    var geminiResult = await withTimeout(
       askGemini(questionToAsk, history.slice(-3), search),
       3500
     );
 
     if (!geminiResult.ok) {
-      return alice(
+      return respond(
         "Хм, сложный вопрос! Думаю... Скажи \"ну что?\" через пару секунд.",
         { h: history, p: questionToAsk },
         false,
@@ -156,12 +168,17 @@ export default async function handler(request) {
       );
     }
 
-    let answer = geminiResult.value;
+    var answer = geminiResult.value;
     answer = answer.replace(/[*_#`~\[\]]/g, "").trim();
-    const newHistory = [...history.slice(-3), { u: questionToAsk, a: answer }];
-    return alice(answer, { h: newHistory });
+    var newHistory = history.slice(-3);
+    newHistory.push({ u: questionToAsk, a: answer });
+    return respond(answer, { h: newHistory });
+
   } catch (e) {
-    console.error("Error:", e);
-    return alice("Что-то пошло не так.", { h: [] });
+    return new Response(JSON.stringify({
+      response: { text: "Что-то пошло не так: " + (e.message || "unknown"), tts: "Что-то пошло не так.", end_session: false },
+      session_state: { h: [] },
+      version: "1.0"
+    }), { headers: { "Content-Type": "application/json" } });
   }
 }
