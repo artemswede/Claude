@@ -54,7 +54,10 @@ jobs:
           exit $ok
 
       - name: Name the APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk "Bortach-${BORTACH_VERSION}.apk"
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk "Bortach-${BORTACH_VERSION}.apk"
+          # The same APK under a name that never changes: one link that always works.
+          cp app/build/outputs/apk/debug/app-debug.apk Bortach.apk
 
       - uses: actions/upload-artifact@v4
         with:
@@ -81,8 +84,10 @@ jobs:
           overwrite_files: true
           body: |
             Бортач ${{ env.BORTACH_VERSION }} — сборка ${{ github.run_number }} (${{ github.sha }}).
-            Скачайте Bortach-${{ env.BORTACH_VERSION }}.apk и установите поверх прежней версии.
-          files: obd-logger/Bortach-${{ env.BORTACH_VERSION }}.apk
+            Скачайте Bortach.apk (постоянная ссылка) или Bortach-${{ env.BORTACH_VERSION }}.apk и установите поверх прежней версии.
+          files: |
+            obd-logger/Bortach.apk
+            obd-logger/Bortach-${{ env.BORTACH_VERSION }}.apk
 
       - name: Publish screenshots
         if: hashFiles(format('obd-logger/screens-{0}.zip', env.BORTACH_VERSION)) != ''
