@@ -26,7 +26,7 @@ interface BaselineActions {
  * a reset for after a repair.
  */
 class BaselineView(ctx: Context, private val sc: Bt.Scale, private val actions: BaselineActions) : FrameLayout(ctx) {
-    private val p = Bt.LIGHT
+    private val p = Bt.theme
     private val page = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(sc.pad), dp(12), dp(sc.pad), dp(32)) }
     private var shownKey: Any? = null
 

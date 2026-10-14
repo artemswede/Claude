@@ -53,6 +53,8 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         fun uiScale(): Int = 100
         fun setUiScale(percent: Int) {}
         fun screenText(): String = ""
+        fun themeIndex(): Int = 0
+        fun setThemeIndex(i: Int) {}
         fun openCodes() {}
         /** AI chat: the DeepSeek key («sk-…ab12» / «не задан») and the model. */
         fun aiKeyText(): String = "не задан"
@@ -74,7 +76,7 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         fun aiProUsed(): Int = 0
     }
 
-    private val p = Bt.LIGHT
+    private val p = Bt.theme
     private val list = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
     private var host: Host? = null
     private var status: String = ""
@@ -119,6 +121,8 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         chevron("Открывать при запуске двигателя", h.overlayText()) { h.askOverlay() }
 
         section("Экран")
+        segment("Тема", "внешний вид приложения",
+            listOf("Светлая" to 0, "Тёмная" to 1, "По времени" to 2), h.themeIndex()) { h.setThemeIndex(it) }
         segment("Размер интерфейса", "крупнее — больше кнопки и текст · ${h.screenText()}",
             com.obdlogger.app.UiScale.LEVELS.map { it.second to Math.round(it.first * 100) }, h.uiScale()) { h.setUiScale(it) }
 

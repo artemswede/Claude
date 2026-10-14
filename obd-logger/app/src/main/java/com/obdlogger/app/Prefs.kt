@@ -47,6 +47,8 @@ object Prefs {
     const val AI_PROXY_TOKEN = "ai_proxy_token"
     const val PANEL_SORT = "panel_sort"
     const val PANEL_HIDDEN = "panel_hidden"
+    /** Colour theme: "dark", "light" or "auto" (dark between 21:00–07:00). */
+    const val THEME = "theme"
 
     fun of(ctx: Context): SharedPreferences = ctx.getSharedPreferences("settings", Context.MODE_PRIVATE)
     fun device(ctx: Context): String? = of(ctx).getString(DEVICE, null)
@@ -108,4 +110,7 @@ object Prefs {
 
     fun seenTrip(ctx: Context): String? = of(ctx).getString(SEEN_TRIP, null)
     fun setSeenTrip(ctx: Context, name: String) = of(ctx).edit().putString(SEEN_TRIP, name).apply()
+
+    fun theme(ctx: Context): String = of(ctx).getString(THEME, "auto") ?: "auto"
+    fun setTheme(ctx: Context, v: String) = of(ctx).edit().putString(THEME, v).apply()
 }

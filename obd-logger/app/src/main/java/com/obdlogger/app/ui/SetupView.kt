@@ -36,7 +36,7 @@ class SetupView(ctx: Context, private val sc: Bt.Scale, private val host: Host) 
         fun finishSetup()
     }
 
-    private val p = Bt.LIGHT
+    private val p = Bt.theme
     private var step = 0
     private val titles = listOf("Сопряжение адаптера", "Bluetooth и уведомления", "Экономия батареи", "Поверх других окон", "Автозапись", "Профиль машины")
     private val rail = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }

@@ -36,7 +36,7 @@ interface DtcActions {
  * saves all of that to a report — so the reason is not lost with the code.
  */
 class DtcView(ctx: Context, private val sc: Bt.Scale, private val actions: DtcActions, private val store: () -> SeriesStore?) : FrameLayout(ctx) {
-    private val p = Bt.LIGHT
+    private val p = Bt.theme
     private val page = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(sc.pad), dp(16), dp(sc.pad), dp(32)) }
     private var shownKey: Any? = null
 

@@ -34,7 +34,7 @@ interface CheckActions {
  * timer, the aborted screen and the result against the previous check of the same kind.
  */
 class CheckView(ctx: Context, private val sc: Bt.Scale, private val actions: CheckActions, kind: CheckKind? = null) : FrameLayout(ctx) {
-    private val p = Bt.LIGHT
+    private val p = Bt.theme
     private var last: String? = null
     /** The check chosen in the menu; null — the menu is shown. */
     var kind: CheckKind? = kind

@@ -58,7 +58,7 @@ data class ChatWait(val stage: String, val since: Long, val model: String)
  * чат», «⋯») live in [header] — in the top line next to the lamps, never scrolled away.
  */
 class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: ChatActions) : FrameLayout(ctx) {
-    private val p = Bt.LIGHT
+    private val p = Bt.theme
     private val list = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(sc.pad), dp(8), dp(sc.pad), dp(12)) }
     private val scroll = ScrollView(ctx).apply { addView(list); isFillViewport = true }
     private val input = EditText(ctx).apply {

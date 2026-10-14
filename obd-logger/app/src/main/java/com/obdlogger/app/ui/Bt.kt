@@ -54,6 +54,9 @@ object Bt {
         series = listOf(c("#5765C8"), c("#B765FD"), c("#CB0296"), c("#2DA2C3"), c("#72801F"), c("#C3737B")),
     )
 
+    /** The palette all non-recording screens use: set from Prefs.theme on start and theme change. */
+    @Volatile var theme: Palette = LIGHT
+
     /** Type scale per screen class (sizes in sp, as in the mock-ups where 1 px = 1 dp). */
     class Scale(
         val lbl: Float, val hxl: Float, val hl: Float, val hm: Float, val hs: Float, val pl: Float, val p: Float,

@@ -88,7 +88,7 @@ class TripsView(
     /** Another car was chosen: rebuild the model for it. */
     private val onPickCar: (String) -> Unit = {},
 ) : FrameLayout(ctx) {
-    private val p = Bt.LIGHT
+    private val p = Bt.theme
     private var model: TripsModel? = null
     private var filter = 0
     private var compareChecks = false

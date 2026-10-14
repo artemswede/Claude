@@ -45,7 +45,7 @@ class Shell(private val activity: Activity) {
         set(value) {
             if (field == value) return
             field = value
-            if (page == Page.OVERVIEW) applyTheme(if (value) Bt.DARK else Bt.LIGHT)
+            if (page == Page.OVERVIEW) applyTheme(if (value) Bt.DARK else Bt.theme)
         }
 
     val root = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
@@ -194,7 +194,7 @@ class Shell(private val activity: Activity) {
         page = pg
         containers.forEach { (k, v) -> v.visibility = if (k == pg) View.VISIBLE else View.GONE }
         updateSlot()
-        applyTheme(if (pg == Page.RECORD || (pg == Page.OVERVIEW && nightHome)) Bt.DARK else Bt.LIGHT)
+        applyTheme(if (pg == Page.RECORD) Bt.DARK else Bt.theme)
         onPage(pg)
     }
 

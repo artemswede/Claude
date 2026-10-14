@@ -33,7 +33,7 @@ class HomeView(
     /** Opens the last saved trip (Г7: «поездка сохранена»). */
     private val onOpenLast: () -> Unit = {},
     /** Д7: the dark palette at night while driving. */
-    private val p: Bt.Palette = Bt.LIGHT,
+    private val p: Bt.Palette = Bt.theme,
     /** The codes screen (codes, freeze frame, reset). */
     private val onCodes: () -> Unit = {},
     /** «Нет связи»: try the adapter again now. */
@@ -81,21 +81,14 @@ class HomeView(
             cornerRadii = floatArrayOf(dp(20).toFloat(), dp(20).toFloat(), dp(20).toFloat(), dp(20).toFloat(), 0f, 0f, 0f, 0f)
         }
         bottomBar.elevation = dp(6).toFloat()
-        // Head unit: no caption, the two lines of the trip itself instead (the caption cost the text its room).
         val c1 = if (sc === Bt.WIDE) column(ctx, 0, lastTrip) else column(ctx, dp(4), ctx.label("Последняя поездка", sc, p), lastTrip)
-        val c2 = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        c2.addView(spark, LinearLayout.LayoutParams(dp(if (wide) 56 else 104), dp(if (wide) 30 else 40)))
-        // Head units: one line per column, the bar must not eat the short screen.
-        if (wide) { lastTrip.maxLines = 2; trendTitle.maxLines = 2; trendValues.visibility = View.GONE }
-        addTo(c2, column(ctx, dp(2), trendTitle, trendValues), dp(if (wide) 10 else 16), 1f)
+        if (wide) { lastTrip.maxLines = 2 }
         bindUsual(null)
         if (sc.phone) {
             addTo(bottomBar, c1)
-            addTo(bottomBar, c2, dp(12))
             addTo(bottomBar, usualBox, dp(12))
         } else {
             addTo(bottomBar, c1, 0, if (wide) 0.9f else 1f)
-            addTo(bottomBar, c2, dp(sc.gap), if (wide) 1.15f else 1.2f)
             addTo(bottomBar, usualBox, dp(sc.gap), 1.4f)
         }
 
@@ -196,7 +189,7 @@ class HomeView(
         // swallowed taps on «Подробнее» and the buttons.
         val ai = m.ai?.takeIf { !scripted && (m.state == HomeState.VERSION || m.state == HomeState.CALM) }
         val key = listOf(m.state, ai?.headline, ai?.trip, scripted, m.ai != null, t?.name, t?.top?.headline, t?.top?.confidence, t?.top?.why?.map { it.value }, t?.dtcs,
-            t?.durationMin?.toInt(), t?.warmIdleSec?.div(15)?.toInt(), m.past?.name, m.unseen, s.link, s.engine, s.linkText, s.engineText).toString()
+            t?.durationMin?.toInt(), t?.warmIdleSec?.div(15)?.toInt(), m.past?.name, m.unseen, s.link, s.engine, s.linkText, s.engineText, m.liveMode).toString()
         val rebuild = key != leftKey
         leftKey = key
         if (rebuild) leftCol.removeAllViews()
@@ -372,10 +365,16 @@ class HomeView(
         val t = m.trip
         val min = t?.durationMin?.toInt() ?: 0
         val idle = t?.warmIdleSec?.toInt() ?: 0
+        val checkingText = when (m.liveMode) {
+            com.obdlogger.core.LiveMode.IDLE -> "Проверяю обороты холостого хода"
+            com.obdlogger.core.LiveMode.DRIVE -> "Проверяю коррекцию смеси"
+            com.obdlogger.core.LiveMode.COLD -> "Проверяю прогрев двигателя"
+            else -> "Собираю данные для вывода"
+        }
         val box = column(
             context, dp(10),
             tag("Идёт диагностика", p.t3),
-            FitText(context, "Собираю данные для вывода", sc.hl, sc.hm, 2, p.t1),
+            FitText(context, checkingText, sc.hl, sc.hm, 2, p.t1),
             context.text(
                 "Нужно не меньше ${HomeLogic.NEED_TRIP_MIN.toInt()} минут поездки и ${(HomeLogic.NEED_IDLE_SEC / 60).toInt()} минут " +
                     "прогретого холостого хода. Сейчас: $min мин поездки, $idle с холостого.",
@@ -532,7 +531,7 @@ class HomeView(
     /** Trend over trips: three dots on a norm band. */
     class Sparkline(ctx: Context) : View(ctx) {
         private var v: List<Double> = emptyList()
-        private var p = Bt.LIGHT
+        private var p = Bt.theme
         private var normLo: Double? = null
         private var normHi: Double? = null
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)

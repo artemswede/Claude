@@ -37,7 +37,7 @@ private fun Context.sectionTitle(n: Int, title: String, sc: Bt.Scale, p: Bt.Pale
  * against alternatives, the next step, how to tell it helped and where it shows.
  */
 class VersionView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothesis, backTitle: String, private val actions: VersionActions) : FrameLayout(ctx) {
-    private val p = Bt.LIGHT
+    private val p = Bt.theme
     /** Head unit (≈730 dp wide): one column, as on a phone. */
     private val narrow = sc.phone || sc === Bt.WIDE
 
@@ -160,7 +160,7 @@ class VersionView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothe
  * check and what to expect, «сделано» ticks with a note. Print / PDF and share.
  */
 class PlanView(ctx: Context, private val sc: Bt.Scale, private val h: Hypothesis, car: String, private val actions: VersionActions) : FrameLayout(ctx) {
-    private val p = Bt.LIGHT
+    private val p = Bt.theme
     /** Head unit: a card per step instead of a five-column table. */
     private val narrow = sc.phone || sc === Bt.WIDE
 

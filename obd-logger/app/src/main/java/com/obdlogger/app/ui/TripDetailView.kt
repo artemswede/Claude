@@ -34,7 +34,7 @@ interface TripActions {
  * of every sensor; instability rating; lane charts of the whole trip.
  */
 class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: TripItem, private val actions: TripActions) : FrameLayout(ctx) {
-    private val p = Bt.LIGHT
+    private val p = Bt.theme
     private var detail: TripDetail? = null
     private val body = FrameLayout(ctx)
     private var focused: String? = null

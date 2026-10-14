@@ -27,7 +27,7 @@ import java.time.LocalDate
  */
 class MaintenanceView(ctx: Context, private val sc: Bt.Scale, private val ecuKm: () -> Int? = { null },
     private val onExport: () -> Unit = {}) : FrameLayout(ctx) {
-    private val p = Bt.LIGHT
+    private val p = Bt.theme
     private val list = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(sc.pad), dp(12), dp(sc.pad), dp(24)) }
     /** Data for the scenes in tests; null — from the store. */
     var fixed: MaintenanceStore.Data? = null

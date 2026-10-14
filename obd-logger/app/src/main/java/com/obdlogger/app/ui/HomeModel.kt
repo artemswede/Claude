@@ -48,6 +48,8 @@ class HomeModel(
     val focus: String = "trim_b1",
     /** «Мнение ИИ» about the shown saved trip (null — none, stale or while recording). */
     val ai: com.obdlogger.app.AiOpinion.Opinion? = null,
+    /** Current driving mode while recording — for the live "Проверяю…" text. */
+    val liveMode: com.obdlogger.core.LiveMode = com.obdlogger.core.LiveMode.OFF,
 ) {
     fun withAi(o: com.obdlogger.app.AiOpinion.Opinion?): HomeModel {
         val fresh = o?.takeIf { !live && trip != null && it.trip == trip.name } ?: return this
@@ -69,14 +71,21 @@ class HomeModel(
                     runCatching { TripAnalyzer.analyze(f.nameWithoutExtension, f.readText(), info) }.getOrNull()
                 }
             val drift = com.obdlogger.app.CarProfile.state?.takeIf { it.ready }?.drifts?.firstOrNull()?.code
-            return from(saved.filter { it.name != current?.name }, current, s, com.obdlogger.app.Prefs.seenTrip(ctx), drift)
+            val mode = if (s.recording) {
+                val rpm = s.values.firstOrNull { it.first == "rpm" }?.second?.toDoubleOrNull()
+                val speed = s.values.firstOrNull { it.first == "speed_kmh" }?.second?.toDoubleOrNull()
+                val cool = s.values.firstOrNull { it.first == "coolant" }?.second?.toDoubleOrNull()
+                com.obdlogger.core.LiveMode.of(rpm, speed, cool)
+            } else com.obdlogger.core.LiveMode.OFF
+            return from(saved.filter { it.name != current?.name }, current, s, com.obdlogger.app.Prefs.seenTrip(ctx), drift, mode)
                 .withAi(com.obdlogger.app.AiOpinion.load(ctx))
         }
 
         /** Pure part of [build]: decides the state from already analysed trips. */
         fun from(allSaved: List<TripSummary>, current: TripSummary?, s: LoggerState.Snapshot, seenTrip: String? = null,
             /** Strongest change against this car's own normal: charted when there is no version. */
-            driftCode: String? = null): HomeModel {
+            driftCode: String? = null,
+            mode: com.obdlogger.core.LiveMode = com.obdlogger.core.LiveMode.OFF): HomeModel {
             // Only this car's trips: the tablet is moved between cars, their data must not mix.
             // The order of recording (trip numbers), then the clock: «the last trip» even after a 2007 start.
             val order = compareBy<TripSummary>({ com.obdlogger.app.TripIndex.number(it.name) ?: -1 }, { it.start })
@@ -97,7 +106,13 @@ class HomeModel(
             val metric = top?.kind?.let(Focus::metric) ?: worstRow?.metric ?: Metric.IDLE_TRIM_B1
             val focus = (top?.kind?.let(Focus::code) ?: driftCode?.takeIf { c -> trip?.trace?.of(c) != null } ?: worstRow?.metric?.let(Focus::code) ?: "rpm")
                 .takeIf { c -> trip?.trace?.of(c) != null } ?: listOf("trim_b1", "rpm").firstOrNull { trip?.trace?.of(it) != null } ?: "trim_b1"
-            return HomeModel(state, trip, live, past, trend(history, metric), lastTrip(trip, live), !live && trip != null && trip.name != seenTrip, focus)
+            val collectingFocus = if (state == HomeState.COLLECTING) when (mode) {
+                com.obdlogger.core.LiveMode.IDLE -> "rpm"
+                com.obdlogger.core.LiveMode.DRIVE -> "trim_b1"
+                com.obdlogger.core.LiveMode.COLD -> "coolant"
+                else -> focus
+            }.takeIf { c -> trip?.trace?.of(c) != null } ?: focus else focus
+            return HomeModel(state, trip, live, past, trend(history, metric), lastTrip(trip, live), !live && trip != null && trip.name != seenTrip, collectingFocus, liveMode = mode)
         }
 
         /** Sensor to chart for a trip: the one its version is about, else the mixture, else rpm. */

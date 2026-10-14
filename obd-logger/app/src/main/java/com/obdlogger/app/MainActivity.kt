@@ -100,6 +100,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         CrashLog.install(this)
+        Bt.theme = resolveTheme()
         shell = Shell(this)
         setContentView(shell.root)
 
@@ -690,7 +691,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     }
 
     private fun makeHome(night: Boolean) = HomeView(this, shell.sc, onDetails = { openHomeVersion() }, onSettings = { shell.show(Shell.Page.SETTINGS) },
-        onCheck = { openCheck() }, onOpenLast = { openLastTrip() }, p = if (night) Bt.DARK else Bt.LIGHT, onCodes = { openCodes() },
+        onCheck = { openCheck() }, onOpenLast = { openLastTrip() }, p = if (night) Bt.DARK else Bt.theme, onCodes = { openCodes() },
         onReconnect = { if (LoggerState.snapshot.running) startService(LoggerService.intent(this, LoggerService.ACTION_POKE)) else if (Prefs.device(this) != null && hasBluetoothPermission()) startAuto() else shell.show(Shell.Page.SETTINGS) },
         onBaseline = { openBaseline() }).apply {
             onAiRefresh = {
@@ -912,7 +913,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     override fun chartView(req: com.obdlogger.core.ChartRequest): View? {
         if (req is com.obdlogger.core.ChartRequest.Live) {
             val codes = req.sensors.filter { it in LiveData.store.columns }
-            return if (codes.isEmpty()) null else com.obdlogger.app.ui.LiveOverlayView(this, Bt.LIGHT, LiveData.store, codes, { LoggerState.snapshot.recording }, req.minutes * 60_000L)
+            return if (codes.isEmpty()) null else com.obdlogger.app.ui.LiveOverlayView(this, Bt.theme, LiveData.store, codes, { LoggerState.snapshot.recording }, req.minutes * 60_000L)
         }
         val details = chatDetails
         if (details.isEmpty()) return null
@@ -922,7 +923,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
                 val pts = com.obdlogger.core.ChatCharts.trend(details, req.sensor, req.mode)
                 if (pts.isEmpty()) return null
                 val norm = com.obdlogger.core.Norms.of(req.sensor, req.mode?.let { com.obdlogger.core.LiveMode.of(it) } ?: com.obdlogger.core.LiveMode.IDLE)
-                com.obdlogger.app.ui.TrendChartView(this, Bt.LIGHT,
+                com.obdlogger.app.ui.TrendChartView(this, Bt.theme,
                     "${com.obdlogger.core.SensorNames.label(req.sensor)} по поездкам" + (req.mode?.let { " · ${it.ru.lowercase()}" } ?: ""),
                     com.obdlogger.core.SensorNames.unit(req.sensor), pts, norm?.lo, norm?.hi)
             }
@@ -932,17 +933,17 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
                 // A window or a mark: the minutes the answer is about, not the whole trip.
                 val range = com.obdlogger.core.ChatCharts.range(d, req.window, req.marks)
                 if ((range != null || req.marks.isNotEmpty()) && d.table.has(req.sensor)) {
-                    com.obdlogger.app.ui.OverlayChartView(this, Bt.LIGHT, d, listOf(req.sensor), range, marks(d, req.marks))
+                    com.obdlogger.app.ui.OverlayChartView(this, Bt.theme, d, listOf(req.sensor), range, marks(d, req.marks))
                 } else if (trace != null && (trace.of(req.sensor) != null || req.sensor == "trim_b1")) {
-                    com.obdlogger.app.ui.TrimChartView(this).apply { set(trace, Bt.LIGHT, shell.sc, false, req.sensor) }
+                    com.obdlogger.app.ui.TrimChartView(this).apply { set(trace, Bt.theme, shell.sc, false, req.sensor) }
                 } else if (d.table.has(req.sensor)) {
-                    com.obdlogger.app.ui.OverlayChartView(this, Bt.LIGHT, d, listOf(req.sensor))
+                    com.obdlogger.app.ui.OverlayChartView(this, Bt.theme, d, listOf(req.sensor))
                 } else null
             }
             is com.obdlogger.core.ChartRequest.Overlay -> {
                 val d = com.obdlogger.core.ChatCharts.trip(details, req.trip) ?: return null
                 val codes = req.sensors.filter { d.table.has(it) }
-                if (codes.isEmpty()) null else com.obdlogger.app.ui.OverlayChartView(this, Bt.LIGHT, d, codes,
+                if (codes.isEmpty()) null else com.obdlogger.app.ui.OverlayChartView(this, Bt.theme, d, codes,
                     com.obdlogger.core.ChatCharts.range(d, req.window, req.marks), marks(d, req.marks))
             }
         }
@@ -1199,8 +1200,37 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
 
     override fun shareCodes(path: String) = share(listOf(File(path)), "Бортач: коды ошибок")
 
+    private fun resolveTheme(): Bt.Palette {
+        val pref = Prefs.theme(this)
+        return when (pref) {
+            "dark" -> Bt.DARK
+            "light" -> Bt.LIGHT
+            else -> {
+                val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+                if (h >= 21 || h < 7) Bt.DARK else Bt.LIGHT
+            }
+        }
+    }
+
+    override fun themeIndex(): Int = when (Prefs.theme(this)) {
+        "light" -> 0; "dark" -> 1; else -> 2
+    }
+
+    override fun setThemeIndex(i: Int) {
+        val v = when (i) { 0 -> "light"; 1 -> "dark"; else -> "auto" }
+        Prefs.setTheme(this, v)
+        Bt.theme = resolveTheme()
+        recreate()
+    }
+
     /** Д7: dark main screen from 21:00 to 7:00 while driving, so it does not glare. */
     private fun updateNight() {
+        val resolved = resolveTheme()
+        if (resolved !== Bt.theme) {
+            Bt.theme = resolved
+            recreate()
+            return
+        }
         val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
         val night = LoggerState.snapshot.recording && (h >= 21 || h < 7)
         if (night == shell.nightHome) return
