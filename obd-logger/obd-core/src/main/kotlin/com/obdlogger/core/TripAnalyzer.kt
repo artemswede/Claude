@@ -638,8 +638,9 @@ object TripComparison {
     private fun out(spec: Spec, v: Double) = (spec.lo != null && v < spec.lo) || (spec.hi != null && v > spec.hi)
 
     /** Structured comparison of the last [count] trips for the trips screen and the overview. */
-    fun table(trips: List<TripSummary>, count: Int = 3): Table {
-        val shown = trips.sortedBy { it.start }.takeLast(count)
+    /** [newestFirst] — the trips are already in the order of recording (the journal's), newest first: kept, not re-sorted by the clock. */
+    fun table(trips: List<TripSummary>, count: Int = 3, newestFirst: Boolean = false): Table {
+        val shown = if (newestFirst) trips.take(count).reversed() else trips.sortedBy { it.start }.takeLast(count)
         val dates = java.time.format.DateTimeFormatter.ofPattern("dd.MM")
         val rows = SPECS.mapNotNull { (metric, spec) ->
             val values = shown.map { it.metrics[metric] }

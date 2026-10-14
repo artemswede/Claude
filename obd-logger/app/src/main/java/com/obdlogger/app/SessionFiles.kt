@@ -128,6 +128,7 @@ class SessionFiles(dir: File, baseName: String) {
                 profileOf(csv) to File(dir, "${base}_profile.txt"))
             if (!csv.renameTo(target)) return csv
             pairs.drop(1).forEach { (a, b) -> if (a.exists()) a.renameTo(b) }
+            TripIndex.rename(dir, csv.nameWithoutExtension, base)
             return target
         }
 

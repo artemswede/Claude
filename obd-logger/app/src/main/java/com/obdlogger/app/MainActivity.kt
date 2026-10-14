@@ -1318,7 +1318,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
 
     /** This car's comparison for the plan (the version's trips decide the car). */
     private fun planComparison(h: Hypothesis) = h.seenIn.lastOrNull()?.first?.car?.key?.let { key ->
-        com.obdlogger.core.TripComparison.table(TripsModel.build(this, key).trips.map { it.summary }, 5)
+        com.obdlogger.core.TripComparison.table(TripsModel.build(this, key).trips.map { it.summary }, 5, newestFirst = true)
     }
 
     override fun printPlan(h: Hypothesis) {

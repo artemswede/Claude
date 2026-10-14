@@ -336,6 +336,7 @@ class LoggerService : Service() {
 
     private fun startTrip(s: ObdSession, adapterInfo: AdapterInfo, vehicle: String, extendedScan: Boolean, auto: Boolean): Trip {
         val files = SessionFiles.create(this)
+        TripIndex.assign(this, files.csv.nameWithoutExtension)
         val t = Trip(files, ElmTraceLog(files.elmLog, Prefs.trace(this)))
         tripInfoFile = files.info
         traceTarget = t.trace
@@ -521,6 +522,7 @@ class LoggerService : Service() {
 
     private fun startCheck(logger: DataLogger, kind: com.obdlogger.core.CheckKind): CheckRun {
         val files = SessionFiles.createCheck(this)
+        TripIndex.assign(this, files.csv.nameWithoutExtension)
         val w = files.csv.bufferedWriter()
         logger.tee = w
         trace("check log start: ${files.csv.name}")

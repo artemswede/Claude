@@ -52,6 +52,7 @@ class HomeModel(
 
         /** Heavy: reads CSV files. Call off the main thread. */
         fun build(ctx: Context, s: LoggerState.Snapshot): HomeModel {
+            com.obdlogger.app.TripIndex.ensure(ctx)
             val saved = SessionFiles.tripCsvs(ctx).takeLast(30).mapNotNull { TripCache.item(it)?.summary }.filter { it.rows >= 10 }
             val current = s.currentCsv?.let(::File)?.takeIf { s.recording && it.exists() }
                 ?.let { f ->
@@ -67,8 +68,10 @@ class HomeModel(
             /** Strongest change against this car's own normal: charted when there is no version. */
             driftCode: String? = null): HomeModel {
             // Only this car's trips: the tablet is moved between cars, their data must not mix.
-            val car = (current ?: allSaved.maxByOrNull { it.start ?: java.time.LocalDateTime.MIN })?.car?.key
-            val saved = allSaved.filter { it.car?.key == car }.sortedBy { it.start }.takeLast(8)
+            // The order of recording (trip numbers), then the clock: «the last trip» even after a 2007 start.
+            val order = compareBy<TripSummary>({ com.obdlogger.app.TripIndex.number(it.name) ?: -1 }, { it.start })
+            val car = (current ?: allSaved.maxWithOrNull(order))?.car?.key
+            val saved = allSaved.filter { it.car?.key == car }.sortedWith(order).takeLast(8)
             val live = current != null
             val trip = current ?: saved.lastOrNull()
 
@@ -155,11 +158,13 @@ class HomeModel(
             return listOfNotNull(if (live) "идёт" else null, date, dur, warm).joinToString(" · ").replaceFirst("идёт · ", "идёт: ")
         }
 
+        /** «42 · 14.10 · 08:18–08:41»; the date is left out when the clock was wrong (2007). */
         fun tripRange(t: TripSummary): String {
-            val start = t.start ?: return t.name
+            val no = com.obdlogger.app.TripIndex.number(t.name)?.let { "$it" }
+            val start = t.start?.takeIf { it.year >= 2015 } ?: return listOfNotNull(no, "${t.durationMin.toInt().coerceAtLeast(1)} мин").joinToString(" · ")
             val end = start.plusSeconds((t.durationMin * 60).toLong())
             val hm = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT)
-            return "${start.format(DATE)} · ${start.format(hm)}–${end.format(hm)}"
+            return listOfNotNull(no, "${start.format(DATE)} · ${start.format(hm)}–${end.format(hm)}").joinToString(" · ")
         }
     }
 }

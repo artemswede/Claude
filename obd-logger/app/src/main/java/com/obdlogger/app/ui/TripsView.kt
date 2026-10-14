@@ -211,10 +211,17 @@ class TripsView(
     private fun journalRow(it: TripItem): View {
         val s = it.summary
         val dur = s.durationMin.let { m -> if (m >= 60) "${(m / 60).toInt()} ч ${(m % 60).toInt()} мин" else "${m.toInt().coerceAtLeast(1)} мин" }
+        // «Поездка 42» first: the order of recording is always right, the date may be the head unit's 2007.
+        val numbered = com.obdlogger.app.TripIndex.number(s.name) != null
+        val known = s.start?.takeIf { d -> d.year >= 2015 }
         val date = column(
             context, dp(2),
-            context.text(s.start?.format(dayFmt) ?: s.name, if (sc.phone) 18f else 21f, p.t1, 700),
-            context.text(s.start?.format(timeFmt) ?: "", if (sc.phone) 13f else 15f, p.t2),
+            context.text(if (numbered) it.title else known?.format(dayFmt) ?: s.name, if (sc.phone) 18f else 21f, p.t1, 700, maxLines = 1),
+            context.text(when {
+                known == null -> "дата неизвестна"
+                numbered -> "${known.format(dayFmt)} · ${known.format(timeFmt)}"
+                else -> known.format(timeFmt)
+            }, if (sc.phone) 13f else 15f, p.t2, maxLines = 1),
         )
         val bar = ModeBar(context, p).apply { set(it) }
         val idle = it.minutes(DriveMode.WARM_IDLE)
@@ -271,7 +278,10 @@ class TripsView(
         addTo(box, context.text("Сверху — самое проблемное сейчас: устраните одно — поднимется следующее. Значения на прогретом холостом стоя, если не указано иное; «обычно у вас» — норма этой машины по её прошлым поездкам.", if (sc.phone) 13f else 15f, p.t2))
         val days = t.trips.map { it.start?.format(dayFmt) ?: "?" }
         // Several trips on one day: add the time so the columns differ.
+        val nums = t.trips.map { com.obdlogger.app.TripIndex.number(it.name) }
         val dates = when {
+            // Numbered trips: «№42» — the order of recording, whatever the clock said.
+            nums.all { it != null } -> nums.map { "№$it" }
             // All on one day: the time alone tells the columns apart.
             days.toSet().size == 1 && days.size > 1 -> t.trips.map { it.start?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: "?" }
             days.toSet().size < days.size -> t.trips.map { it.start?.format(DateTimeFormatter.ofPattern("dd.MM HH:mm")) ?: "?" }

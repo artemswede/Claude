@@ -15,6 +15,8 @@ import java.io.File
 /** A saved recording in the journal: an ordinary trip or a check log. */
 class TripItem(val csv: File, val summary: TripSummary, val check: CheckResult?) {
     val isCheck get() = check != null
+    /** «Поездка 42» / «Проверка 43». */
+    val title get() = com.obdlogger.app.TripIndex.title(summary.name, isCheck)
 
     /** Minutes per mode, estimated from row counts (journal bars). */
     fun minutes(mode: DriveMode): Double {
@@ -44,6 +46,7 @@ class TripsModel(
     companion object {
         /** Heavy: reads CSV files (cached by name and size). */
         fun build(ctx: Context, carKey: String? = null): TripsModel {
+            com.obdlogger.app.TripIndex.ensure(ctx)
             val files = SessionFiles.tripCsvs(ctx) + SessionFiles.checkCsvs(ctx)
             return from(files.mapNotNull { TripCache.item(it) }, carKey)
         }
@@ -51,12 +54,14 @@ class TripsModel(
         /** [carKey] null = the car of the newest recording. */
         fun from(items: List<TripItem>, carKey: String? = null): TripsModel {
             // Short trips stay in the journal (marked «мало данных»), they are just not compared.
-            val all = items.filter { it.summary.rows >= 2 }.sortedByDescending { it.summary.start }
+            // In the order of recording (the trip number), not by the date: the head unit's clock may say 2007.
+            val all = items.filter { it.summary.rows >= 2 }.sortedWith(
+                compareByDescending<TripItem> { com.obdlogger.app.TripIndex.number(it.summary.name) ?: -1 }.thenByDescending { it.summary.start })
             val cars = all.mapNotNull { it.summary.car }.distinctBy { it.key }
             val car = cars.firstOrNull { it.key == carKey } ?: all.firstOrNull()?.summary?.car
             val sorted = all.filter { it.summary.car?.key == car?.key }
             val trips = sorted.filter { !it.isCheck && it.summary.rows >= 10 }.map { it.summary }
-            return TripsModel(sorted, TripComparison.table(trips), sorted.filter { it.isCheck }, cars, car)
+            return TripsModel(sorted, TripComparison.table(trips, newestFirst = true), sorted.filter { it.isCheck }, cars, car)
         }
     }
 }
