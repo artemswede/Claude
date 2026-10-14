@@ -132,6 +132,8 @@ object Pids {
         add(pid(0x4C, "cmd_throttle_pct", "%", "Заданное положение электронного дросселя") { pct(it[0]) })
         add(pid(0x5C, "oil_c", "°C", "Температура масла", slow = true) { it[0] - 40.0 })
         add(pid(0x5E, "fuel_rate_lh", "л/ч", "Расход топлива", minBytes = 2) { word(it) / 20.0 })
+        // Mostly cars from ~2019: only a hint for the journal («ЭБУ: … км — подставить?»), never saved by itself.
+        add(pid(0xA6, "odometer_km", "км", "Пробег по ЭБУ", slow = true, minBytes = 4) { ((it[0].toLong() shl 24) + (it[1] shl 16) + (it[2] shl 8) + it[3]) / 10.0 })
     }
 
     val adapterVoltage = PollItem(

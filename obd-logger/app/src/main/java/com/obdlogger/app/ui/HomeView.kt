@@ -181,17 +181,27 @@ class HomeView(
     }
 
     private var leftKey: String? = null
+    /** «Пересчитать» under the AI's opinion. */
+    var onAiRefresh: () -> Unit = {}
+    /** «Как считает Бортач ›»: the scripted version instead of the AI's. */
+    private var scripted = false
+    private var lastModel: HomeModel? = null
+    private var lastSnap: LoggerState.Snapshot? = null
 
     fun bind(m: HomeModel, s: LoggerState.Snapshot) {
+        lastModel = m
+        lastSnap = s
         val t = m.trip
         // Rebuilt only when what it says changes: rebuilding every second under the finger
         // swallowed taps on «Подробнее» and the buttons.
-        val key = listOf(m.state, t?.name, t?.top?.headline, t?.top?.confidence, t?.top?.why?.map { it.value }, t?.dtcs,
+        val ai = m.ai?.takeIf { !scripted && (m.state == HomeState.VERSION || m.state == HomeState.CALM) }
+        val key = listOf(m.state, ai?.headline, ai?.trip, scripted, m.ai != null, t?.name, t?.top?.headline, t?.top?.confidence, t?.top?.why?.map { it.value }, t?.dtcs,
             t?.durationMin?.toInt(), t?.warmIdleSec?.div(15)?.toInt(), m.past?.name, m.unseen, s.link, s.engine, s.linkText, s.engineText).toString()
         val rebuild = key != leftKey
         leftKey = key
         if (rebuild) leftCol.removeAllViews()
-        if (rebuild) when (m.state) {
+        if (rebuild && ai != null) aiOpinion(ai)
+        else if (rebuild) when (m.state) {
             HomeState.VERSION -> version(t!!.top!!)
             HomeState.CALM -> calm(m)
             HomeState.DTC -> dtc(m)
@@ -201,6 +211,8 @@ class HomeView(
             HomeState.OFF -> off(m)
             HomeState.NO_TRIPS -> noTrips()
         }
+        // Back from the scripted version to the AI's: one link under it.
+        if (rebuild && scripted && m.ai != null) gap(link("‹ Мнение ИИ") { scripted = false; rebind() }, 12)
 
         // The chart follows the problem: mixture, rpm, voltage, coolant… — whatever is worst for this car.
         val name = com.obdlogger.core.SensorNames.label(m.focus).uppercase()
@@ -292,6 +304,30 @@ class HomeView(
             gap(head, 18)
             f.why.take(if (sc.compact) 2 else 3).forEach { gap(evidence(it.label, it.value, it.deviating, it.emphasis), 0) }
         }
+    }
+
+    /** «Мнение ИИ»: the same slots as the version — the AI wrote the meaning, the layout is ours. */
+    private fun aiOpinion(o: com.obdlogger.app.AiOpinion.Opinion) {
+        gap(tag("Мнение ИИ · после ${com.obdlogger.app.TripIndex.title(o.trip).lowercase()}", p.acc), 0)
+        gap(headline(o.headline), 12)
+        o.urgency.takeIf { it.isNotBlank() }?.let { gap(context.text(it, sc.pl * 0.85f, p.t2, lineHeight = sc.pl * 1.15f), 12) }
+        gap(Confidence(context, o.confidence, sc, p), 14)
+        if (o.why.isNotEmpty()) {
+            gap(context.label("Почему ИИ так думает", sc, p), 18)
+            o.why.take(if (sc.compact) 2 else 3).forEach { gap(evidence(it.label, it.value, it.deviating, false), 0) }
+        }
+        o.next.takeIf { it.isNotBlank() }?.let { gap(context.text("Дальше: $it", sc.p, p.t1, 600, maxLines = 2), 12) }
+        val links = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        addTo(links, link("Как считает Бортач ›") { scripted = true; rebind() })
+        addTo(links, link("Пересчитать") { onAiRefresh() }, dp(20))
+        gap(links, 10)
+    }
+
+    private fun rebind() {
+        val m = lastModel ?: return
+        val s = lastSnap ?: return
+        leftKey = null
+        bind(m, s)
     }
 
     private fun calm(m: HomeModel) {

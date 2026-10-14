@@ -95,7 +95,9 @@ class TripsView(
     private val body = FrameLayout(ctx)
     private val journalFilter = Segment(ctx, sc, p, listOf("Все", "С версией", "Проверки"), 0) { filter = it; render() }
     private val compareFilter = Segment(ctx, sc, p, listOf("Поездки", "Проверки"), 0) { compareChecks = it == 1; render() }
-    private val tabs = Tabs(ctx, sc, p, listOf("Журнал", "Сравнение")) { render() }
+    private val tabs = Tabs(ctx, sc, p, listOf("Поездки", "ТО и ремонт", "Сравнение")) { render() }
+    /** «ТО и ремонт»: the car's records and mileage (set by the activity). */
+    var maintenance: MaintenanceView? = null
     private val dayFmt = DateTimeFormatter.ofPattern("dd.MM")
     /** Journal columns: date, time, modes, verdict — on short screens the verdict gets the most room. */
     private val colW = if (sc.compact) floatArrayOf(1.1f, 0.9f, 2f, 3f) else floatArrayOf(1.3f, 1f, 3f, 2.4f)
@@ -118,6 +120,12 @@ class TripsView(
     fun showTab(i: Int) = tabs.select(i)
 
     private fun render() {
+        if (tabs.selected == 1) {
+            body.removeAllViews()
+            tabs.setRight(null)
+            maintenance?.let { v -> (v.parent as? ViewGroup)?.removeView(v); body.addView(v); v.refresh() }
+            return
+        }
         val m = model ?: return
         body.removeAllViews()
         if (tabs.selected == 0) {

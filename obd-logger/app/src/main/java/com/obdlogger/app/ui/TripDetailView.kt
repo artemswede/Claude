@@ -47,7 +47,7 @@ class TripDetailView(ctx: Context, private val sc: Bt.Scale, private val item: T
     init {
         setBackgroundColor(p.bg)
         val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
-        val back = ctx.button("←  Поездки", sc, p, primary = false) { actions.back() }
+        val back = ctx.button("←  Журнал", sc, p, primary = false) { actions.back() }
         val head = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(sc.pad), dp(8), dp(sc.pad), dp(4)) }
         head.addView(back, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(sc.btnH)))
         addTo(head, ctx.text(HomeModel.tripRange(s) + if (item.isCheck) " · проверка «${item.check?.kind?.title?.lowercase() ?: "смесь"}»" else "", if (sc.phone) 15f else 18f, p.t2, 500, mono = true), dp(14))

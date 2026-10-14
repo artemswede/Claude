@@ -66,6 +66,9 @@ object Prefs {
     fun currentCar(ctx: Context): String? = of(ctx).getString(CURRENT_CAR, null)
     fun setCurrentCar(ctx: Context, key: String) = of(ctx).edit().putString(CURRENT_CAR, key).apply()
     fun carName(ctx: Context, key: String): String? = of(ctx).getString("car_name_$key", null)
+    /** VIN the owner entered for a car whose ECU does not report it. */
+    fun vin(ctx: Context, key: String): String? = of(ctx).getString("car_vin_$key", null)
+    fun setVin(ctx: Context, key: String, vin: String) = of(ctx).edit().putString("car_vin_$key", vin).apply()
     fun setCarName(ctx: Context, key: String, name: String) = of(ctx).edit().putString("car_name_$key", name).apply()
     fun extended(ctx: Context): Boolean = of(ctx).getBoolean(EXTENDED, true)
     /** On by default: Бортач is meant to record every trip by itself once an adapter is chosen. */

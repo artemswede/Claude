@@ -147,6 +147,16 @@ object NoBaseline : com.obdlogger.app.ui.BaselineActions {
 }
 
 object Samples {
+    /** A journal of ТО for the scenes: due, soon, fine, and mileage entered by hand. */
+    fun maintenance(): com.obdlogger.app.MaintenanceStore.Data {
+        val d = java.time.LocalDate.of(2026, 10, 14)
+        return com.obdlogger.app.MaintenanceStore.Data(listOf(
+            com.obdlogger.core.MaintenanceEntry(java.time.LocalDate.of(2026, 1, 10), 172_800, com.obdlogger.core.Work.OIL, parts = "Toyota 5W-30, фильтр 90915-YZZE1", cost = "4200", place = "сервис на Ленина"),
+            com.obdlogger.core.MaintenanceEntry(java.time.LocalDate.of(2024, 9, 1), 150_000, com.obdlogger.core.Work.BRAKE_FLUID),
+            com.obdlogger.core.MaintenanceEntry(java.time.LocalDate.of(2026, 6, 1), 179_000, com.obdlogger.core.Work.AIR_FILTER, note = "сам"),
+            com.obdlogger.core.MaintenanceEntry(java.time.LocalDate.of(2026, 10, 5), 182_000, com.obdlogger.core.Work.PADS_FRONT, parts = "Brembo P83 052", note = "скрипели"),
+        ), listOf(com.obdlogger.core.Mileage(d, 182_400)), com.obdlogger.core.Maintenance.defaults())
+    }
     private val dir = File("../obd-core/src/test/resources/trips")
     private val csvs by lazy { dir.listFiles().orEmpty().filter { it.name.endsWith(".csv") }.sortedBy { it.name } }
 
@@ -308,7 +318,15 @@ class Scenes(private val a: Activity) {
             "B3_usual_learning" to { shell(Shell.Page.OVERVIEW, waiting) { sh -> com.obdlogger.app.ui.BaselineView(a, sh.sc, NoBaseline).apply { bind(Samples.profile(3, false)) } } },
             "V3b_compare_usual" to { shell(Shell.Page.TRIPS, waiting) { sh ->
                 CarProfile.use(Samples.profile(10, true))
-                TripsView(a, sh.sc, {}).apply { bind(TripsModel.from(Samples.realItems)); showTab(1) }.also { CarProfile.use(null) } } },
+                TripsView(a, sh.sc, {}).apply { bind(TripsModel.from(Samples.realItems)); showTab(2) }.also { CarProfile.use(null) } } },
+            "D9_ai_opinion" to { shell(Shell.Page.OVERVIEW, off) { sh -> HomeView(a, sh.sc, {}, {}).apply {
+                val m = HomeModel.from(real, null, off)
+                bind(m.withAi(com.obdlogger.app.AiOpinion.Opinion(m.trip!!.name, "Подсос воздуха на холостом усиливается",
+                    "Пока ехать можно; через 2–3 недели — рывки на светофорах и расход выше.", "средняя",
+                    listOf(com.obdlogger.core.Evidence("Коррекция Б1 · холостой", "+21 % (обычно +4)", true),
+                        com.obdlogger.core.Evidence("ДМРВ · холостой", "1.4 г/с (обычно 1.9)", true),
+                        com.obdlogger.core.Evidence("Под нагрузкой", "−3 % — норма")),
+                    "осмотреть шланги вентиляции картера", "trim_b1", "gemini/gemini-2.5-flash")), off) } } },
             "D5_wait" to { home(waiting, real, null) },
             "D6_noconn" to { home(waiting.copy(link = Lamp.FAIL, linkText = "нет связи с адаптером"), real, null) },
             "D_off" to { home(off, real, null) },
@@ -371,8 +389,11 @@ class Scenes(private val a: Activity) {
             },
             "N2_stale" to { record(0, off) },
             "V1_journal" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc, {}).apply { bind(TripsModel.from(Samples.realItems)) } } },
+            "V1m_maintenance" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc, {}).apply {
+                maintenance = com.obdlogger.app.ui.MaintenanceView(a, sh.sc, ecuKm = { 182_430 }).apply { fixed = Samples.maintenance() }
+                bind(TripsModel.from(Samples.realItems)); showTab(1) } } },
             "V1a_empty" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc, {}).apply { bind(TripsModel.from(emptyList())) } } },
-            "V3_compare" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc, {}).apply { bind(TripsModel.from(Samples.realItems)); showTab(1) } } },
+            "V3_compare" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc, {}).apply { bind(TripsModel.from(Samples.realItems)); showTab(2) } } },
             "V3a_compare_few" to { shell(Shell.Page.TRIPS, waiting) { sh -> TripsView(a, sh.sc, {}).apply { bind(TripsModel.from(Samples.realItems.take(1))); showTab(1) } } },
             "V2_trip" to { trip(0) },
             "V2_stats" to { trip(1) },

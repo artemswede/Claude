@@ -46,7 +46,16 @@ class HomeModel(
      * is worst across this car's trips — not always the mixture.
      */
     val focus: String = "trim_b1",
+    /** «Мнение ИИ» about the shown saved trip (null — none, stale or while recording). */
+    val ai: com.obdlogger.app.AiOpinion.Opinion? = null,
 ) {
+    fun withAi(o: com.obdlogger.app.AiOpinion.Opinion?): HomeModel {
+        val fresh = o?.takeIf { !live && trip != null && it.trip == trip.name } ?: return this
+        // The chart follows the AI's sensor when this trip has it.
+        val f = fresh.chart.takeIf { c -> c.isNotBlank() && trip?.trace?.of(c) != null } ?: focus
+        return HomeModel(state, trip, live, past, trend, lastTripText, unseen, f, fresh)
+    }
+
     companion object {
         private val DATE = DateTimeFormatter.ofPattern("dd.MM")
 
@@ -61,6 +70,7 @@ class HomeModel(
                 }
             val drift = com.obdlogger.app.CarProfile.state?.takeIf { it.ready }?.drifts?.firstOrNull()?.code
             return from(saved.filter { it.name != current?.name }, current, s, com.obdlogger.app.Prefs.seenTrip(ctx), drift)
+                .withAi(com.obdlogger.app.AiOpinion.load(ctx))
         }
 
         /** Pure part of [build]: decides the state from already analysed trips. */

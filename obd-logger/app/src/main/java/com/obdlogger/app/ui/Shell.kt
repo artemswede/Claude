@@ -25,7 +25,7 @@ class Shell(private val activity: Activity) {
     enum class Page(val title: String, val icon: Int) {
         OVERVIEW("Обзор", R.drawable.ic_overview),
         RECORD("Запись", R.drawable.ic_record),
-        TRIPS("Поездки", R.drawable.ic_trips),
+        TRIPS("Журнал", R.drawable.ic_trips),
         CHAT("Чат", R.drawable.ic_chat),
         SETTINGS("Настройки", R.drawable.ic_settings),
     }

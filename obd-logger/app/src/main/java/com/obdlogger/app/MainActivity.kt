@@ -113,6 +113,9 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         shell.containers.getValue(Shell.Page.RECORD).addView(record)
 
         trips = TripsView(this, shell.sc, { openTrip(it) }, { key -> tripsCar = key; refreshTrips(force = true) })
+        trips.maintenance = com.obdlogger.app.ui.MaintenanceView(this, shell.sc,
+            ecuKm = { LiveData.store.last("odometer_km").takeIf { !it.isNaN() && it > 0 }?.toInt() },
+            onExport = { exportMaintenance() })
         shell.containers.getValue(Shell.Page.TRIPS).addView(trips)
 
         chat = com.obdlogger.app.ui.ChatView(this, shell.sc, this)
@@ -382,22 +385,73 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     override fun carText() = Prefs.vehicle(this)
 
     override fun editCar() {
-        val input = EditText(this).apply {
+        val car = Prefs.currentCar(this)
+        val name = EditText(this).apply {
             setText(Prefs.vehicle(this@MainActivity))
-            hint = "Марка, модель, год, двигатель, пробег"
+            hint = "Марка, модель, год, двигатель"
             setSelection(text.length)
+        }
+        val ecuVin = car?.takeIf { it.startsWith("vin:") }?.removePrefix("vin:")
+        val vin = EditText(this).apply {
+            setText(ecuVin ?: car?.let { Prefs.vin(this@MainActivity, it) }.orEmpty())
+            hint = "VIN — 17 знаков (из СТС или под лобовым стеклом)"
+            isEnabled = ecuVin == null
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+        }
+        val box = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding((20 * resources.displayMetrics.density).toInt(), 0, (20 * resources.displayMetrics.density).toInt(), 0)
+            addView(name)
+            addView(vin)
+        }
+        fun save() {
+            Prefs.setVehicle(this, name.text.toString().trim())
+            val v = com.obdlogger.core.Vin.clean(vin.text.toString())
+            if (car != null && ecuVin == null) Prefs.setVin(this, car, v.takeIf { com.obdlogger.core.Vin.valid(it) }.orEmpty())
+            refreshSettings(force = true)
+            shell.render(LoggerState.snapshot)
         }
         AlertDialog.Builder(this)
             .setTitle("Профиль машины")
-            .setMessage("Попадёт в разбор и в отчёт для специалиста.")
-            .setView(input)
-            .setPositiveButton("Сохранить") { _, _ ->
-                Prefs.setVehicle(this, input.text.toString().trim())
-                refreshSettings(force = true)
-                shell.render(LoggerState.snapshot)
-            }
+            .setMessage("Попадёт в разбор, в отчёт и в чат. " + if (ecuVin != null) "VIN сообщил ЭБУ." else "ЭБУ этой машины VIN не сообщает — можно вписать вручную.")
+            .setView(box)
+            .setPositiveButton("Сохранить") { _, _ -> save() }
+            .setNeutralButton("Предложить название") { _, _ -> save(); suggestCarName(com.obdlogger.core.Vin.clean(vin.text.toString())) }
             .setNegativeButton("Отмена", null)
             .show()
+    }
+
+    /** By VIN offline (maker, year), then the AI (Flash) names the car from the VIN and the ECU's data; the owner accepts. */
+    private fun suggestCarName(vin: String) {
+        val offline = com.obdlogger.core.Vin.describe(vin)
+        val key = AiChat.key(this)
+        if (key.isEmpty()) {
+            AlertDialog.Builder(this).setTitle("По VIN")
+                .setMessage(offline ?: "Нужен VIN из 17 знаков (без I, O, Q) или ключ ИИ в Настройках.")
+                .setPositiveButton(if (offline != null) "Взять" else "Понятно") { _, _ -> offline?.let { Prefs.setVehicle(this, it.removeSuffix(" (по VIN)")); shell.render(LoggerState.snapshot) } }
+                .setNegativeButton("Отмена", null).show()
+            return
+        }
+        android.widget.Toast.makeText(this, "ИИ подбирает название…", android.widget.Toast.LENGTH_SHORT).show()
+        Thread {
+            val info = SessionFiles.tripCsvs(this).lastOrNull()?.let { SessionFiles.infoOf(it) }?.takeIf { it.exists() }?.readLines()?.take(40)?.joinToString("\n").orEmpty()
+            val q = "Назови машину одной строкой: марка, модель и поколение, объём и тип двигателя (код мотора, если уверен), год. Без пояснений. " +
+                "Если данных мало — только то, в чём уверен.\nVIN: ${vin.ifBlank { "не известен" }}" + (offline?.let { "\nРасшифровка VIN: $it" } ?: "") +
+                "\nНазвание от владельца: ${Prefs.vehicle(this).ifBlank { "нет" }}\nДанные ЭБУ:\n$info"
+            val r = try {
+                Result.success(AiChat.ask(key, AiChat.modelId(this, key), "Ты определяешь автомобиль по VIN и данным OBD-II. Отвечай одной строкой.",
+                    listOf(com.obdlogger.core.ChatMessage("user", q)), thinking = false, tier = "flash").lines().firstOrNull { it.isNotBlank() }.orEmpty().trim().removeSuffix(".").take(80))
+            } catch (e: Exception) { Result.failure(e) }
+            runOnUiThread {
+                r.onSuccess { n ->
+                    AlertDialog.Builder(this).setTitle("ИИ предлагает")
+                        .setMessage(n.ifBlank { offline ?: "ничего" } + "\n\nПроверьте — ИИ может ошибиться в поколении или моторе.")
+                        .setPositiveButton("Взять") { _, _ -> Prefs.setVehicle(this, n.ifBlank { offline.orEmpty() }); refreshSettings(force = true); shell.render(LoggerState.snapshot) }
+                        .setNegativeButton("Отмена", null).show()
+                }
+                r.onFailure { android.widget.Toast.makeText(this, it.message ?: "ИИ не ответил", android.widget.Toast.LENGTH_LONG).show() }
+            }
+        }.start()
     }
 
     override fun batteryText(): String {
@@ -638,7 +692,16 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     private fun makeHome(night: Boolean) = HomeView(this, shell.sc, onDetails = { openHomeVersion() }, onSettings = { shell.show(Shell.Page.SETTINGS) },
         onCheck = { openCheck() }, onOpenLast = { openLastTrip() }, p = if (night) Bt.DARK else Bt.LIGHT, onCodes = { openCodes() },
         onReconnect = { if (LoggerState.snapshot.running) startService(LoggerService.intent(this, LoggerService.ACTION_POKE)) else if (Prefs.device(this) != null && hasBluetoothPermission()) startAuto() else shell.show(Shell.Page.SETTINGS) },
-        onBaseline = { openBaseline() })
+        onBaseline = { openBaseline() }).apply {
+            onAiRefresh = {
+                val csv = homeModel?.trip?.name?.let { n -> SessionFiles.tripCsvs(this@MainActivity).firstOrNull { it.nameWithoutExtension == n } }
+                if (csv == null || AiChat.key(this@MainActivity).isEmpty()) Toast.makeText(this@MainActivity, "Нужен ключ ИИ или свой сервер", Toast.LENGTH_SHORT).show()
+                else {
+                    Toast.makeText(this@MainActivity, "ИИ пересчитывает мнение…", Toast.LENGTH_SHORT).show()
+                    AiOpinion.refresh(this@MainActivity, csv, force = true) { o -> runOnUiThread { if (o == null) Toast.makeText(this@MainActivity, "ИИ не ответил — осталась прежняя версия", Toast.LENGTH_LONG).show(); refreshHome() } }
+                }
+            }
+        }
 
     // ---- AI chat ----
 
@@ -684,10 +747,11 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         val last = m.trips.firstOrNull()
         val engine = com.obdlogger.core.Engine.of(last?.let { SessionFiles.infoOf(it.csv) }?.takeIf { it.exists() }?.readText(), chatDetails.lastOrNull()?.table?.sensors.orEmpty())
         val car = Prefs.vehicle(this).ifBlank { "не названа" } + (if (engine != com.obdlogger.core.Engine.UNKNOWN) " · ${engine.ru}" else "") +
-            (last?.summary?.car?.key?.takeIf { it.startsWith("vin:") }?.let { " · VIN ${it.removePrefix("vin:")}" } ?: "")
+            ((last?.summary?.car?.key?.takeIf { it.startsWith("vin:") }?.removePrefix("vin:")
+                ?: Prefs.currentCar(this)?.let { Prefs.vin(this, it) }?.takeIf { it.isNotBlank() })?.let { " · VIN $it" + (com.obdlogger.core.Vin.describe(it)?.let { d -> " ($d)" } ?: "") } ?: "")
         return com.obdlogger.core.ChatPrompt.system(car, m.trips.map { it.summary }, m.checks.mapNotNull { it.check }, codes, live,
             chatDetails, chatState.summary, com.obdlogger.core.ChatPrompt.research(chatDetails, rawTrips),
-            com.obdlogger.core.Baseline.render(carProfiles(m)))
+            com.obdlogger.core.Baseline.render(carProfiles(m))) + "\n\n" + MaintenanceStore.load(this).render()
     }
 
     /** This car's trip fingerprints since the profile was last reset (heavy the first time: cached next to the trips). */
@@ -726,6 +790,39 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         chatBusy = null
         chatError = "Отменено. Вопрос сохранён — можно повторить."
         refreshChat()
+    }
+
+    /** «Записать в журнал» / «Сохранить пробег» under an answer: the owner confirmed. */
+    override fun saveRecord(tag: com.obdlogger.core.MaintenanceTag) {
+        val d = MaintenanceStore.load(this)
+        if (tag.mileageOnly) {
+            val km = tag.km ?: return
+            val save = {
+                MaintenanceStore.addMileage(this, com.obdlogger.core.Mileage(d.today, km))
+                android.widget.Toast.makeText(this, "Пробег ${com.obdlogger.core.Maintenance.km(km)} сохранён в журнале", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            val cur = d.current
+            if (cur != null && km < cur.km) AlertDialog.Builder(this)
+                .setMessage("${com.obdlogger.core.Maintenance.km(km)} меньше прежнего (${com.obdlogger.core.Maintenance.km(cur.km)}). Сохранить всё равно?")
+                .setPositiveButton("Сохранить") { _, _ -> save() }.setNegativeButton("Отмена", null).show()
+            else save()
+            return
+        }
+        // The record opens prefilled: the owner checks the work, date and mileage before saving.
+        shell.show(Shell.Page.TRIPS)
+        trips.showTab(1)
+        trips.maintenance?.editEntry(null, tag.entry(d.today))
+    }
+
+    private fun exportMaintenance() {
+        Thread {
+            val f = MaintenanceStore.exportCsv(this)
+            val r = SessionFiles.exportToDownloads(this, f)
+            runOnUiThread {
+                android.widget.Toast.makeText(this, if (r.ok) "Журнал ТО сохранён: Загрузки/${SessionFiles.DOWNLOAD_FOLDER}/${f.name}" else "Не удалось сохранить журнал",
+                    android.widget.Toast.LENGTH_LONG).show()
+            }
+        }.start()
     }
 
     override fun deep(): Boolean = AiChat.thinking(this)
@@ -1313,7 +1410,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     override fun openCompare() {
         shell.show(Shell.Page.TRIPS)
         while (pop()) Unit
-        trips.showTab(1)
+        trips.showTab(2)
     }
 
     /** This car's comparison for the plan (the version's trips decide the car). */

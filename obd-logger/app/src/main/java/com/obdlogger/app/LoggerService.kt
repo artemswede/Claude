@@ -839,11 +839,15 @@ class LoggerService : Service() {
             emptyList()
         }
         val change = fresh.firstOrNull()?.let { "Изменилось против обычного — ${it.short}" }
-        val full = listOfNotNull(text, change).joinToString("\n")
+        // ТО by the journal: «Скоро ТО: масло — через 400 км», once a day at most.
+        val remind = try { MaintenanceStore.reminder(this) } catch (e: Exception) { null }
+        val full = listOfNotNull(text, change, remind).joinToString("\n")
+        // The AI's opinion for the overview, in the background (one try per trip).
+        try { AiOpinion.refresh(this, csv) } catch (_: Exception) {}
         val open = PendingIntent.getActivity(this, 3, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val n = Compat.notificationBuilder(this, RESULT_CHANNEL_ID, "Разбор")
             .setSmallIcon(R.drawable.ic_notify)
-            .setContentTitle("Поездка сохранена")
+            .setContentTitle("${TripIndex.title(csv.nameWithoutExtension)} сохранена")
             .setContentText(change ?: text)
             .setStyle(android.app.Notification.BigTextStyle().bigText(full))
             .setContentIntent(open)
