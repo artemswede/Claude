@@ -9,7 +9,9 @@
 //   OPENROUTER_API_KEY, OPENROUTER_MODEL — необязательно: OpenRouter
 //   PROVIDER          — gemini | deepseek | openrouter (по умолчанию — первый, у которого есть ключ)
 //
-// POST /api/chat — тело как у OpenAI chat/completions ({messages, thinking}); можно сжать gzip
+// POST /api/chat — тело как у OpenAI chat/completions ({messages, thinking, tier, format}); можно сжать gzip
+//   tier: "pro" — сначала Gemini Pro (Бортач сам считает дневную квоту), иначе Flash-Lite;
+//   format: "card" | "opinion" — ответ JSON по схеме (раскладка ответа в приложении);
 //   (заголовок X-Bortach-Gzip: 1) — так большой контекст проходит в лимит Vercel 4,5 МБ.
 // GET  /api/chat — проверка: какой провайдер и модель отвечают.
 
@@ -56,6 +58,28 @@ export function rankGemini(ids) {
   return out.slice(0, 4);
 }
 
+/** Gemini Pro models, the newest stable first (for the first questions of the day). */
+export function rankPro(ids) {
+  const all = ids
+    .map((id) => id.replace(/^models\//, ""))
+    .filter((id) => /^gemini-\d/.test(id) && /-pro/.test(id))
+    .filter((id) => !/image|tts|audio|live|embedding|exp|thinking|vision|computer/.test(id));
+  const order = (a, b) => version(b) - version(a) || Number(/preview/.test(a)) - Number(/preview/.test(b)) || a.length - b.length;
+  const out = [...new Set(all)].sort(order);
+  if (!out.includes("gemini-2.5-pro")) out.push("gemini-2.5-pro");
+  // A preview without a free quota answers 429 at once: then the stable one.
+  return out.slice(0, 2);
+}
+
+/** Order for a tier: Pro → Flash → Flash-Lite, or the usual Flash-Lite first. */
+export function rankFor(ids, tier) {
+  const flash = rankGemini(ids);
+  if (tier !== "pro") return flash;
+  const full = flash.filter((m) => !/lite/.test(m));
+  const lite = flash.filter((m) => /lite/.test(m));
+  return [...rankPro(ids), ...full, ...lite].slice(0, 6);
+}
+
 /** The first model to ask (see [rankGemini]). */
 export function pickGemini(ids) {
   return rankGemini(ids)[0];
@@ -68,25 +92,28 @@ export function resetModels() {
 }
 
 /** Models to try in order (the first one is «the» model). */
-async function models(p, env = process.env) {
+async function models(p, env = process.env, tier = "") {
   if (p === "gemini") {
     if (!cachedModels) {
       try {
         const r = await fetch(`${GEMINI}/models`, { headers: { Authorization: `Bearer ${env.GEMINI_API_KEY}` } });
         const j = await r.json();
-        cachedModels = rankGemini((j.data || []).map((m) => m.id || ""));
+        cachedModels = (j.data || []).map((m) => m.id || "");
       } catch {
-        cachedModels = rankGemini([]);
+        cachedModels = [];
       }
     }
-    return env.GEMINI_MODEL ? [env.GEMINI_MODEL, ...cachedModels.filter((m) => m !== env.GEMINI_MODEL)] : cachedModels;
+    const list = rankFor(cachedModels, tier);
+    // GEMINI_MODEL pins the model of the usual tier; Pro questions still start with Pro.
+    if (!env.GEMINI_MODEL || tier === "pro") return list;
+    return [env.GEMINI_MODEL, ...list.filter((m) => m !== env.GEMINI_MODEL)];
   }
   if (p === "deepseek") return [env.DEEPSEEK_MODEL || "deepseek-chat"];
   return [env.OPENROUTER_MODEL || "deepseek/deepseek-v4-flash"];
 }
 
-async function model(p, env = process.env) {
-  return (await models(p, env))[0];
+async function model(p, env = process.env, tier = "") {
+  return (await models(p, env, tier))[0];
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -108,11 +135,44 @@ async function readBody(req) {
   return JSON.parse(buf.toString("utf8"));
 }
 
+/** JSON answers the app lays out itself: the chat card and «Мнение ИИ» on the overview. */
+export const SCHEMAS = {
+  card: {
+    type: "object",
+    properties: {
+      short: { type: "string", description: "Коротко: главный вывод, до 90 знаков" },
+      why: { type: "array", items: { type: "string" }, description: "Почему: факты с числом, режимом и временем → что значит; в порядке рядов графика" },
+      todo: { type: "string", description: "Что сделать: одно-два действия" },
+      confidence: { type: "string", description: "высокая/средняя/низкая — и почему" },
+      rest: { type: "string", description: "Если вопрос не про диагностику — обычный ответ здесь" },
+      tags: { type: "array", items: { type: "string" }, description: "Теги Бортача целиком: [график: …], [проверка: …], [наблюдать: …], [запись ТО: …], [пробег: …]" },
+    },
+    required: ["short", "why", "todo", "confidence", "tags"],
+  },
+  opinion: {
+    type: "object",
+    properties: {
+      headline: { type: "string" },
+      urgency: { type: "string" },
+      confidence: { type: "string", enum: ["высокая", "средняя", "низкая"] },
+      why: {
+        type: "array",
+        items: { type: "object", properties: { label: { type: "string" }, value: { type: "string" }, deviating: { type: "boolean" } }, required: ["label", "value"] },
+      },
+      next: { type: "string" },
+      chart: { type: "string" },
+    },
+    required: ["headline", "confidence", "why", "next"],
+  },
+};
+
 /** The request to the provider: the same messages, deep reasoning when asked for. */
 export function upstreamBody(p, m, body, extras) {
   const out = { model: m, messages: body.messages, stream: false };
   if (!extras) return out;
   const think = body.thinking !== false;
+  const schema = SCHEMAS[body.format];
+  if (schema && p !== "openrouter") out.response_format = { type: "json_schema", json_schema: { name: body.format, schema } };
   if (p === "gemini") out.reasoning_effort = think ? "high" : "low";
   else if (p === "deepseek") {
     out.thinking = { type: think ? "enabled" : "disabled" };
@@ -123,7 +183,7 @@ export function upstreamBody(p, m, body, extras) {
 
 export async function ask(p, body, { pause = 2000 } = {}) {
   const { base, key } = target(p);
-  const list = await models(p);
+  const list = await models(p, process.env, body.tier);
   const call = (m, extras) =>
     fetch(`${base}/chat/completions`, {
       method: "POST",
@@ -131,8 +191,9 @@ export async function ask(p, body, { pause = 2000 } = {}) {
       body: JSON.stringify(upstreamBody(p, m, body, extras)),
     });
   let last = null;
-  // Up to 4 tries: an overloaded model (503/429) gets a pause, then the next model on the list.
-  for (let i = 0; i < 4; i++) {
+  // Up to 4 tries (5 with Pro): an overloaded model (503/429) gets a pause, then the next model on the list.
+  const tries = Math.max(4, list.length);
+  for (let i = 0; i < tries; i++) {
     const m = list[Math.min(i, list.length - 1)];
     let r = await call(m, true);
     // A model that does not know the reasoning fields: the same question without them.
@@ -146,7 +207,9 @@ export async function ask(p, body, { pause = 2000 } = {}) {
     }
     if (!transient(r.status)) return { r, model: m };
     last = { r, model: m };
-    if (i < 3) await sleep(pause * (i + 1));
+    // Pro out of its daily quota (429): straight to Flash, no waiting.
+    if (/-pro/.test(m) && r.status === 429) continue;
+    if (i < tries - 1) await sleep(pause * (i + 1));
   }
   return last;
 }
@@ -165,7 +228,7 @@ export default async function handler(req, res) {
   if (!p) return send(res, 500, { error: { message: "На сервере нет ключа ИИ: задайте GEMINI_API_KEY (или DEEPSEEK_API_KEY / OPENROUTER_API_KEY)." } });
 
   if (req.method === "GET") {
-    return send(res, 200, { ok: true, provider: p, model: await model(p), region: process.env.VERCEL_REGION || null });
+    return send(res, 200, { ok: true, provider: p, model: await model(p), pro: p === "gemini" ? await model(p, process.env, "pro") : null, region: process.env.VERCEL_REGION || null });
   }
   if (req.method !== "POST") return send(res, 405, { error: { message: "Только GET и POST." } });
 

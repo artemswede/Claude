@@ -94,3 +94,35 @@ test("overloaded model: pause, then the next one answers", async () => {
   assert.equal(model, "gemini-3.0-flash");
   assert.deepEqual(tried, ["gemini-3.0-flash-lite", "gemini-3.0-flash"]);
 });
+
+test("Pro first for tier pro, then Flash, then Lite; 429 from Pro goes on at once", async () => {
+  const { ask, rankFor, resetModels } = await import("../api/chat.js");
+  const ids = ["models/gemini-2.5-pro", "models/gemini-3.0-pro-preview", "models/gemini-3.0-flash", "models/gemini-3.0-flash-lite", "models/gemini-2.5-flash"];
+  assert.deepEqual(rankFor(ids, "pro").slice(0, 3), ["gemini-3.0-pro-preview", "gemini-2.5-pro", "gemini-3.0-flash"]);
+  assert.equal(rankFor(ids, "flash")[0], "gemini-3.0-flash-lite");
+  process.env.GEMINI_MODEL = "";
+  resetModels();
+  const tried = [];
+  const t0 = Date.now();
+  globalThis.fetch = async (url, opts) => {
+    if (url.endsWith("/models")) return new Response(JSON.stringify({ data: ids.map((id) => ({ id })) }));
+    const m = JSON.parse(opts.body).model;
+    tried.push(m);
+    if (/pro/.test(m)) return new Response(JSON.stringify([{ error: { code: 429, message: "quota" } }]), { status: 429 });
+    return new Response(JSON.stringify({ choices: [{ message: { content: "ок" } }] }), { status: 200 });
+  };
+  const { r, model } = await ask("gemini", { messages: [{ role: "user", content: "x" }], tier: "pro" }, { pause: 5000 });
+  assert.equal(r.status, 200);
+  assert.equal(model, "gemini-3.0-flash");
+  assert.deepEqual(tried, ["gemini-3.0-pro-preview", "gemini-2.5-pro", "gemini-3.0-flash"]);
+  assert.ok(Date.now() - t0 < 2000);
+});
+
+test("JSON schema for the card and the opinion; dropped with the extras", async () => {
+  const { upstreamBody } = await import("../api/chat.js");
+  const b = { messages: [{ role: "user", content: "x" }], format: "card" };
+  assert.equal(upstreamBody("gemini", "m", b, true).response_format.json_schema.name, "card");
+  assert.equal(upstreamBody("gemini", "m", { ...b, format: "opinion" }, true).response_format.json_schema.name, "opinion");
+  assert.equal(upstreamBody("gemini", "m", b, false).response_format, undefined);
+  assert.equal(upstreamBody("gemini", "m", { messages: [] }, true).response_format, undefined);
+});

@@ -88,10 +88,10 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     // Head units: smaller density on short landscape screens and the owner's size from Settings.
     override fun attachBaseContext(newBase: Context) = super.attachBaseContext(UiScale.wrap(newBase))
 
-    override fun uiScale(): Int = (UiScale.factor(this) * 100).toInt()
+    override fun uiScale(): Int = Math.round(UiScale.factor(this) * 100)
 
     override fun setUiScale(percent: Int) {
-        prefs.edit().putFloat(Prefs.UI_SCALE, percent / 100f).apply()
+        prefs.edit().putFloat(Prefs.UI_SIZE, percent / 100f).apply()
         recreate()
     }
 
@@ -116,6 +116,8 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         shell.containers.getValue(Shell.Page.TRIPS).addView(trips)
 
         chat = com.obdlogger.app.ui.ChatView(this, shell.sc, this)
+        // «Глубоко», «Новый чат», «⋯» — next to the lamps, never scrolled away (on a phone — above the chat).
+        if (!shell.sc.phone) shell.setPageBar(Shell.Page.CHAT, chat.header)
         shell.containers.getValue(Shell.Page.CHAT).addView(chat)
 
         settings = SettingsView(this, shell.sc)
@@ -643,8 +645,10 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     private lateinit var chat: com.obdlogger.app.ui.ChatView
     /** The one chat of the app (messages + memory); never a list of chats. */
     private val chatState by lazy { AiChat.load(this) }
-    /** «Думаю…» while waiting, null when idle. */
-    @Volatile private var chatBusy: String? = null
+    /** The answer is awaited: stage, timer, model; null when idle. */
+    @Volatile private var chatBusy: com.obdlogger.app.ui.ChatWait? = null
+    /** Bumped by «Отменить»: a late answer of a cancelled request is dropped. */
+    @Volatile private var chatRun = 0
     private var chatError: String? = null
     private var chatContext = ""
     /** Per-sensor detail of this car's recent trips: for the prompt and for the charts the assistant asks for. */
@@ -654,7 +658,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         postPendingReports()
         val s = LoggerState.snapshot
         val moving = s.recording && (s.values.firstOrNull { it.first == "speed_kmh" }?.second?.toDoubleOrNull() ?: 0.0) > 0.5
-        chat.bind(chatState, chatBusy, AiChat.key(this).isNotEmpty(), chatContext, chatError, WatchStore.rules(this), moving)
+        chat.bind(chatState, chatBusy, AiChat.key(this).isNotEmpty(), chatContext, chatError, WatchStore.rules(this), moving, chatMeta())
         if (!withContext) return
         Thread {
             val m = TripsModel.build(this, Prefs.currentCar(this))
@@ -689,13 +693,46 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     /** This car's trip fingerprints since the profile was last reset (heavy the first time: cached next to the trips). */
     private fun carProfiles(m: TripsModel): List<com.obdlogger.core.TripProfile> = CarProfile.of(this, m).profiles
 
-    override fun sendQuestion(text: String) {
+    override fun sendQuestion(text: String): Boolean {
         val key = AiChat.key(this)
-        if (key.isEmpty()) return editAiKey()
-        if (chatBusy != null) return
+        if (key.isEmpty()) { editAiKey(); return false }
+        if (chatBusy != null) return false
         chatState.messages += com.obdlogger.core.ChatMessage("user", text)
         AiChat.save(this, chatState)
         answer(key)
+        return true
+    }
+
+    /** Under the newest answer: «Gemini Pro · 3 из 15 Pro сегодня». */
+    private fun chatMeta(): String {
+        val m = prefs.getString(Prefs.AI_LAST_MODEL, null).orEmpty()
+        if (m.isEmpty()) return ""
+        val name = AiChat.modelName(m)
+        val limit = AiChat.proLimit(this)
+        return if (AiChat.proxied(AiChat.key(this)) && limit > 0) "$name · Pro ${AiChat.proUsed(this)} из $limit сегодня" else name
+    }
+
+    /** What the waiting card names: the model the request starts with. */
+    private fun waitModel(key: String, tier: String?): String = when {
+        AiChat.proxied(key) -> if (tier == "pro") "Gemini Pro" else "Gemini Flash"
+        AiChat.openRouter(key) -> "DeepSeek"
+        else -> "DeepSeek"
+    } + if (AiChat.thinking(this)) " · глубоко" else " · быстро"
+
+    override fun cancelAnswer() {
+        if (chatBusy == null) return
+        chatRun++
+        AiChat.cancel()
+        chatBusy = null
+        chatError = "Отменено. Вопрос сохранён — можно повторить."
+        refreshChat()
+    }
+
+    override fun deep(): Boolean = AiChat.thinking(this)
+    override fun setDeep(on: Boolean) {
+        if (on == AiChat.thinking(this)) return
+        AiChat.setThinking(this, on)
+        refreshChat()
     }
 
     /**
@@ -714,9 +751,20 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     }
 
     private fun answer(key: String) {
-        chatBusy = "Думаю… (глубокий режим — до минуты)"
         chatError = null
+        // No network: say so at once instead of waiting minutes for a timeout.
+        if (!AiChat.online(this)) {
+            chatError = "Нет интернета на магнитоле. Вопрос сохранён — нажмите «Повторить», когда связь появится."
+            refreshChat()
+            return
+        }
+        val tier = if (AiChat.proxied(key)) AiChat.tier(this) else null
+        val since = android.os.SystemClock.elapsedRealtime()
+        val label = waitModel(key, tier)
+        chatBusy = com.obdlogger.app.ui.ChatWait("Собираю данные", since, label)
         refreshChat()
+        val run = ++chatRun
+        fun stage(t: String) = runOnUiThread { if (run == chatRun && chatBusy != null) { chatBusy = com.obdlogger.app.ui.ChatWait(t, since, label); refreshChat() } }
         Thread {
             val result = try {
                 val thinking = AiChat.thinking(this)
@@ -724,36 +772,45 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
                 var system = chatSystemPrompt()
                 // Long conversation: fold the older part into the chat's memory, keep the last 30 as they are.
                 if (com.obdlogger.core.ChatMemory.needsCompression(system, chatState, AiChat.window(key))) {
-                    runOnUiThread { chatBusy = "Сжимаю раннюю часть разговора в память…"; refreshChat() }
+                    stage("Сжимаю память чата")
                     val summary = AiChat.ask(key, model, "Ты составляешь точный конспект технической переписки.",
-                        listOf(com.obdlogger.core.ChatMessage("user", com.obdlogger.core.ChatMemory.compressionPrompt(chatState))), thinking = false)
+                        listOf(com.obdlogger.core.ChatMessage("user", com.obdlogger.core.ChatMemory.compressionPrompt(chatState))), thinking = false, tier = "flash")
                     com.obdlogger.core.ChatMemory.apply(chatState, summary)
                     AiChat.save(this, chatState)
                     system = chatSystemPrompt()
-                    runOnUiThread { chatBusy = "Думаю…"; refreshChat() }
                 }
+                stage("ИИ думает")
+                // The research brief keeps its own long format; ordinary questions come back as a card (JSON).
+                val format = if (chatState.messages.lastOrNull()?.text == com.obdlogger.core.ChatPrompt.HYPOTHESIS_BRIEF) null else "card"
                 val answer = try {
-                    AiChat.ask(key, model, system, com.obdlogger.core.ChatPrompt.history(chatState), thinking)
+                    AiChat.ask(key, model, system, com.obdlogger.core.ChatPrompt.history(chatState), thinking, tier, format)
                 } catch (e: AiChat.ModelGone) {
                     // The server renamed its models: pick again from its list and repeat once.
                     AiChat.forgetModel(this)
                     model = AiChat.modelId(this, key)
-                    AiChat.ask(key, model, system, com.obdlogger.core.ChatPrompt.history(chatState), thinking)
+                    AiChat.ask(key, model, system, com.obdlogger.core.ChatPrompt.history(chatState), thinking, tier, format)
                 }
                 Result.success(answer)
             } catch (e: Exception) {
                 Result.failure(e)
             }
+            val used = AiChat.lastModel
             runOnUiThread {
+                if (run != chatRun) return@runOnUiThread
                 chatBusy = null
-                result.onSuccess { chatState.messages += com.obdlogger.core.ChatMessage("assistant", it); AiChat.save(this, chatState) }
-                result.onFailure { chatError = it.message ?: it.toString() }
+                result.onSuccess {
+                    chatState.messages += com.obdlogger.core.ChatMessage("assistant", it)
+                    AiChat.save(this, chatState)
+                    AiChat.countPro(this, used)
+                    prefs.edit().putString(Prefs.AI_LAST_MODEL, used).apply()
+                }
+                result.onFailure { if (it !is AiChat.Cancelled) chatError = it.message ?: it.toString() }
                 refreshChat()
             }
         }.start()
     }
 
-    override fun runResearch() = sendQuestion(com.obdlogger.core.ChatPrompt.HYPOTHESIS_BRIEF)
+    override fun runResearch() { sendQuestion(com.obdlogger.core.ChatPrompt.HYPOTHESIS_BRIEF) }
 
     override fun chartView(req: com.obdlogger.core.ChartRequest): View? {
         if (req is com.obdlogger.core.ChartRequest.Live) {
@@ -981,6 +1038,9 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     override fun setAiOrModel(i: Int) = AiChat.setOrModel(this, AiChat.OR_MODELS[i].first)
     override fun aiModel(): Int = if (AiChat.thinking(this)) 0 else 1
     override fun setAiModel(i: Int) = AiChat.setThinking(this, AiChat.MODES[i].second)
+    override fun aiProLimit(): Int = AiChat.PRO_CHOICES.indexOf(AiChat.proLimit(this)).coerceAtLeast(0)
+    override fun setAiProLimit(i: Int) = AiChat.setProLimit(this, AiChat.PRO_CHOICES[i])
+    override fun aiProUsed(): Int = AiChat.proUsed(this)
 
     // ---- «Как обычно у вашей машины» ----
 

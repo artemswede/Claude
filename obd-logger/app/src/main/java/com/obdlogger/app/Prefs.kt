@@ -25,6 +25,14 @@ object Prefs {
     const val RECORDING_SHUTDOWN = "recording_shutdown"
     const val SEEN_TRIP = "seen_trip"
     const val UI_SCALE = "ui_scale"
+    /** Interface size factor: bigger — bigger (replaces the inverted [UI_SCALE]). */
+    const val UI_SIZE = "ui_size"
+    /** Pro answers a day (own server, Gemini), today's count and its day. */
+    const val AI_PRO_LIMIT = "ai_pro_limit"
+    const val AI_PRO_COUNT = "ai_pro_count"
+    const val AI_PRO_DAY = "ai_pro_day"
+    /** The model of the last answer («gemini/gemini-2.5-pro»), shown under it. */
+    const val AI_LAST_MODEL = "ai_last_model"
     /** The owner's DeepSeek key and model for the AI chat. */
     const val AI_KEY = "ai_key"
     const val AI_MODEL = "ai_model"

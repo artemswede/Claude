@@ -78,6 +78,22 @@ class ChatAnswer(val short: String, val why: List<String>, val todo: String, val
     companion object {
         private val heads = listOf("коротко", "почему", "что сделать", "уверенность")
 
+        /**
+         * A JSON answer (format «card» of the own server) back as the usual text: the history and
+         * the layout stay one format, and the tags work as in a free answer.
+         */
+        fun fromCard(short: String, why: List<String>, todo: String, confidence: String, rest: String, tags: List<String>): String = buildString {
+            if (short.isNotBlank()) append("Коротко: ").append(short.trim()).append('\n')
+            if (why.any { it.isNotBlank() }) {
+                append("Почему:\n")
+                why.filter { it.isNotBlank() }.forEach { append("- ").append(it.trim().removePrefix("- ")).append('\n') }
+            }
+            if (todo.isNotBlank()) append("Что сделать: ").append(todo.trim()).append('\n')
+            if (confidence.isNotBlank()) append("Уверенность: ").append(confidence.trim()).append('\n')
+            if (rest.isNotBlank()) append(rest.trim()).append('\n')
+            tags.map { it.trim() }.filter { it.isNotEmpty() }.forEach { t -> append(if (t.startsWith("[")) t else "[$t]").append('\n') }
+        }.trim()
+
         fun parse(text: String): ChatAnswer {
             var section = ""
             val short = StringBuilder()
@@ -309,6 +325,10 @@ object ChatPrompt {
 ДЕЙСТВИЯ — предлагаешь ты, запускает водитель:
   [проверка: холостой|смесь|зарядка|прогрев] — короткая проверка (холостой 2 мин стоя; смесь 4 мин ХХ→2500→ХХ; зарядка 2 мин без нагрузки и с фарами, печкой, обогревом; прогрев от холодного пуска до 80 °C). Только когда она решающая.
   [наблюдать: <датчик> <знак> <число> [когда WARM_IDLE|CRUISE|COLD]] — Бортач следит за условием в следующих ${WatchRule.TRIPS} поездках и пришлёт результат. Знаки: > < >= <=.
+МЕДКАРТА — журнал ТО и пробег ведёт водитель (блок МЕДКАРТА). Если водитель сообщил о работе или пробеге («поменял колодки на 182 тыс.», «пробег 182 400») — предложи запись тегом, сохранит он сам:
+  [запись ТО: <что сделано>; пробег <км>; дата <ДД.ММ>; детали <артикул>; заметка <текст>] — поля кроме первого необязательны.
+  [пробег: <км>]
+Учитывай МЕДКАРТУ: просроченное ТО или давно не менявшиеся жидкости могут объяснять данные; напомни, что пора, если это к месту.
 Когда приходит «Результат проверки» или «Наблюдение» — дай вердикт: гипотеза подтверждена, опровергнута или нужна ещё поездка, и что дальше.
 
 ПРИМЕР:
@@ -321,6 +341,10 @@ object ChatPrompt {
 Уверенность: средняя — один эпизод, нужна ещё поездка.
 [график: наложение rpm maf_gs trim_b1 последняя 20:02–20:09 отметка 20:05:12 провал]
 [проверка: холостой]"""
+
+    /** Added to the system prompt when the answer comes as JSON (own server, format «card»). */
+    const val CARD_NOTE = """
+ОТВЕТ — JSON по схеме: short — строка «Коротко» (до 90 знаков); why — факты «Почему», каждый «факт с числом → что значит», в порядке датчиков графика; todo — «Что сделать»; confidence — «высокая/средняя/низкая — почему»; tags — теги целиком в квадратных скобках ([график: …], [проверка: …], [наблюдать: …], [запись ТО: …], [пробег: …]). Если вопрос не про диагностику (объяснение, совет, разговор) — ответ в rest, short — одна фраза сути, why может быть пустым."""
 
     private val HMS = java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")
 

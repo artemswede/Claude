@@ -8,15 +8,24 @@ import android.content.res.Configuration
  * 1024×600 panel (≈ 512×300 dp): Android then picks the phone layout and everything
  * is huge. On a short landscape screen the density is lowered so that the app gets
  * at least [MIN_HEIGHT_DP] dp of height; the owner can make it smaller or larger in
- * Settings («Масштаб интерфейса»).
+ * Settings («Размер интерфейса»).
  */
 object UiScale {
     const val MIN_HEIGHT_DP = 400
 
-    /** Factors offered in Settings; 1 = automatic. */
-    val LEVELS = listOf(0.8f to "Мельче", 0.9f to "Чуть мельче", 1f to "Обычный", 1.12f to "Крупнее")
+    /** Factors offered in Settings; 1 = automatic. Bigger factor — bigger interface. */
+    val LEVELS = listOf(0.9f to "Мельче", 1f to "Обычный", 1.12f to "Крупнее", 1.25f to "Ещё крупнее")
 
-    fun factor(ctx: Context): Float = Prefs.of(ctx).getFloat(Prefs.UI_SCALE, 1f)
+    fun factor(ctx: Context): Float {
+        val p = Prefs.of(ctx)
+        if (p.contains(Prefs.UI_SIZE)) return p.getFloat(Prefs.UI_SIZE, 1f)
+        // Before: the factor divided the density, so «Крупнее» made everything smaller.
+        // The saved choice is carried over so that the screen looks the same as before.
+        val old = p.getFloat(Prefs.UI_SCALE, 1f)
+        val f = LEVELS.minByOrNull { kotlin.math.abs(it.first - 1f / old) }!!.first
+        p.edit().putFloat(Prefs.UI_SIZE, f).apply()
+        return f
+    }
 
     /** A context whose resources use the adjusted density; the original one if nothing changes. */
     fun wrap(base: Context): Context {
@@ -27,9 +36,9 @@ object UiScale {
         val hPx = cfg.screenHeightDp * density
         var d = density
         if (wPx > hPx && hPx / d < MIN_HEIGHT_DP) d = hPx / MIN_HEIGHT_DP
-        d /= factor(base)
+        d *= factor(base)
         // Head units often ship with a large system font; sizes here are already set for the car,
-        // and an extra 1.3× makes values run into labels. The owner's size is «Масштаб интерфейса».
+        // and an extra 1.3× makes values run into labels. The owner's size is «Размер интерфейса».
         val font = minOf(cfg.fontScale, 1f)
         if (kotlin.math.abs(d - density) < 0.01f && font == cfg.fontScale) return base
         val c = Configuration(cfg)

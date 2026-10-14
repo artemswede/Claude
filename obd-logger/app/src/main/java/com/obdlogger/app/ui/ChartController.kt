@@ -79,6 +79,7 @@ class ChartBar(
             lanes.showNorm = v and 1 != 0; lanes.showDots = v and 2 != 0; lanes.showGrid = v and 4 != 0; lanes.scaleByWindow = v and 8 != 0
         }
         lanes.perScreen = perScreen
+        prefs.getLong("chart_win_$place", 0L).takeIf { it > 0 }?.let { lanes.windowMs = it }
         mode.select(if (lanes.overlayMode) 1 else 0)
         val row = LinearLayout(ctx).apply { orientation = HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         addTo(row, mode, 0, width = ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -134,8 +135,21 @@ class ChartBar(
         now.text = if (lanes.pannedBack) "Сейчас ›" else "● Сейчас"
         now.setTextColor(if (lanes.pannedBack) p.acc else p.t2)
         if (mode.selected != (if (lanes.overlayMode) 1 else 0)) mode.select(if (lanes.overlayMode) 1 else 0)
-        prefs.edit().putString("chart_ov_$place", lanes.overlay.joinToString(",")).apply()
+        // Saved only when changed: update() runs every second.
+        val ov = lanes.overlay.joinToString(",")
+        if (ov != savedOv || lanes.windowMs != savedWin) {
+            savedOv = ov
+            savedWin = lanes.windowMs
+            prefs.edit().putString("chart_ov_$place", ov).putLong("chart_win_$place", lanes.windowMs).apply()
+        }
     }
+    private var savedOv: String? = null
+    private var savedWin = 0L
+
+    /** «Крупный вид в движении»: off by default — the charts never change by themselves while driving. */
+    var driveView: Boolean
+        get() = prefs.getBoolean("chart_drive_$place", false)
+        set(v) { prefs.edit().putBoolean("chart_drive_$place", v).apply() }
 
     private fun windowMenu(anchor: View) {
         val m = android.widget.PopupMenu(context, anchor)
@@ -249,6 +263,7 @@ class ChartBar(
         m.menu.add(0, 11, 11, "Точки замеров").apply { isCheckable = true; isChecked = lanes.showDots }
         m.menu.add(0, 12, 12, "Шкала по окну").apply { isCheckable = true; isChecked = lanes.scaleByWindow }
         m.menu.add(0, 13, 13, "Сетка").apply { isCheckable = true; isChecked = lanes.showGrid }
+        if (place == "record") m.menu.add(0, 14, 14, "Крупный вид в движении").apply { isCheckable = true; isChecked = driveView }
         if (saved().isNotEmpty()) m.menu.add(0, 20, 20, "Удалить свои наборы")
         m.setOnMenuItemClickListener { item ->
             when (item.itemId) {
@@ -259,6 +274,7 @@ class ChartBar(
                 11 -> lanes.showDots = !lanes.showDots
                 12 -> lanes.scaleByWindow = !lanes.scaleByWindow
                 13 -> lanes.showGrid = !lanes.showGrid
+                14 -> driveView = !driveView
                 20 -> store(emptyList())
                 else -> all.getOrNull(item.itemId - 100)?.let { apply(it) }
             }
@@ -379,9 +395,13 @@ class DriveCharts(ctx: Context, private val p: Bt.Palette) : View(ctx) {
     private val fill = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
     private val line = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { style = android.graphics.Paint.Style.STROKE; strokeWidth = 2.5f * ctx.resources.displayMetrics.density }
 
-    fun set(s: com.obdlogger.core.SeriesStore, mode: com.obdlogger.core.LiveMode) {
+    /** The norm band, as «Подложка нормы» in the charts' menu. */
+    var showNorm = true
+
+    fun set(s: com.obdlogger.core.SeriesStore, mode: com.obdlogger.core.LiveMode, showNorm: Boolean = true) {
         store = s
         this.mode = mode
+        this.showNorm = showNorm
         invalidate()
     }
 
@@ -412,6 +432,13 @@ class DriveCharts(ctx: Context, private val p: Bt.Palette) : View(ctx) {
                 else -> "✓ в норме"
             }
             c.drawText(word, 20 * d, top + rowH - 18 * d, paint(16f, if (out) p.amb else p.acc, 600))
+            // «выше обычного» alone says little: the usual range under it.
+            if (out && norm != null) c.drawText("обычно ${Num.fmt(code, norm.lo)}–${Num.fmt(code, norm.hi)}", 20 * d + paint(16f, p.amb, 600).measureText("$word  "), top + rowH - 18 * d, paint(14f, p.t2))
+            if (k == 0) {
+                val hint = "касание — мои графики"
+                val hp = paint(13f, p.t3)
+                c.drawText(hint, width - 16 * d - hp.measureText(hint), top + 24 * d, hp)
+            }
             // The last 5 minutes on the right, the norm as a band.
             val (t, vs) = s.series(code, end - 5 * 60_000)
             val x0 = 228 * d
@@ -426,7 +453,7 @@ class DriveCharts(ctx: Context, private val p: Bt.Palette) : View(ctx) {
             val pt = top + 16 * d
             val pb = top + rowH - 16 * d
             fun y(x: Double) = (pb - (pb - pt) * ((x - lo) / (hi - lo))).toFloat()
-            norm?.let { fill.color = p.accZ; c.drawRect(x0, y(it.hi), x1, y(it.lo), fill) }
+            if (showNorm) norm?.let { fill.color = p.accZ; fill.alpha = fill.alpha / 2; c.drawRect(x0, y(it.hi), x1, y(it.lo), fill) }
             val path = android.graphics.Path()
             var started = false
             for (i in t.indices) {

@@ -125,7 +125,7 @@ class ScreensTest {
  * an info file borrow the previous trip's, so all belong to the same car.
  */
 object NoChat : com.obdlogger.app.ui.ChatActions {
-    override fun sendQuestion(text: String) {}
+    override fun sendQuestion(text: String) = true
     override fun voiceQuestion() {}
     override fun editAiKey() {}
     override fun resetChat() {}
@@ -213,6 +213,12 @@ class Scenes(private val a: Activity) {
         shell.show(page)
         shell.render(s)
         return shell.root
+    }
+
+    /** The chat with its bar next to the lamps, as in the app. */
+    private fun chatIn(sh: Shell, v: com.obdlogger.app.ui.ChatView): View {
+        if (!sh.sc.phone) sh.setPageBar(Shell.Page.CHAT, v.header)
+        return v
     }
 
     private fun home(s: LoggerState.Snapshot, saved: List<TripSummary>, current: TripSummary?) = shell(Shell.Page.OVERVIEW, s) { sh ->
@@ -313,9 +319,12 @@ class Scenes(private val a: Activity) {
             "G2_charts" to { record(2, recording) },
             "G2b_charts_overlay" to { shell(Shell.Page.RECORD, recording) { sh -> RecordView(a, sh.sc).apply {
                 if (!sh.sc.phone) sh.setPageBar(Shell.Page.RECORD, header); bind(liveStore, recording); showOverlay(listOf("trim_b1", "maf_gs", "rpm")) } } },
-            "H1_chat_nokey" to { shell(Shell.Page.CHAT, recording) { sh -> com.obdlogger.app.ui.ChatView(a, sh.sc, NoChat).apply {
-                bind(com.obdlogger.core.ChatState(), null, false, "Ответы — по данным этой машины: Avensis 2.0 D-4 · поездок 4 · проверочных логов 1", null) } } },
-            "H2_chat" to { shell(Shell.Page.CHAT, recording) { sh -> com.obdlogger.app.ui.ChatView(a, sh.sc, object : com.obdlogger.app.ui.ChatActions by NoChat {
+            "H1_chat_nokey" to { shell(Shell.Page.CHAT, recording) { sh -> chatIn(sh, com.obdlogger.app.ui.ChatView(a, sh.sc, NoChat).apply {
+                bind(com.obdlogger.core.ChatState(), null, false, "Ответы — по данным этой машины: Avensis 2.0 D-4 · поездок 4 · проверочных логов 1", null) }) } },
+            "H4_chat_offline" to { shell(Shell.Page.CHAT, recording) { sh -> chatIn(sh, com.obdlogger.app.ui.ChatView(a, sh.sc, NoChat).apply {
+                bind(com.obdlogger.core.ChatState(mutableListOf(com.obdlogger.core.ChatMessage("user", "Почему дёргает на светофоре?"))), null, true,
+                    "Ответы — по данным этой машины · поездок 4", "Нет интернета на магнитоле. Вопрос сохранён — нажмите «Повторить», когда связь появится.") }) } },
+            "H2_chat" to { shell(Shell.Page.CHAT, recording) { sh -> chatIn(sh, com.obdlogger.app.ui.ChatView(a, sh.sc, object : com.obdlogger.app.ui.ChatActions by NoChat {
                 override fun chartView(req: com.obdlogger.core.ChartRequest): android.view.View? = when (req) {
                     is com.obdlogger.core.ChartRequest.Overlay -> com.obdlogger.app.ui.TripCache.detail(Samples.realItems.last())?.let {
                         com.obdlogger.app.ui.OverlayChartView(a, com.obdlogger.app.ui.Bt.LIGHT, it, req.sensors)
@@ -328,9 +337,10 @@ class Scenes(private val a: Activity) {
                     com.obdlogger.core.ChatMessage("user", "Почему коррекция Б1 на холостом выше, чем в движении?"),
                     com.obdlogger.core.ChatMessage("assistant", "**Коротко:** похоже на подсос воздуха.\n\n- На холостом коррекция Б1 +21.9 %, в движении −3.1 %: лишний воздух заметен, когда его мало.\n- Задняя лямбда на ХХ 0.06 В — «бедно».\n\nПроверьте шланги вентиляции картера и прокладку впуска, затем запишите проверочный лог.\n[график: тренд trim_b1 WARM_IDLE]"),
                     com.obdlogger.core.ChatMessage("user", "А может быть забит топливный фильтр?"),
-                    com.obdlogger.core.ChatMessage("assistant", "Вряд ли: под нагрузкой коррекция падает до −3 %, а забитый фильтр дал бы рост именно там. Смотрите на наложение — коррекция растёт, когда ДМРВ на холостом минимален:\n[график: наложение trim_b1 maf_gs rpm последняя]"),
-                ), "конспект"), "Думаю… (глубокий режим — до минуты)", true, "Ответы — по данным этой машины: Avensis 2.0 D-4 · поездок 4 · проверочных логов 1 · коды: P0136, P0156", null) } } },
-            "H3_chat_actions" to { shell(Shell.Page.CHAT, recording) { sh -> com.obdlogger.app.ui.ChatView(a, sh.sc, object : com.obdlogger.app.ui.ChatActions by NoChat {
+                    com.obdlogger.core.ChatMessage("assistant", "Коротко: вряд ли фильтр — коррекция растёт на холостом, а не под нагрузкой.\nПочему:\n- Коррекция Б1 +21.9 % на ХХ, −3 % под нагрузкой → лишний воздух, а не нехватка топлива.\n- ДМРВ на ХХ 1.4 г/с при обычных 1.9 → воздух идёт мимо датчика.\nЧто сделать: осмотреть шланги вентиляции картера.\nУверенность: средняя — две поездки.\n[график: наложение trim_b1 maf_gs rpm последняя]\n[запись ТО: воздушный фильтр; пробег 182000]"),
+                    com.obdlogger.core.ChatMessage("user", "Пробег сейчас 182 400, что по ТО?"),
+                ), "конспект"), com.obdlogger.app.ui.ChatWait("ИИ думает", android.os.SystemClock.elapsedRealtime() - 23_000, "Gemini Pro · глубоко"), true, "Ответы — по данным этой машины: Avensis 2.0 D-4 · поездок 4 · проверочных логов 1 · коды: P0136, P0156", null, meta = "Gemini Pro · Pro 3 из 15 сегодня") }) } },
+            "H3_chat_actions" to { shell(Shell.Page.CHAT, recording) { sh -> chatIn(sh, com.obdlogger.app.ui.ChatView(a, sh.sc, object : com.obdlogger.app.ui.ChatActions by NoChat {
                 override fun chartView(req: com.obdlogger.core.ChartRequest): android.view.View? =
                     com.obdlogger.app.ui.LiveOverlayView(a, com.obdlogger.app.ui.Bt.LIGHT, liveStore, req.let { (it as? com.obdlogger.core.ChartRequest.Live)?.sensors ?: listOf(it.sensor) }, { true })
             }).apply {
@@ -340,7 +350,7 @@ class Scenes(private val a: Activity) {
                         "Это похоже на подсос после ДМРВ. Посмотрите живой график и проверьте под нагрузкой.\n[график: наложение trim_b1 maf_gs rpm сейчас]\n[проверка: смесь]\n[наблюдать: trim_b1 > 15 когда WARM_IDLE]"),
                     com.obdlogger.core.ChatMessage("user", "📋 Наблюдение «Коррекция Б1 > 15 % — холостой ход», поездка 09.10 08:10 (31 мин): выполнялось 6 раз, всего 4 мин 12 с из 7 мин 40 с в режиме (54 %)."),
                 ), ""), null, true, "Ответы — по данным этой машины · поездок 4 · проверок 1", null,
-                    listOf(com.obdlogger.core.WatchRule("trim_b1", ">", 15.0, com.obdlogger.core.LiveMode.IDLE, 2)), false) } } },
+                    listOf(com.obdlogger.core.WatchRule("trim_b1", ">", 15.0, com.obdlogger.core.LiveMode.IDLE, 2)), false) }) } },
             // Codes screen with what the owner's car reported: both rear O2 sensors, flat at 0.02 V.
             "C1_codes" to {
                 val ff = com.obdlogger.core.FreezeFrame("P0136", listOf(

@@ -78,6 +78,82 @@ object AiChat {
     fun thinking(ctx: Context): Boolean = Prefs.of(ctx).getString(Prefs.AI_MODEL, "think") != "fast"
     fun setThinking(ctx: Context, on: Boolean) = Prefs.of(ctx).edit().putString(Prefs.AI_MODEL, if (on) "think" else "fast").apply()
 
+    // ---- Pro first: the first N questions of the day go to Gemini Pro (own server), then Flash ----
+
+    /** Pro answers a day (Gemini's free Pro limit is small); 0 — never Pro. */
+    val PRO_CHOICES = listOf(0, 5, 10, 15, 20)
+    fun proLimit(ctx: Context): Int = Prefs.of(ctx).getInt(Prefs.AI_PRO_LIMIT, 15)
+    fun setProLimit(ctx: Context, n: Int) = Prefs.of(ctx).edit().putInt(Prefs.AI_PRO_LIMIT, n).apply()
+
+    /** «20261014» — or null while the head unit's clock is wrong (2007): the count then is not reset. */
+    private fun today(): String? {
+        val c = java.util.Calendar.getInstance()
+        if (c.get(java.util.Calendar.YEAR) < 2020) return null
+        return "%04d%02d%02d".format(c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1, c.get(java.util.Calendar.DAY_OF_MONTH))
+    }
+
+    /** Pro answers already given today. */
+    fun proUsed(ctx: Context): Int {
+        val p = Prefs.of(ctx)
+        val day = today() ?: return p.getInt(Prefs.AI_PRO_COUNT, 0)
+        return if (p.getString(Prefs.AI_PRO_DAY, null) == day) p.getInt(Prefs.AI_PRO_COUNT, 0) else 0
+    }
+
+    /** The tier for the own server: Pro while today's count is under the limit and the deep mode is on. */
+    fun tier(ctx: Context): String = if (thinking(ctx) && proUsed(ctx) < proLimit(ctx)) "pro" else "flash"
+
+    /** After an answer: counts it when the server says it came from Pro. */
+    fun countPro(ctx: Context, model: String) {
+        if (!model.contains("-pro")) return
+        val p = Prefs.of(ctx)
+        val day = today() ?: p.getString(Prefs.AI_PRO_DAY, null) ?: ""
+        p.edit().putString(Prefs.AI_PRO_DAY, day).putInt(Prefs.AI_PRO_COUNT, proUsed(ctx) + 1).apply()
+    }
+
+    /** «gemini/gemini-2.5-pro» → «Gemini Pro»; «…flash-lite» → «Gemini Flash-Lite». */
+    fun modelName(model: String): String {
+        val m = model.substringAfterLast('/')
+        return when {
+            m.contains("flash-lite") -> "Gemini Flash-Lite"
+            m.contains("flash") -> "Gemini Flash"
+            m.contains("-pro") && m.startsWith("gemini") -> "Gemini Pro"
+            m.contains("deepseek") -> "DeepSeek"
+            else -> m
+        }
+    }
+
+    /** The model that gave the last answer (the own server says which). */
+    @Volatile var lastModel = ""
+
+    /** Is there a network at all: without it the question fails at once instead of after minutes. */
+    @Suppress("DEPRECATION")
+    fun online(ctx: Context): Boolean = try {
+        val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        cm.activeNetworkInfo?.isConnected ?: false
+    } catch (_: Exception) { true }
+
+    /** The request in flight: «Отменить» closes it. */
+    @Volatile private var conn: HttpURLConnection? = null
+    @Volatile private var cancelled = false
+    class Cancelled : IOException("Отменено.")
+
+    fun cancel() {
+        cancelled = true
+        Thread { try { conn?.disconnect() } catch (_: Exception) {} }.start()
+    }
+
+    /** JSON of format «card» → the usual «Коротко / Почему / …» text; anything else as it is. */
+    fun cardText(raw: String): String {
+        val t = raw.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+        if (!t.startsWith("{")) return raw
+        return try {
+            val j = JSONObject(t)
+            fun list(k: String) = j.optJSONArray(k)?.let { a -> List(a.length()) { a.optString(it) } }.orEmpty()
+            com.obdlogger.core.ChatAnswer.fromCard(j.optString("short"), list("why"), j.optString("todo"), j.optString("confidence"),
+                j.optString("rest"), list("tags")).ifBlank { raw }
+        } catch (_: Exception) { raw }
+    }
+
     /** The model id this key can use, picked from the server's list and remembered. */
     fun modelId(ctx: Context, key: String): String {
         if (openRouter(key)) return orModel(ctx)
@@ -185,22 +261,34 @@ object AiChat {
      * the main thread. With [thinking] it asks for deep reasoning (thinking on, effort high);
      * a server that does not know those fields gets the plain request instead.
      */
-    fun ask(key: String, model: String, system: String, history: List<ChatMessage>, thinking: Boolean): String = try {
-        post(key, body(model, system, history, thinking, extras = true))
-    } catch (e: BadRequest) {
-        // An older model or API that rejects «thinking» / «reasoning_effort»: the same question without them.
-        post(key, body(model, system, history, thinking, extras = false))
+    fun ask(key: String, model: String, system: String, history: List<ChatMessage>, thinking: Boolean,
+        tier: String? = null, format: String? = null): String {
+        cancelled = false
+        lastModel = model
+        val own = proxied(key)
+        // JSON answers only through the own server (it sets the schema); the note tells the model what goes where.
+        val sys = if (own && format == "card") system + "\n" + com.obdlogger.core.ChatPrompt.CARD_NOTE else system
+        val text = try {
+            post(key, body(model, sys, history, thinking, extras = true, tier = tier.takeIf { own }, format = format.takeIf { own }))
+        } catch (e: BadRequest) {
+            // An older model or API that rejects «thinking» / «reasoning_effort»: the same question without them.
+            post(key, body(model, system, history, thinking, extras = false))
+        }
+        return if (own && format == "card") cardText(text) else text
     }
 
     private class BadRequest(msg: String) : IOException(msg)
 
-    private fun body(model: String, system: String, history: List<ChatMessage>, thinking: Boolean, extras: Boolean): JSONObject {
+    private fun body(model: String, system: String, history: List<ChatMessage>, thinking: Boolean, extras: Boolean,
+        tier: String? = null, format: String? = null): JSONObject {
         val messages = JSONArray().put(JSONObject().put("role", "system").put("content", system))
         history.forEach { messages.put(JSONObject().put("role", it.role).put("content", it.text)) }
         val b = JSONObject().put("model", model).put("messages", messages).put("stream", false)
         if (model == "auto") {
             // Own server: it knows its provider and sets the reasoning fields itself.
             b.put("thinking", thinking)
+            tier?.let { b.put("tier", it) }
+            format?.let { b.put("format", it) }
         } else if (model.contains("/")) {
             // OpenRouter: its unified reasoning switch; only the chosen model, no fallback to others.
             b.put("reasoning", if (thinking) JSONObject().put("effort", "high") else JSONObject().put("enabled", false))
@@ -215,6 +303,8 @@ object AiChat {
         try {
             val own = proxied(key)
             val c = URL(if (own) proxyUrl else if (openRouter(key)) OPENROUTER else "$BASE/chat/completions").openConnection() as HttpURLConnection
+            conn = c
+            if (cancelled) throw Cancelled()
             c.requestMethod = "POST"
             c.connectTimeout = 15_000
             // The own server waits for the model up to 5 minutes (Vercel maxDuration).
@@ -268,16 +358,29 @@ object AiChat {
                     else -> "Сервер ответил $code${msg?.let { ": $it" } ?: ""}"
                 })
             }
-            return JSONObject(text).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content").trim()
-        } catch (e: java.net.UnknownHostException) {
-            throw IOException(if (proxied(key)) "Магнитола не видит свой сервер: проверьте интернет и адрес в Настройках." else "Нет интернета: магнитола не видит сервер ИИ.")
-        } catch (e: java.net.SocketTimeoutException) {
-            throw IOException(if (proxied(key)) "Свой сервер долго не отвечает. Повторите вопрос." else "DeepSeek долго не отвечает. Повторите вопрос.")
-        } catch (e: javax.net.ssl.SSLException) {
-            throw IOException("Не удалось установить защищённое соединение (часто — неверная дата на магнитоле). ${e.message.orEmpty()}")
+            val j = JSONObject(text)
+            j.optString("model").takeIf { it.isNotBlank() }?.let { lastModel = it }
+            return j.getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content").trim()
+        } catch (e: IOException) {
+            if (cancelled) throw Cancelled()
+            throw rephrase(key, e)
         } catch (e: org.json.JSONException) {
             throw IOException("Непонятный ответ сервера.")
+        } finally {
+            conn = null
         }
+    }
+
+    private fun rephrase(key: String, e: IOException): IOException = when (e) {
+        is java.net.UnknownHostException ->
+            IOException(if (proxied(key)) "Магнитола не видит свой сервер: проверьте интернет и адрес в Настройках." else "Нет интернета: магнитола не видит сервер ИИ.")
+        is java.net.SocketTimeoutException ->
+            IOException(if (proxied(key)) "Свой сервер долго не отвечает. Повторите вопрос." else "DeepSeek долго не отвечает. Повторите вопрос.")
+        is javax.net.ssl.SSLException ->
+            IOException("Не удалось установить защищённое соединение (часто — неверная дата на магнитоле). ${e.message.orEmpty()}")
+        is java.net.ConnectException, is java.net.NoRouteToHostException ->
+            IOException("Нет связи с сервером ИИ: проверьте интернет на магнитоле.")
+        else -> e
     }
 
     /** Markdown the model likes (**bold**, # headers) as plain readable text. */

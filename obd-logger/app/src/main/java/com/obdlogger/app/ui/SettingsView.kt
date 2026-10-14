@@ -68,6 +68,10 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         fun setAiOrModel(i: Int) {}
         fun aiModel(): Int = 0
         fun setAiModel(i: Int) {}
+        /** Pro answers a day through the own server (index in [com.obdlogger.app.AiChat.PRO_CHOICES]); used today. */
+        fun aiProLimit(): Int = 3
+        fun setAiProLimit(i: Int) {}
+        fun aiProUsed(): Int = 0
     }
 
     private val p = Bt.LIGHT
@@ -115,8 +119,8 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         chevron("Открывать при запуске двигателя", h.overlayText()) { h.askOverlay() }
 
         section("Экран")
-        segment("Масштаб интерфейса", "для магнитол и маленьких экранов · ${h.screenText()}",
-            com.obdlogger.app.UiScale.LEVELS.map { it.second to (it.first * 100).toInt() }, h.uiScale()) { h.setUiScale(it) }
+        segment("Размер интерфейса", "крупнее — больше кнопки и текст · ${h.screenText()}",
+            com.obdlogger.app.UiScale.LEVELS.map { it.second to Math.round(it.first * 100) }, h.uiScale()) { h.setUiScale(it) }
 
         section("ИИ-чат")
         chevron("Свой сервер (без VPN)", "${h.proxyText()} · Vercel-посредник, ключ ИИ хранится на нём") { h.editProxy() }
@@ -126,8 +130,10 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         chevron("Проверить ключ или сервер", "связь, модель и пробный вопрос") { h.checkAiKey() }
         if (h.aiOpenRouter()) segment("Модель", "через OpenRouter — только DeepSeek V4 Flash, другие не подставляются",
             com.obdlogger.app.AiChat.OR_MODELS.mapIndexed { i, m -> m.second to i }, h.aiOrModel()) { h.setAiOrModel(it) }
-        segment("Режим ответа", "«Думающий» (по умолчанию): глубокое рассуждение, сам в быстрый не переключается",
+        segment("Режим ответа", "«Думающий» (по умолчанию): глубокое рассуждение; переключается и в чате — «Глубоко / Быстро»",
             com.obdlogger.app.AiChat.MODES.mapIndexed { i, m -> m.first to i }, h.aiModel()) { h.setAiModel(it) }
+        segment("Gemini Pro в день", "свой сервер: первые вопросы дня — Pro (сильнее, дольше), потом Flash · сегодня ${h.aiProUsed()}",
+            com.obdlogger.app.AiChat.PRO_CHOICES.mapIndexed { i, n -> (if (n == 0) "выкл" else "$n") to i }, h.aiProLimit()) { h.setAiProLimit(it) }
 
         section("Файлы")
         segment("Хранение", "Загрузки / OBD-Logger · ${h.storageText()}", listOf("30 дней" to 30, "90 дней" to 90, "Всегда" to 0), h.keepDays()) { h.setKeepDays(it) }

@@ -80,6 +80,10 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
     /** «В движении»: two big lanes (coolant, voltage) instead of the chart — one glance, no buttons. */
     private val drive = DriveCharts(ctx, p)
     private var movingSince: Long? = null
+    private var stillSince: Long? = null
+    private val laneOrder = mutableListOf<String>()
+    private var driveOn = false
+    private var driveDismissed = false
     private var lastRanks: Map<String, Int> = emptyMap()
     private val attnCount = ctx.text("", if (sc.phone) 13f else 16f, p.t2)
     private var store: SeriesStore? = null
@@ -106,6 +110,7 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         charts.addView(lanes, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         charts.addView(drive, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         drive.visibility = GONE
+        drive.setOnClickListener { driveDismissed = true; refresh() }
         // The phone has no tab line: «на весь экран» goes into the row.
         chartBar = ChartBar(ctx, sc, p, lanes, "record", onFull = if (tabsInBar) null else ({ ChartBar.full(context, sc, p, lanes, "record") }))
         charts.addView(chartBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -415,18 +420,23 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
                 if (sort == AttentionSort.DEVIATION) lastRanks = ranked.withIndex().associate { (i, x) -> x.code to i + 1 }
             }
             2 -> {
-                val all = (LANES.filter { it in codes } + codes).distinct()
+                // Stable order: the default lanes, then sensors as they first appeared — never the panel's re-sort.
+                for (c in codes) if (c !in laneOrder) laneOrder += c
+                val all = (LANES.filter { it in codes } + laneOrder.filter { it in codes }).distinct()
                 lanes.set(s, chartBar.visible(all), !stale, mode)
                 chartBar.update()
-                // Moving for more than 3 s while recording: the «в движении» view; the cursor, panning and choice wait for a stop.
+                // «Крупный вид в движении» only if the owner switched it on (⋯): then with hysteresis —
+                // on after 5 s at ≥ 5 km/h, off after 10 s standing; a touch returns to the own charts.
                 val speed = s.last("speed_kmh")
                 val now = android.os.SystemClock.elapsedRealtime()
-                movingSince = if (!stale && !speed.isNaN() && speed > 0) movingSince ?: now else null
-                val moving = movingSince?.let { now - it > 3_000 } == true
+                if (!chartBar.driveView || stale || speed.isNaN()) { movingSince = null; stillSince = null; driveOn = false; driveDismissed = false }
+                else if (speed >= 5) { stillSince = null; if (now - (movingSince ?: now.also { movingSince = it }) > 5_000) driveOn = true }
+                else if (speed < 1) { movingSince = null; if (now - (stillSince ?: now.also { stillSince = it }) > 10_000) { driveOn = false; driveDismissed = false } }
+                val moving = driveOn && !driveDismissed
                 lanes.visibility = if (moving) GONE else VISIBLE
                 chartBar.visibility = if (moving) GONE else VISIBLE
                 drive.visibility = if (moving) VISIBLE else GONE
-                if (moving) drive.set(s, mode)
+                if (moving) drive.set(s, mode, lanes.showNorm)
             }
         }
     }
