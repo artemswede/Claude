@@ -170,8 +170,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--wms-bg);color:var
 // ========== CONFIG ==========
 const API_BASE = '/api/agr';
 const POLL_INTERVAL = 45000;
-const INERTIA = 0.6;
-const ANIM_MS = 100;
+const CORRECTION_DURATION = 2000; // ms to ease correction after new GPS
 
 // ========== GEO-REFERENCE ==========
 // Real vehicle coordinates: lat 56.421..56.431, lng 38.144..38.153
@@ -195,12 +194,20 @@ function isOnSite(lat, lon) {
   return lat > 56.419 && lat < 56.434 && lon > 38.140 && lon < 38.158;
 }
 
+// Scale: how many SVG pixels per km
+// Longitude span: (38.1565-38.1375)° at lat ~56.43 ≈ 0.019° * 111.32 * cos(56.43°) ≈ 1.17 km → 900 px
+// Latitude span: (56.4345-56.4175)° ≈ 0.017° * 111.32 ≈ 1.89 km → 1200 px
+const KM_TO_PX_X = 900 / 1.17;  // ~769 px/km
+const KM_TO_PX_Y = 1200 / 1.89; // ~635 px/km
+const KM_TO_PX = (KM_TO_PX_X + KM_TO_PX_Y) / 2; // ~702 px/km
+
 // ========== STATE ==========
 let vehicles = [];
 let svgEl = null;
 let markersGroup = null;
 let pollTimer = null;
-let animTimer = null;
+let animRunning = false;
+let lastFrameTime = 0;
 
 // ========== INIT ==========
 async function init() {
@@ -304,21 +311,36 @@ function processApiData(data) {
     const lastEventTime = lastEvent.ts_stop || lastEvent.ts_start || 0;
     const bestTime = Math.max(lastPoint ? (lastPoint.packet_time || 0) : 0, lastEventTime);
 
+    const speedKmh = lastPoint ? (lastPoint.speed || 0) : 0;
+    const headingRad = lastPoint ? ((lastPoint.az || 0) * Math.PI / 180) : 0;
+    const speedPxPerSec = (speedKmh / 3600) * KM_TO_PX;
+
+    // Dead-reckoning velocity in SVG px/s
+    const drVx = speedPxPerSec * Math.sin(headingRad);
+    const drVy = -speedPxPerSec * Math.cos(headingRad);
+
+    // Correction: difference between real GPS position and current predicted position
+    const nowMs = performance.now();
+    let corrX = 0, corrY = 0, corrStart = 0;
+    if (old && old.onSite && onSite) {
+      corrX = sx - old.x;
+      corrY = sy - old.y;
+      corrStart = nowMs;
+    }
+
     return {
       id: d.device_id,
       plate: d.state_number || '???',
       model: [d.vehicle_manufacturer, d.vehicle_model].filter(Boolean).join(' ') || '—',
       state,
-      speed: lastPoint ? (lastPoint.speed || 0) : 0,
-      heading: lastPoint ? ((lastPoint.az || 0) * Math.PI / 180) : 0,
+      speed: speedKmh,
+      heading: headingRad,
       distance: ((d.distance || 0) / 1000).toFixed(1),
       lat, lon,
       x: old ? old.x : sx,
       y: old ? old.y : sy,
-      targetX: sx,
-      targetY: sy,
-      vx: old ? old.vx : 0,
-      vy: old ? old.vy : 0,
+      drVx, drVy,
+      corrX, corrY, corrStart,
       onSite,
       trackPoints: track.length,
       lastTime: bestTime,
@@ -333,34 +355,67 @@ function processApiData(data) {
   startAnimation();
 }
 
-// ========== ANIMATION (smooth interpolation + inertia) ==========
+// ========== ANIMATION (dead reckoning + correction easing) ==========
 function startAnimation() {
-  if (animTimer) return;
-  tick();
+  if (animRunning) return;
+  animRunning = true;
+  lastFrameTime = performance.now();
+  requestAnimationFrame(tick);
 }
 
-function tick() {
-  let anyMoving = false;
+function tick(now) {
+  const dt = Math.min((now - lastFrameTime) / 1000, 0.5);
+  lastFrameTime = now;
+
   vehicles.forEach(v => {
     if (!v.onSite) return;
-    const dx = v.targetX - v.x;
-    const dy = v.targetY - v.y;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    if (dist < 0.5) return;
-    anyMoving = true;
+    if (v.state !== 'moving' || v.speed === 0) {
+      // Apply remaining correction for stopped vehicles
+      if (v.corrX !== 0 || v.corrY !== 0) {
+        const elapsed = now - v.corrStart;
+        const t = Math.min(elapsed / CORRECTION_DURATION, 1);
+        if (t < 1) {
+          const eased = t * (2 - t); // ease-out
+          const marker = document.getElementById('m-' + v.id);
+          if (marker) {
+            const cx = v.corrX * eased;
+            const cy = v.corrY * eased;
+            marker.setAttribute('transform', `translate(${(v.x + cx - v.corrX + v.corrX).toFixed(1)},${(v.y + cy - v.corrY + v.corrY).toFixed(1)})`);
+          }
+        } else {
+          v.x += v.corrX;
+          v.y += v.corrY;
+          v.corrX = 0; v.corrY = 0;
+          const marker = document.getElementById('m-' + v.id);
+          if (marker) marker.setAttribute('transform', `translate(${v.x.toFixed(1)},${v.y.toFixed(1)})`);
+        }
+      }
+      return;
+    }
 
-    const targetVx = dx * 0.08;
-    const targetVy = dy * 0.08;
-    v.vx = v.vx * INERTIA + targetVx * (1 - INERTIA);
-    v.vy = v.vy * INERTIA + targetVy * (1 - INERTIA);
-    v.x += v.vx;
-    v.y += v.vy;
+    // Dead reckoning: move along speed+heading vector
+    v.x += v.drVx * dt;
+    v.y += v.drVy * dt;
+
+    // Ease in correction from last GPS update
+    if (v.corrX !== 0 || v.corrY !== 0) {
+      const elapsed = now - v.corrStart;
+      const t = Math.min(elapsed / CORRECTION_DURATION, 1);
+      const step = dt / (CORRECTION_DURATION / 1000);
+      if (t < 1) {
+        v.x += v.corrX * step;
+        v.y += v.corrY * step;
+      } else {
+        v.corrX = 0;
+        v.corrY = 0;
+      }
+    }
 
     const marker = document.getElementById('m-' + v.id);
     if (marker) marker.setAttribute('transform', `translate(${v.x.toFixed(1)},${v.y.toFixed(1)})`);
   });
 
-  animTimer = setTimeout(() => { animTimer = null; if (anyMoving) tick(); }, ANIM_MS);
+  requestAnimationFrame(tick);
 }
 
 // ========== RENDER MARKERS ==========
