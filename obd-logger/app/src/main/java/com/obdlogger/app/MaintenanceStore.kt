@@ -45,7 +45,8 @@ object MaintenanceStore {
         saveEntries(ctx, load(ctx).entries + e)
         // A record with mileage newer than the last entered one moves the mileage too.
         val cur = load(ctx).current
-        if (e.km != null && (cur == null || e.km > cur.km)) addMileage(ctx, Mileage(e.date, e.km))
+        val eKm = e.km
+        if (eKm != null && (cur == null || eKm > cur.km)) addMileage(ctx, Mileage(e.date, eKm))
     }
 
     @Synchronized

@@ -120,7 +120,8 @@ class HomeModel(
             val collectingFocus = diagStep?.focus
                 ?.takeIf { c -> trip?.trace?.of(c) != null } ?: focus
             val diagLabel = diagStep?.let {
-                if (it.crossRef != null) "Проверяю зависимость: ${it.crossRef.label}"
+                val cr = it.crossRef
+                if (cr != null) "Проверяю зависимость: ${cr.label}"
                 else "Проверяю: ${it.label}"
             } ?: ""
             val diagCross = diagStep?.crossRef?.label
