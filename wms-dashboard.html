@@ -363,22 +363,18 @@ function processApiData(data) {
     const [sx, sy] = onSite ? geoToSvg(lat, lon) : [0, 0];
     const old = oldMap.get(d.device_id);
 
-    let state = lastEvent.event_type || 'no_data';
-    if (state !== 'moving' && state !== 'parking') state = 'no_data';
-    if (!lastPoint) state = 'no_data';
-    // If last GPS packet is > 10 min old, don't show as moving
-    const lastPktTime = lastPoint ? (lastPoint.packet_time || 0) : 0;
-    if (state === 'moving' && lastPktTime && (Date.now()/1000 - lastPktTime) > 600) state = 'parking';
+    const speedKmhRaw = lastPoint ? (lastPoint.speed || 0) : 0;
+    // Determine status from actual speed, not from event_type (which lags behind)
+    let state = !lastPoint ? 'no_data' : speedKmhRaw >= 3 ? 'moving' : 'parking';
 
     const lastEventTime = lastEvent.ts_stop || lastEvent.ts_start || 0;
     const bestTime = Math.max(lastPoint ? (lastPoint.packet_time || 0) : 0, lastEventTime);
 
-    const speedKmh = lastPoint ? (lastPoint.speed || 0) : 0;
+    const speedKmh = speedKmhRaw;
     const headingRad = lastPoint ? ((lastPoint.az || 0) * Math.PI / 180) : 0;
 
-    // Only dead-reckon if GPS packet is fresh (< 5 min old)
-    const pktAge = bestTime ? (Date.now()/1000 - bestTime) : Infinity;
-    const drSpeed = pktAge < 300 ? (speedKmh / 3600) * KM_TO_PX : 0;
+    // Dead-reckon only if actually moving (speed >= 3 km/h)
+    const drSpeed = speedKmh >= 3 ? (speedKmh / 3600) * KM_TO_PX : 0;
 
     const drVx = drSpeed * Math.sin(headingRad);
     const drVy = -drSpeed * Math.cos(headingRad);
