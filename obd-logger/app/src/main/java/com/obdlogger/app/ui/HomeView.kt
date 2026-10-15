@@ -189,7 +189,7 @@ class HomeView(
         // swallowed taps on «Подробнее» and the buttons.
         val ai = m.ai?.takeIf { !scripted && (m.state == HomeState.VERSION || m.state == HomeState.CALM) }
         val key = listOf(m.state, ai?.headline, ai?.trip, scripted, m.ai != null, t?.name, t?.top?.headline, t?.top?.confidence, t?.top?.why?.map { it.value }, t?.dtcs,
-            t?.durationMin?.toInt(), t?.warmIdleSec?.div(15)?.toInt(), m.past?.name, m.unseen, s.link, s.engine, s.linkText, s.engineText, m.liveMode).toString()
+            t?.durationMin?.toInt(), t?.warmIdleSec?.div(15)?.toInt(), m.past?.name, m.unseen, s.link, s.engine, s.linkText, s.engineText, m.liveMode, m.diagLabel).toString()
         val rebuild = key != leftKey
         leftKey = key
         if (rebuild) leftCol.removeAllViews()
@@ -365,12 +365,7 @@ class HomeView(
         val t = m.trip
         val min = t?.durationMin?.toInt() ?: 0
         val idle = t?.warmIdleSec?.toInt() ?: 0
-        val checkingText = when (m.liveMode) {
-            com.obdlogger.core.LiveMode.IDLE -> "Проверяю обороты холостого хода"
-            com.obdlogger.core.LiveMode.DRIVE -> "Проверяю коррекцию смеси"
-            com.obdlogger.core.LiveMode.COLD -> "Проверяю прогрев двигателя"
-            else -> "Собираю данные для вывода"
-        }
+        val checkingText = m.diagLabel.ifEmpty { "Собираю данные для вывода" }
         val box = column(
             context, dp(10),
             tag("Идёт диагностика", p.t3),

@@ -4,6 +4,7 @@ import android.content.Context
 import com.obdlogger.app.Lamp
 import com.obdlogger.app.LoggerState
 import com.obdlogger.app.SessionFiles
+import com.obdlogger.core.DiagCycle
 import com.obdlogger.core.Focus
 import com.obdlogger.core.HomeLogic
 import com.obdlogger.core.HomeState
@@ -50,6 +51,10 @@ class HomeModel(
     val ai: com.obdlogger.app.AiOpinion.Opinion? = null,
     /** Current driving mode while recording — for the live "Проверяю…" text. */
     val liveMode: com.obdlogger.core.LiveMode = com.obdlogger.core.LiveMode.OFF,
+    /** Diagnostic cycle: what is being checked right now. */
+    val diagLabel: String = "",
+    /** Cross-reference pair label, e.g. "зависимость оборотов и коррекции". */
+    val diagCrossRef: String? = null,
 ) {
     fun withAi(o: com.obdlogger.app.AiOpinion.Opinion?): HomeModel {
         val fresh = o?.takeIf { !live && trip != null && it.trip == trip.name } ?: return this
@@ -77,7 +82,8 @@ class HomeModel(
                 val cool = s.values.firstOrNull { it.first == "coolant" }?.second?.toDoubleOrNull()
                 com.obdlogger.core.LiveMode.of(rpm, speed, cool)
             } else com.obdlogger.core.LiveMode.OFF
-            return from(saved.filter { it.name != current?.name }, current, s, com.obdlogger.app.Prefs.seenTrip(ctx), drift, mode)
+            val liveCols = if (s.recording) com.obdlogger.app.LiveData.store.columns else emptyList()
+            return from(saved.filter { it.name != current?.name }, current, s, com.obdlogger.app.Prefs.seenTrip(ctx), drift, mode, liveCols)
                 .withAi(com.obdlogger.app.AiOpinion.load(ctx))
         }
 
@@ -85,7 +91,8 @@ class HomeModel(
         fun from(allSaved: List<TripSummary>, current: TripSummary?, s: LoggerState.Snapshot, seenTrip: String? = null,
             /** Strongest change against this car's own normal: charted when there is no version. */
             driftCode: String? = null,
-            mode: com.obdlogger.core.LiveMode = com.obdlogger.core.LiveMode.OFF): HomeModel {
+            mode: com.obdlogger.core.LiveMode = com.obdlogger.core.LiveMode.OFF,
+            liveColumns: List<String> = emptyList()): HomeModel {
             // Only this car's trips: the tablet is moved between cars, their data must not mix.
             // The order of recording (trip numbers), then the clock: «the last trip» even after a 2007 start.
             val order = compareBy<TripSummary>({ com.obdlogger.app.TripIndex.number(it.name) ?: -1 }, { it.start })
@@ -106,13 +113,19 @@ class HomeModel(
             val metric = top?.kind?.let(Focus::metric) ?: worstRow?.metric ?: Metric.IDLE_TRIM_B1
             val focus = (top?.kind?.let(Focus::code) ?: driftCode?.takeIf { c -> trip?.trace?.of(c) != null } ?: worstRow?.metric?.let(Focus::code) ?: "rpm")
                 .takeIf { c -> trip?.trace?.of(c) != null } ?: listOf("trim_b1", "rpm").firstOrNull { trip?.trace?.of(it) != null } ?: "trim_b1"
-            val collectingFocus = if (state == HomeState.COLLECTING) when (mode) {
-                com.obdlogger.core.LiveMode.IDLE -> "rpm"
-                com.obdlogger.core.LiveMode.DRIVE -> "trim_b1"
-                com.obdlogger.core.LiveMode.COLD -> "coolant"
-                else -> focus
-            }.takeIf { c -> trip?.trace?.of(c) != null } ?: focus else focus
-            return HomeModel(state, trip, live, past, trend(history, metric), lastTrip(trip, live), !live && trip != null && trip.name != seenTrip, collectingFocus, liveMode = mode)
+            val elapsedSec = current?.durationMin?.times(60)?.toInt() ?: 0
+            val diagStep = if (state == HomeState.COLLECTING && liveColumns.isNotEmpty())
+                DiagCycle.step(elapsedSec, liveColumns)
+            else null
+            val collectingFocus = diagStep?.focus
+                ?.takeIf { c -> trip?.trace?.of(c) != null } ?: focus
+            val diagLabel = diagStep?.let {
+                if (it.crossRef != null) "Проверяю зависимость: ${it.crossRef.label}"
+                else "Проверяю: ${it.label}"
+            } ?: ""
+            val diagCross = diagStep?.crossRef?.label
+            return HomeModel(state, trip, live, past, trend(history, metric), lastTrip(trip, live), !live && trip != null && trip.name != seenTrip, collectingFocus, liveMode = mode,
+                diagLabel = diagLabel, diagCrossRef = diagCross)
         }
 
         /** Sensor to chart for a trip: the one its version is about, else the mixture, else rpm. */

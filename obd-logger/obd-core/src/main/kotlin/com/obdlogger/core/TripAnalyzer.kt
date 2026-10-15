@@ -107,7 +107,12 @@ class TripTrace(
  * charts what matters for this car right now, not always the mixture.
  */
 object Focus {
-    val CODES = listOf("trim_b1", "trim_b2", "rpm", "battery_v", "coolant_c", "o2_b1s2_v", "maf_gs")
+    val CODES = listOf(
+        "trim_b1", "trim_b2", "rpm", "battery_v", "coolant_c", "o2_b1s2_v", "maf_gs",
+        "o2_b1s1_v", "o2_b2s1_v", "o2_b2s2_v", "map_kpa", "timing_deg",
+        "engine_load_pct", "throttle_pct", "intake_air_c",
+        "stft_b1_pct", "ltft_b1_pct", "stft_b2_pct", "ltft_b2_pct",
+    )
 
     fun code(kind: String): String? = when (kind) {
         "air_leak", "lean_all", "rich_idle", "rich_cruise" -> "trim_b1"
