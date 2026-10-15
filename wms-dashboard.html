@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ЗТЗ WMS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --wms-header: #68503a;
+  --wms-header-text: #f5f0eb;
+  --wms-accent: #ccb484;
+  --wms-accent-hover: #b89e6e;
+  --wms-bg: #f0ecea;
+  --wms-surface: #ffffff;
+  --wms-text: #2d2a26;
+  --wms-text-sec: #7a7267;
+  --wms-success: #4a7c59;
+  --wms-warning: #c4943a;
+  --wms-danger: #a94442;
+  --wms-border: #d9d2cb;
+  --wms-radius: 12px;
+  --wms-shadow: 0 2px 8px rgba(45,42,38,0.08);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--wms-bg);
+  color: var(--wms-text);
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+.header {
+  background: var(--wms-header);
+  color: var(--wms-header-text);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+.header-right { display: flex; align-items: center; gap: 8px; }
+.mode-toggle {
+  display: flex;
+  background: rgba(255,255,255,0.15);
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 500;
+}
+.mode-toggle button {
+  border: none;
+  background: transparent;
+  color: var(--wms-header-text);
+  padding: 4px 10px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: all 0.2s;
+}
+.mode-toggle button.active {
+  background: var(--wms-accent);
+  color: var(--wms-text);
+  opacity: 1;
+}
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--wms-success);
+  animation: pulse 2s infinite;
+}
+.status-dot.stale { background: var(--wms-warning); animation: none; }
+.status-dot.error { background: var(--wms-danger); animation: none; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.main { flex: 1; padding: 0 0 72px 0; overflow-y: auto; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* MAP TAB */
+.map-container {
+  padding: 12px 16px;
+}
+.map-wrapper {
+  background: var(--wms-surface);
+  border-radius: var(--wms-radius);
+  box-shadow: var(--wms-shadow);
+  overflow: hidden;
+  position: relative;
+}
+.map-wrapper svg { width: 100%; height: auto; display: block; }
+.map-legend {
+  display: flex;
+  gap: 12px;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--wms-text-sec);
+  border-top: 1px solid var(--wms-border);
+  flex-wrap: wrap;
+}
+.legend-item { display: flex; align-items: center; gap: 4px; }
+.legend-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+}
+.map-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 12px 16px;
+}
+.stat-card {
+  background: var(--wms-surface);
+  border-radius: var(--wms-radius);
+  padding: 12px;
+  box-shadow: var(--wms-shadow);
+  text-align: center;
+}
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--wms-header);
+  line-height: 1;
+}
+.stat-label {
+  font-size: 11px;
+  color: var(--wms-text-sec);
+  margin-top: 4px;
+}
+.vehicle-popup {
+  position: absolute;
+  background: var(--wms-surface);
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  font-size: 12px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 50;
+  min-width: 140px;
+}
+.vehicle-popup.show { opacity: 1; }
+.vehicle-popup .vp-plate { font-weight: 600; font-size: 13px; }
+.vehicle-popup .vp-model { color: var(--wms-text-sec); margin-top: 2px; }
+.vehicle-popup .vp-status { margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+
+/* VEHICLES TAB */
+.vehicles-list { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.vehicle-card {
+  background: var(--wms-surface);
+  border-radius: var(--wms-radius);
+  padding: 14px 16px;
+  box-shadow: var(--wms-shadow);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.v-icon {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  background: var(--wms-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.v-info { flex: 1; min-width: 0; }
+.v-plate { font-weight: 600; font-size: 14px; }
+.v-model { font-size: 12px; color: var(--wms-text-sec); }
+.v-meta { display: flex; gap: 12px; margin-top: 4px; font-size: 11px; color: var(--wms-text-sec); }
+.v-badge {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.v-badge.moving { background: #e8f5e9; color: var(--wms-success); }
+.v-badge.parking { background: #fff3e0; color: var(--wms-warning); }
+.v-badge.no_data { background: #fce4ec; color: var(--wms-danger); }
+
+/* TRIPS TAB */
+.trips-header {
+  padding: 16px;
+  text-align: center;
+}
+.trips-header .shift-label {
+  font-size: 12px;
+  color: var(--wms-text-sec);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.trips-header .trip-count {
+  font-size: 56px;
+  font-weight: 700;
+  color: var(--wms-header);
+  line-height: 1.1;
+}
+.trips-header .trip-unit {
+  font-size: 14px;
+  color: var(--wms-text-sec);
+}
+.trips-routes {
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.route-card {
+  background: var(--wms-surface);
+  border-radius: var(--wms-radius);
+  padding: 14px 16px;
+  box-shadow: var(--wms-shadow);
+}
+.route-name { font-weight: 600; font-size: 14px; }
+.route-bar {
+  height: 6px;
+  background: var(--wms-bg);
+  border-radius: 3px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+.route-bar-fill {
+  height: 100%;
+  background: var(--wms-accent);
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+.route-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--wms-text-sec);
+}
+
+/* NAV BAR */
+.nav-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--wms-surface);
+  border-top: 1px solid var(--wms-border);
+  display: flex;
+  z-index: 100;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0 6px;
+  border: none;
+  background: transparent;
+  color: var(--wms-text-sec);
+  font-size: 10px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.2s;
+  gap: 2px;
+}
+.nav-btn.active { color: var(--wms-header); }
+.nav-btn svg { width: 22px; height: 22px; }
+.nav-btn span { font-weight: 500; }
+
+/* shimmer */
+.shimmer {
+  background: linear-gradient(90deg, var(--wms-bg) 25%, #e8e4e0 50%, var(--wms-bg) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>ЗТЗ Транспорт</h1>
+  <div class="header-right">
+    <div class="mode-toggle">
+      <button id="modeDemo" class="active" onclick="setMode('demo')">Demo</button>
+      <button id="modeLive" onclick="setMode('live')">Live</button>
+    </div>
+    <div class="status-dot" id="statusDot" title="Подключено"></div>
+  </div>
+</div>
+
+<div class="main">
+  <!-- MAP TAB -->
+  <div class="tab-content active" id="tabMap">
+    <div class="map-container">
+      <div class="map-wrapper">
+        <svg id="factoryMap" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+          <!-- Background -->
+          <rect width="800" height="600" fill="#e8e4df"/>
+
+          <!-- Roads -->
+          <g id="roads" stroke="#d0c8be" stroke-width="18" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.7">
+            <path d="M100,520 L700,520"/>
+            <path d="M400,520 L400,100"/>
+            <path d="M100,520 L100,200 L300,200"/>
+            <path d="M400,300 L650,300"/>
+            <path d="M400,300 L200,300 L200,200"/>
+          </g>
+          <g stroke="#c8bfb3" stroke-width="1" stroke-dasharray="8,6" fill="none" opacity="0.5">
+            <path d="M100,520 L700,520"/>
+            <path d="M400,520 L400,100"/>
+            <path d="M100,520 L100,200 L300,200"/>
+            <path d="M400,300 L650,300"/>
+            <path d="M400,300 L200,300 L200,200"/>
+          </g>
+
+          <!-- Zones -->
+          <!-- КПП -->
+          <g id="zoneKPP">
+            <rect x="340" y="540" width="120" height="50" rx="6" fill="#a94442" opacity="0.15" stroke="#a94442" stroke-width="1.5"/>
+            <text x="400" y="570" text-anchor="middle" font-size="13" font-weight="600" fill="#a94442" font-family="Inter, sans-serif">КПП</text>
+          </g>
+
+          <!-- Склад труб -->
+          <g id="zoneSklad">
+            <rect x="40" y="120" width="160" height="140" rx="8" fill="#4a7c59" opacity="0.12" stroke="#4a7c59" stroke-width="1.5"/>
+            <text x="120" y="175" text-anchor="middle" font-size="13" font-weight="600" fill="#4a7c59" font-family="Inter, sans-serif">Склад</text>
+            <text x="120" y="192" text-anchor="middle" font-size="11" fill="#4a7c59" font-family="Inter, sans-serif">труб</text>
+          </g>
+
+          <!-- ТЭСЦ -->
+          <g id="zoneTESC">
+            <rect x="280" y="80" width="240" height="160" rx="8" fill="#68503a" opacity="0.12" stroke="#68503a" stroke-width="1.5"/>
+            <text x="400" y="155" text-anchor="middle" font-size="15" font-weight="600" fill="#68503a" font-family="Inter, sans-serif">ТЭСЦ</text>
+            <text x="400" y="175" text-anchor="middle" font-size="11" fill="#68503a" opacity="0.7" font-family="Inter, sans-serif">Трубоэлектросварочный цех</text>
+          </g>
+
+          <!-- Весовая -->
+          <g id="zoneVesovaya">
+            <rect x="580" y="260" width="140" height="80" rx="8" fill="#c4943a" opacity="0.15" stroke="#c4943a" stroke-width="1.5"/>
+            <text x="650" y="305" text-anchor="middle" font-size="13" font-weight="600" fill="#c4943a" font-family="Inter, sans-serif">Весовая</text>
+          </g>
+
+          <!-- Склад ГП -->
+          <g id="zoneGP">
+            <rect x="560" y="400" width="160" height="100" rx="8" fill="#5b7fa5" opacity="0.12" stroke="#5b7fa5" stroke-width="1.5"/>
+            <text x="640" y="448" text-anchor="middle" font-size="13" font-weight="600" fill="#5b7fa5" font-family="Inter, sans-serif">Склад ГП</text>
+            <text x="640" y="465" text-anchor="middle" font-size="11" fill="#5b7fa5" font-family="Inter, sans-serif">готовая продукция</text>
+          </g>
+
+          <!-- Vehicle markers group -->
+          <g id="vehicleMarkers"></g>
+        </svg>
+        <div class="vehicle-popup" id="vehiclePopup">
+          <div class="vp-plate" id="vpPlate"></div>
+          <div class="vp-model" id="vpModel"></div>
+          <div class="vp-status" id="vpStatus"></div>
+        </div>
+        <div class="map-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--wms-success)"></div>В движении</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--wms-warning)"></div>Стоянка</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--wms-danger)"></div>Нет данных</div>
+        </div>
+      </div>
+    </div>
+    <div class="map-stats">
+      <div class="stat-card">
+        <div class="stat-value" id="statMoving">0</div>
+        <div class="stat-label">В пути</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statParking">0</div>
+        <div class="stat-label">Стоянка</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statTrips">0</div>
+        <div class="stat-label">Рейсов</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VEHICLES TAB -->
+  <div class="tab-content" id="tabVehicles">
+    <div class="vehicles-list" id="vehiclesList"></div>
+  </div>
+
+  <!-- TRIPS TAB -->
+  <div class="tab-content" id="tabTrips">
+    <div class="trips-header">
+      <div class="shift-label">Текущая смена</div>
+      <div class="trip-count" id="tripTotal">0</div>
+      <div class="trip-unit">рейсов выполнено</div>
+    </div>
+    <div class="trips-routes" id="tripsRoutes"></div>
+  </div>
+</div>
+
+<nav class="nav-bar">
+  <button class="nav-btn active" data-tab="tabMap" onclick="switchTab('tabMap', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+    <span>Карта</span>
+  </button>
+  <button class="nav-btn" data-tab="tabVehicles" onclick="switchTab('tabVehicles', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+    <span>Машины</span>
+  </button>
+  <button class="nav-btn" data-tab="tabTrips" onclick="switchTab('tabTrips', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    <span>Рейсы</span>
+  </button>
+</nav>
+
+<script>
+const ZONES = {
+  kpp:     { cx: 400, cy: 560 },
+  sklad:   { cx: 120, cy: 190 },
+  tesc:    { cx: 400, cy: 160 },
+  vesovaya:{ cx: 650, cy: 300 },
+  gp:      { cx: 640, cy: 450 },
+};
+
+const ROUTES = [
+  { from: 'sklad', waypoints: [[100,300],[100,520],[400,520]], to: 'kpp' },
+  { from: 'kpp',   waypoints: [[400,520],[100,520],[100,200]], to: 'sklad' },
+  { from: 'tesc',  waypoints: [[400,300],[650,300]], to: 'vesovaya' },
+  { from: 'vesovaya', waypoints: [[650,300],[400,300],[400,520]], to: 'kpp' },
+  { from: 'sklad', waypoints: [[200,200],[200,300],[400,300],[400,160]], to: 'tesc' },
+];
+
+const MOCK_VEHICLES = [
+  { id: 'd1', plate: 'А 123 МО', model: 'КАМАЗ 65115', state: 'moving', speed: 18, distance: 12.4, routeIdx: 0 },
+  { id: 'd2', plate: 'В 456 КА', model: 'МАЗ 6430',   state: 'moving', speed: 22, distance: 8.7,  routeIdx: 2 },
+  { id: 'd3', plate: 'Е 789 ТР', model: 'КАМАЗ 53215', state: 'parking', speed: 0, distance: 15.1, routeIdx: 4 },
+  { id: 'd4', plate: 'К 012 ЗТ', model: 'Volvo FH16',  state: 'moving', speed: 15, distance: 22.3, routeIdx: 3 },
+  { id: 'd5', plate: 'М 345 РО', model: 'Scania R440',  state: 'parking', speed: 0, distance: 5.6,  routeIdx: 1 },
+];
+
+let mode = 'demo';
+let vehicles = [];
+let animFrame = 0;
+let pollTimer = null;
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('modeDemo').classList.toggle('active', m === 'demo');
+  document.getElementById('modeLive').classList.toggle('active', m === 'live');
+  if (m === 'live') fetchLive();
+  else { clearTimeout(pollTimer); loadDemo(); }
+}
+
+function switchTab(tabId, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function loadDemo() {
+  vehicles = MOCK_VEHICLES.map(v => {
+    const route = ROUTES[v.routeIdx];
+    const zone = ZONES[route.from];
+    return { ...v, x: zone.cx, y: zone.cy, targetX: zone.cx, targetY: zone.cy,
+             progress: 0, wpIdx: 0, route, zone: route.from };
+  });
+  updateStats();
+  renderVehiclesList();
+  renderTrips();
+  renderMarkers();
+  startAnimation();
+  document.getElementById('statusDot').className = 'status-dot';
+}
+
+async function fetchLive() {
+  const dot = document.getElementById('statusDot');
+  try {
+    const res = await fetch('/api/agr?report=route/summary&ts_start=' +
+      new Date(Date.now() - 86400000).toISOString().slice(0,10) +
+      '&ts_stop=' + new Date().toISOString().slice(0,10) + '&offset_utc=3');
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0) {
+      vehicles = data.map((d, i) => ({
+        id: d.device_id || 'd' + i,
+        plate: d.state_number || 'Без номера',
+        model: [d.vehicle_manufacturer, d.vehicle_model].filter(Boolean).join(' ') || 'Неизвестно',
+        state: d.moving_time > 0 ? 'moving' : 'parking',
+        speed: d.speed_max || 0,
+        distance: ((d.race || 0) / 1000).toFixed(1),
+        x: 400, y: 300,
+        targetX: 400, targetY: 300,
+        zone: 'tesc',
+      }));
+      dot.className = 'status-dot';
+    } else {
+      dot.className = 'status-dot stale';
+      if (vehicles.length === 0) loadDemo();
+    }
+    updateStats();
+    renderVehiclesList();
+    renderMarkers();
+  } catch (e) {
+    dot.className = 'status-dot error';
+    if (vehicles.length === 0) loadDemo();
+  }
+  pollTimer = setTimeout(fetchLive, 45000);
+}
+
+function updateStats() {
+  const moving = vehicles.filter(v => v.state === 'moving').length;
+  const parking = vehicles.filter(v => v.state !== 'moving').length;
+  document.getElementById('statMoving').textContent = moving;
+  document.getElementById('statParking').textContent = parking;
+  document.getElementById('statTrips').textContent = Math.floor(moving * 2.5 + parking);
+}
+
+function renderMarkers() {
+  const g = document.getElementById('vehicleMarkers');
+  g.innerHTML = '';
+  vehicles.forEach(v => {
+    const color = v.state === 'moving' ? '#4a7c59' : v.state === 'parking' ? '#c4943a' : '#a94442';
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    marker.id = 'marker-' + v.id;
+    marker.setAttribute('transform', `translate(${v.x}, ${v.y})`);
+    marker.style.transition = 'transform 1s ease';
+    marker.innerHTML = `
+      <circle r="14" fill="${color}" opacity="0.2"/>
+      <circle r="9" fill="${color}" stroke="#fff" stroke-width="2"/>
+      <text y="1" text-anchor="middle" font-size="7" fill="#fff" font-weight="600" font-family="Inter, sans-serif">
+        ${v.plate.split(' ')[0]}
+      </text>
+    `;
+    marker.addEventListener('mouseenter', e => showPopup(v, e));
+    marker.addEventListener('mouseleave', hidePopup);
+    marker.addEventListener('touchstart', e => { e.preventDefault(); showPopup(v, e); }, {passive: false});
+    g.appendChild(marker);
+  });
+}
+
+function showPopup(v, e) {
+  const popup = document.getElementById('vehiclePopup');
+  document.getElementById('vpPlate').textContent = v.plate;
+  document.getElementById('vpModel').textContent = v.model;
+  const stateText = v.state === 'moving' ? 'В движении' : v.state === 'parking' ? 'Стоянка' : 'Нет данных';
+  const stateColor = v.state === 'moving' ? 'var(--wms-success)' : v.state === 'parking' ? 'var(--wms-warning)' : 'var(--wms-danger)';
+  document.getElementById('vpStatus').innerHTML =
+    `<span style="width:6px;height:6px;border-radius:50%;background:${stateColor};display:inline-block"></span> ${stateText}` +
+    (v.speed > 0 ? ` &middot; ${v.speed} км/ч` : '');
+  const rect = document.getElementById('factoryMap').getBoundingClientRect();
+  const svgW = 800, svgH = 600;
+  const px = (v.x / svgW) * rect.width;
+  const py = (v.y / svgH) * rect.height;
+  popup.style.left = Math.min(px + 10, rect.width - 160) + 'px';
+  popup.style.top = Math.max(py - 60, 5) + 'px';
+  popup.classList.add('show');
+}
+
+function hidePopup() {
+  document.getElementById('vehiclePopup').classList.remove('show');
+}
+
+function startAnimation() {
+  if (mode !== 'demo') return;
+  animFrame++;
+  vehicles.forEach(v => {
+    if (v.state !== 'moving') {
+      if (animFrame % 30 === 0) {
+        v.state = 'moving';
+        v.wpIdx = 0;
+        v.route = ROUTES[Math.floor(Math.random() * ROUTES.length)];
+        const from = ZONES[v.route.from];
+        v.x = from.cx; v.y = from.cy;
+      }
+      return;
+    }
+    const wp = v.route.waypoints;
+    if (v.wpIdx < wp.length) {
+      const [tx, ty] = wp[v.wpIdx];
+      const dx = tx - v.x, dy = ty - v.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const step = 6 + Math.random() * 4;
+      if (dist < step) {
+        v.x = tx; v.y = ty;
+        v.wpIdx++;
+      } else {
+        v.x += (dx / dist) * step;
+        v.y += (dy / dist) * step;
+      }
+      v.speed = Math.floor(10 + Math.random() * 20);
+    } else {
+      const dest = ZONES[v.route.to];
+      v.x = dest.cx; v.y = dest.cy;
+      v.state = 'parking';
+      v.speed = 0;
+      v.zone = v.route.to;
+    }
+
+    const marker = document.getElementById('marker-' + v.id);
+    if (marker) marker.setAttribute('transform', `translate(${v.x.toFixed(1)}, ${v.y.toFixed(1)})`);
+  });
+
+  if (animFrame % 10 === 0) {
+    updateStats();
+    renderVehiclesList();
+  }
+
+  setTimeout(() => requestAnimationFrame(startAnimation), 120);
+}
+
+function renderVehiclesList() {
+  const list = document.getElementById('vehiclesList');
+  list.innerHTML = vehicles.map(v => `
+    <div class="vehicle-card">
+      <div class="v-icon">&#x1F69B;</div>
+      <div class="v-info">
+        <div class="v-plate">${v.plate}</div>
+        <div class="v-model">${v.model}</div>
+        <div class="v-meta">
+          <span>${v.speed} км/ч</span>
+          <span>${v.distance} км</span>
+          <span>${v.zone || '—'}</span>
+        </div>
+      </div>
+      <div class="v-badge ${v.state}">${v.state === 'moving' ? 'В пути' : v.state === 'parking' ? 'Стоит' : 'Нет связи'}</div>
+    </div>
+  `).join('');
+}
+
+const TRIP_ROUTES = [
+  { name: 'Склад труб → КПП', count: 12, max: 20 },
+  { name: 'КПП → Склад труб', count: 11, max: 20 },
+  { name: 'ТЭСЦ → Весовая', count: 8, max: 15 },
+  { name: 'Весовая → КПП', count: 7, max: 15 },
+  { name: 'Склад → ТЭСЦ', count: 5, max: 10 },
+];
+
+function renderTrips() {
+  const total = TRIP_ROUTES.reduce((s, r) => s + r.count, 0);
+  document.getElementById('tripTotal').textContent = total;
+  document.getElementById('tripsRoutes').innerHTML = TRIP_ROUTES.map(r => `
+    <div class="route-card">
+      <div class="route-name">${r.name}</div>
+      <div class="route-bar"><div class="route-bar-fill" style="width:${(r.count/r.max*100).toFixed(0)}%"></div></div>
+      <div class="route-meta">
+        <span>${r.count} рейсов</span>
+        <span>план: ${r.max}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+loadDemo();
+</script>
+</body>
+</html>
