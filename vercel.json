@@ -1,10 +1,5 @@
 {
   "version": 2,
-  "functions": {
-    "api/agr.js": {
-      "runtime": "@vercel/node@3"
-    }
-  },
   "rewrites": [
     { "source": "/api/agr", "destination": "/api/agr" }
   ]
