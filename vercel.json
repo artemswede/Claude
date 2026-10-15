@@ -1,11 +1,11 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "wms-dashboard.html", "use": "@vercel/static" },
-    { "src": "ztz-map.svg", "use": "@vercel/static" },
-    { "src": "api/agr.js", "use": "@vercel/node" }
-  ],
-  "routes": [
-    { "src": "/api/agr", "dest": "/api/agr.js" }
+  "functions": {
+    "api/agr.js": {
+      "runtime": "@vercel/node@3"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/agr", "destination": "/api/agr" }
   ]
 }
