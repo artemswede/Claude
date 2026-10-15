@@ -59,7 +59,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--wms-bg);color:var
 .v-marker{cursor:pointer}
 .v-marker .pulse-ring{animation:markerPulse 2s infinite}
 .v-marker.parking .pulse-ring{animation:none;opacity:.1}
-@keyframes markerPulse{0%,100%{r:18;opacity:.2}50%{r:24;opacity:.08}}
+@keyframes markerPulse{0%,100%{r:12;opacity:.15}50%{r:16;opacity:.05}}
 .vehicle-popup{position:absolute;background:var(--wms-surface);border-radius:10px;padding:10px 14px;box-shadow:0 4px 20px rgba(0,0,0,.18);font-size:12px;pointer-events:none;opacity:0;transition:opacity .15s;z-index:50;min-width:170px;border:1px solid var(--wms-border)}
 .vehicle-popup.show{opacity:1}
 .vp-plate{font-weight:600;font-size:14px}
@@ -301,8 +301,8 @@ function processApiData(data) {
     if (state !== 'moving' && state !== 'parking') state = 'no_data';
     if (!lastPoint) state = 'no_data';
 
-    const recentTrail = track.slice(-10).filter(p => isOnSite(p.lat, p.lng))
-      .map(p => geoToSvg(p.lat, p.lng));
+    const lastEventTime = lastEvent.ts_stop || lastEvent.ts_start || 0;
+    const bestTime = Math.max(lastPoint ? (lastPoint.packet_time || 0) : 0, lastEventTime);
 
     return {
       id: d.device_id,
@@ -321,8 +321,7 @@ function processApiData(data) {
       vy: old ? old.vy : 0,
       onSite,
       trackPoints: track.length,
-      trail: recentTrail,
-      lastTime: lastPoint ? lastPoint.packet_time : 0,
+      lastTime: bestTime,
       eventsCount: events.length,
     };
   });
@@ -378,17 +377,10 @@ function renderMarkers() {
     if (v.state !== 'moving') g.classList.add('parking');
     g.setAttribute('transform', `translate(${v.x.toFixed(1)},${v.y.toFixed(1)})`);
 
-    // trail
-    let trailD = '';
-    if (v.trail.length > 1) {
-      trailD = v.trail.map((p,i) => `${i?'L':'M'}${(p[0]-v.x).toFixed(1)},${(p[1]-v.y).toFixed(1)}`).join(' ');
-    }
-
     g.innerHTML = `
-      <path d="${trailD}" fill="none" stroke="${c}" stroke-width="2" opacity=".3" stroke-linecap="round"/>
-      <circle class="pulse-ring" r="18" fill="${c}" opacity=".2"/>
-      <circle r="9" fill="${c}" stroke="#fff" stroke-width="2.5"/>
-      <polygon points="0,-5 3.5,2 -3.5,2" fill="#fff" opacity=".85" transform="rotate(${(v.heading*180/Math.PI).toFixed(0)})"/>
+      <circle class="pulse-ring" r="12" fill="${c}" opacity=".15"/>
+      <circle r="8" fill="${c}" stroke="#fff" stroke-width="2"/>
+      <polygon points="0,-4 3,1.5 -3,1.5" fill="#fff" opacity=".9" transform="rotate(${(v.heading*180/Math.PI).toFixed(0)})"/>
     `;
     g.addEventListener('pointerenter', e => showPopup(v));
     g.addEventListener('pointerleave', hidePopup);
