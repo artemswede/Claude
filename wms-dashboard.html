@@ -125,8 +125,6 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--wms-bg);color:var
           <button class="map-ctrl" id="btnLandscape" onclick="toggleLandscape()" title="Развернуть горизонтально">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M12 2v2m0 16v2"/></svg>
           </button>
-          <button class="map-ctrl" onclick="mapZoom(0.2)" title="Увеличить">+</button>
-          <button class="map-ctrl" onclick="mapZoom(-0.2)" title="Уменьшить">−</button>
         </div>
         <div class="compass-indicator" id="compass">N ↗ повёрнуто 90°</div>
         <div class="vehicle-popup" id="vehiclePopup">
@@ -268,14 +266,12 @@ async function loadSvgMap() {
 }
 
 // ========== MAP TRANSFORM (landscape toggle + zoom) ==========
-let mapLandscape = false, mapScale = 1;
+let mapLandscape = false;
 function applyMapTransform() {
   if (!svgEl) return;
-  const angle = mapLandscape ? 90 : 0;
-  svgEl.style.transform = `rotate(${angle}deg) scale(${mapScale})`;
+  svgEl.style.transform = mapLandscape ? 'rotate(90deg)' : '';
   svgEl.style.transformOrigin = 'center center';
   svgEl.style.transition = 'transform .4s ease';
-  // Counter-rotate labels so text stays readable
   svgEl.querySelectorAll('#labels text').forEach(t => {
     t.setAttribute('transform', mapLandscape ? `rotate(-90, ${t.getAttribute('x')}, ${t.getAttribute('y')})` : '');
   });
@@ -283,34 +279,6 @@ function applyMapTransform() {
   document.getElementById('btnLandscape').classList.toggle('active-rot', mapLandscape);
 }
 function toggleLandscape() { mapLandscape = !mapLandscape; applyMapTransform(); }
-function mapZoom(delta) { mapScale = Math.max(0.3, Math.min(3, mapScale + delta)); applyMapTransform(); }
-
-// Wheel zoom on map
-document.addEventListener('DOMContentLoaded', () => {
-  const wrapper = document.getElementById('mapWrapper');
-  wrapper.addEventListener('wheel', e => {
-    if (!e.target.closest('.map-wrapper')) return;
-    e.preventDefault();
-    mapZoom(e.deltaY > 0 ? -0.1 : 0.1);
-  }, {passive: false});
-
-  // Pinch zoom on touch
-  let lastPinchDist = 0;
-  wrapper.addEventListener('touchstart', e => {
-    if (e.touches.length === 2) {
-      lastPinchDist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
-    }
-  });
-  wrapper.addEventListener('touchmove', e => {
-    if (e.touches.length === 2) {
-      e.preventDefault();
-      const dist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
-      if (lastPinchDist > 0) mapZoom((dist - lastPinchDist) / 200);
-      lastPinchDist = dist;
-    }
-  }, {passive: false});
-  wrapper.addEventListener('touchend', () => { lastPinchDist = 0; });
-});
 
 // ========== EXCLUDED MODELS ==========
 const EXCLUDED_MODELS = ['GAC G8', 'GAC  G8'];
