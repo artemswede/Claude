@@ -104,10 +104,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--wms-bg);color:var
   <h1>ЗТЗ Транспорт</h1>
   <div class="header-right">
     <span class="update-time" id="updateTime">--:--</span>
-    <div class="mode-toggle">
-      <button id="modeLive" class="active" onclick="setMode('live')">Live</button>
-      <button id="modeDemo" onclick="setMode('demo')">Demo</button>
-    </div>
+    <span style="font-size:10px;opacity:.7">Live</span>
     <div class="status-dot loading" id="statusDot"></div>
   </div>
 </div>
@@ -200,7 +197,6 @@ function isOnSite(lat, lon) {
 }
 
 // ========== STATE ==========
-let mode = 'live';
 let vehicles = [];
 let svgEl = null;
 let markersGroup = null;
@@ -236,14 +232,8 @@ async function loadSvgMap() {
   wrapper.insertBefore(svgEl, popup);
 }
 
-// ========== MODE ==========
-function setMode(m) {
-  mode = m;
-  document.getElementById('modeLive').classList.toggle('active', m==='live');
-  document.getElementById('modeDemo').classList.toggle('active', m==='demo');
-  clearTimeout(pollTimer);
-  fetchData();
-}
+// ========== EXCLUDED MODELS ==========
+const EXCLUDED_MODELS = ['GAC G8', 'GAC  G8'];
 
 function switchTab(id, btn) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -257,13 +247,6 @@ async function fetchData() {
   const dot = document.getElementById('statusDot');
   const banner = document.getElementById('errorBanner');
   dot.className = 'status-dot loading';
-
-  if (mode === 'demo') {
-    loadDemoData();
-    dot.className = 'status-dot';
-    banner.classList.remove('show');
-    return;
-  }
 
   const now = Math.floor(Date.now() / 1000);
   const todayStart = now - (now % 86400) - 3 * 3600; // midnight MSK approx
@@ -279,12 +262,15 @@ async function fetchData() {
       dot.className = 'status-dot stale';
       banner.textContent = 'Нет данных за сегодня';
       banner.classList.add('show');
-      if (!vehicles.length) loadDemoData();
       pollTimer = setTimeout(fetchData, POLL_INTERVAL);
       return;
     }
 
-    processApiData(data);
+    const filtered = data.filter(d => {
+      const m = [d.vehicle_manufacturer, d.vehicle_model].filter(Boolean).join(' ').trim();
+      return !EXCLUDED_MODELS.some(ex => m.includes(ex));
+    });
+    processApiData(filtered);
     dot.className = 'status-dot';
     banner.classList.remove('show');
     updateTime();
@@ -293,7 +279,6 @@ async function fetchData() {
     dot.className = 'status-dot error';
     banner.textContent = 'Ошибка API: ' + e.message;
     banner.classList.add('show');
-    if (!vehicles.length) loadDemoData();
   }
 
   pollTimer = setTimeout(fetchData, POLL_INTERVAL);
@@ -504,49 +489,6 @@ function renderTrips() {
       <div class="route-meta"><span>${r.count} рейсов</span><span>план: ${r.max}</span></div>
     </div>
   `).join('');
-}
-
-// ========== DEMO DATA ==========
-function loadDemoData() {
-  const demoCoords = [
-    [56.4290, 38.1473], [56.4255, 38.1480], [56.4270, 38.1510],
-    [56.4230, 38.1490], [56.4275, 38.1450], [56.4260, 38.1520],
-    [56.4245, 38.1465], [56.4285, 38.1500], [56.4220, 38.1530],
-    [56.4265, 38.1440], [56.4235, 38.1505], [56.4250, 38.1475],
-  ];
-  const names = [
-    ['А147ВН790','МАЗ 5550'],['Н424ВС250','GAC G8'],['Е629ММ150','КАКМАЗ 65115'],
-    ['Н658ТТ750','МАЗ 5550'],['А987РО90','МАЗ 5440'],['Н479ВС250','GAC G8'],
-    ['К329ХХ150','МАЗ 5440'],['Т649УО150','МАЗ 5440'],['Т648УО150','МАЗ 5440'],
-    ['В989УМ750','МАЗ 5550'],['Н083ЕР190','КАМАЗ 65115'],['С176УХ150','КАМАЗ 65115'],
-  ];
-  vehicles = demoCoords.map(([lat,lon], i) => {
-    const [sx,sy] = geoToSvg(lat, lon);
-    const st = i % 3 === 0 ? 'moving' : 'parking';
-    return {
-      id: 'demo'+i, plate: names[i][0], model: names[i][1],
-      state: st, speed: st==='moving' ? 10+Math.floor(Math.random()*15) : 0,
-      heading: Math.random()*Math.PI*2, distance: (5+Math.random()*30).toFixed(1),
-      lat, lon, x: sx, y: sy, targetX: sx, targetY: sy,
-      vx: 0, vy: 0, onSite: true, trackPoints: 100+i*50,
-      trail: [], lastTime: Date.now()/1000 - i*60, eventsCount: 5+i*2,
-    };
-  });
-  updateStats();
-  renderMarkers();
-  renderVehiclesList();
-  renderTrips();
-  // animate demo
-  setInterval(() => {
-    vehicles.forEach(v => {
-      if (v.state !== 'moving') { if (Math.random()<.01) v.state='moving'; return; }
-      v.targetX += (Math.random()-.5) * 20;
-      v.targetY += (Math.random()-.5) * 20;
-      v.targetX = Math.max(100, Math.min(700, v.targetX));
-      v.targetY = Math.max(50, Math.min(1280, v.targetY));
-    });
-    startAnimation();
-  }, 3000);
 }
 
 init();
