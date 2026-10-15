@@ -1,239 +1,70 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
-<title>Схема территории ЗТЗ</title>
-<desc>GPS-referenced factory map. Geo bounds: latN=56.4335, latS=56.4195, lonW=38.1400, lonE=38.1570. SVG 900x1200.</desc>
-<defs>
-  <pattern id="grass" width="30" height="30" patternUnits="userSpaceOnUse">
-    <rect width="30" height="30" fill="#d8e4cc"/>
-    <circle cx="8" cy="12" r="1.5" fill="#c2d4b0"/>
-    <circle cx="22" cy="6" r="1" fill="#c8d8b4"/>
-    <circle cx="15" cy="24" r="1.2" fill="#c0d0ae"/>
-  </pattern>
-  <pattern id="forest" width="24" height="24" patternUnits="userSpaceOnUse">
-    <rect width="24" height="24" fill="#9db88e"/>
-    <circle cx="6" cy="6" r="5" fill="#7a9c6b" opacity="0.7"/>
-    <circle cx="18" cy="8" r="4" fill="#6d8f5e" opacity="0.6"/>
-    <circle cx="12" cy="18" r="5.5" fill="#7fa870" opacity="0.7"/>
-  </pattern>
-  <pattern id="pipes" width="20" height="14" patternUnits="userSpaceOnUse">
-    <rect width="20" height="14" fill="#b5a894"/>
-    <rect x="1" y="1" width="18" height="5" rx="1" fill="#9a8d7a"/>
-    <rect x="1" y="8" width="18" height="5" rx="1" fill="#a8997f"/>
-    <path d="M5 1v5M10 1v5M15 1v5M5 8v5M10 8v5M15 8v5" stroke="#7d7263" stroke-width="0.6"/>
-  </pattern>
-  <pattern id="water" width="40" height="20" patternUnits="userSpaceOnUse">
-    <rect width="40" height="20" fill="#8ab4c7"/>
-    <path d="M0 10Q10 7 20 10T40 10" fill="none" stroke="#9dc4d4" stroke-width="1.2" opacity="0.5"/>
-  </pattern>
-  <pattern id="roof" width="16" height="16" patternUnits="userSpaceOnUse">
-    <rect width="16" height="16" fill="#c5c8c3"/>
-    <path d="M0 4H16M0 12H16" stroke="#adb2aa" stroke-width="0.8"/>
-  </pattern>
-  <style>
-    .road{fill:none;stroke:#e8e4dc;stroke-linecap:round;stroke-linejoin:round}
-    .road-edge{fill:none;stroke:#bfb9ae;stroke-linecap:round;stroke-linejoin:round}
-    .building{fill:url(#roof);stroke:#7a8077;stroke-width:1.5}
-    .building-small{fill:#c0c4be;stroke:#7a8077;stroke-width:1}
-    .label{font-family:Arial,Helvetica,sans-serif;fill:#3a3a3a;font-size:11px;font-weight:bold;text-anchor:middle}
-    .label-sm{font-family:Arial,Helvetica,sans-serif;fill:#555;font-size:9px;text-anchor:middle}
-    .road-label{font-family:Arial,Helvetica,sans-serif;fill:#666;font-size:8px;text-anchor:middle}
-  </style>
-</defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200">
+  <desc>ZTZ Factory Map | latN=56.4345 latS=56.4175 lonW=38.1375 lonE=38.1565</desc>
+  <defs>
+    <style>
+      .building { stroke-width: 2; stroke-linejoin: round; }
+      .road { fill: none; stroke: #8b7355; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; opacity: 0.7; }
+      .road-main { stroke-width: 8; }
+      .label { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; fill: #2d2a26; text-anchor: middle; dominant-baseline: central; font-weight: 600; }
+      .label-small { font-size: 9px; font-weight: 400; }
+      .territory { fill: #e8e2d8; stroke: #c0b8a0; stroke-width: 1.5; stroke-dasharray: 8 4; }
+      .forest { fill: #6a8a50; opacity: 0.4; }
+    </style>
+  </defs>
 
-<!-- Background -->
-<rect width="900" height="1200" fill="url(#grass)"/>
+  <!-- Background -->
+  <rect width="900" height="1200" fill="#d8d0c4"/>
 
-<!-- Water body (west side, pond) approx 56.4280-56.4310, 38.1420-38.1460 -->
-<path d="M60 250 Q30 350 50 480 Q70 530 110 520 Q160 500 180 430 Q190 350 170 280 Q150 240 100 230 Z" fill="url(#water)" stroke="#6a9bb0" stroke-width="1.5"/>
-<text x="110" y="390" class="label-sm" fill="#4a7a90">Пруд</text>
+  <!-- Forest strips (approximate from satellite) -->
+  <rect x="0" y="0" width="120" height="1200" class="forest" rx="20"/>
+  <rect x="840" y="0" width="60" height="1200" class="forest" rx="20"/>
+  <rect x="0" y="0" width="900" height="40" class="forest" rx="10"/>
 
-<!-- Forest strips -->
-<!-- West forest along water -->
-<path d="M150 180 Q180 200 190 260 Q200 350 195 450 Q190 500 170 530 L200 540 Q220 470 220 380 Q220 280 210 220 Q200 190 180 175 Z" fill="url(#forest)" opacity="0.7"/>
-<!-- Central forest strip (between pipe zones) -->
-<path d="M250 520 Q350 510 450 515 Q500 520 530 530 L530 560 Q450 545 350 545 Q300 548 250 555 Z" fill="url(#forest)" opacity="0.6"/>
-<!-- East forest -->
-<path d="M750 400 Q770 300 780 200 Q790 150 800 100 L900 100 L900 500 Q850 480 800 450 Q770 430 750 400Z" fill="url(#forest)" opacity="0.5"/>
+  <!-- Territory -->
+  <rect x="100" y="30" width="720" height="1120" class="territory" rx="8"/>
 
-<!-- =================== ROADS (from GPS tracks) =================== -->
-<!-- Main north-south road (central artery) -->
-<path d="M420 60 L420 180 Q420 200 430 210 L460 240 Q480 260 480 290 L480 420 Q480 440 470 460 L440 500 Q420 530 420 560 L420 700 L430 750 Q440 780 450 800 L460 850 Q470 880 470 920 L470 1000 L470 1100" class="road-edge" stroke-width="18"/>
-<path d="M420 60 L420 180 Q420 200 430 210 L460 240 Q480 260 480 290 L480 420 Q480 440 470 460 L440 500 Q420 530 420 560 L420 700 L430 750 Q440 780 450 800 L460 850 Q470 880 470 920 L470 1000 L470 1100" class="road" stroke-width="14"/>
+  <!-- Roads -->
+  <g id="roads">
+    <polyline class="road road-main" points="588.3,304.3 562.9,488.1 536.4,572 464.3,676.1 406.8,675.4 413.7,738.5 417.8,882.5 304.4,885 310.9,1114.1"/>
+    <polyline class="road" points="591,301.1 609.6,308.4 615.7,300.9 653,312.4 702.6,208.4 511.5,151.3 458.6,265.4 588.9,300.2"/>
+    <polyline class="road" points="576.8,359.6 544.3,354.9"/>
+    <!-- дорога автокран — разбита на отдельные сегменты -->
+    <polyline class="road" points="468.1,326.8 464.4,362 491.9,369.1 464.4,368.7 450.7,484.5"/>
+    <polyline class="road" points="304.9,490.8 360.8,491.3 367.9,486.2 416.1,485 423.3,485.4 450.7,484.5 556.9,482.4"/>
+    <polyline class="road" points="414.6,512.2 416.1,485"/>
+    <polyline class="road" points="379.1,464.4 367.9,486.2"/>
+    <!-- дорога автокран № — горизонтальная -->
+    <polyline class="road" points="305.5,576.6 396,573.2"/>
+    <polyline class="road" points="393.1,599.5 303.7,601.6"/>
+    <!-- дорога у ЦТИ — вертикальная + ответвления -->
+    <polyline class="road" points="302,494.7 306.3,885.9"/>
+    <polyline class="road" points="305.3,671 374.4,671"/>
+    <polyline class="road" points="375.5,790.2 414.1,786"/>
+    <polyline class="road" points="669.6,810 673.7,955.2 730.1,951 729.6,880.5 675.7,879.2"/>
+    <polyline class="road" points="663.4,680.9 672.5,806.9 749.8,815.2 781.3,841.3 803.6,884.9 800.6,945.4 763.7,964"/>
+    <polyline class="road" points="474.7,672.6 664.8,673.4"/>
+  </g>
 
-<!-- West road to crane/storage area -->
-<path d="M420 300 L350 290 Q300 285 260 280 L210 270" class="road-edge" stroke-width="14"/>
-<path d="M420 300 L350 290 Q300 285 260 280 L210 270" class="road" stroke-width="10"/>
-
-<!-- East spur to ТЭСЦ entrance -->
-<path d="M480 290 L550 285 Q600 280 650 275 L700 270" class="road-edge" stroke-width="14"/>
-<path d="M480 290 L550 285 Q600 280 650 275 L700 270" class="road" stroke-width="10"/>
-
-<!-- South road to uzbek area -->
-<path d="M470 1000 Q500 1010 550 1020 L650 1040 Q700 1050 750 1060" class="road-edge" stroke-width="14"/>
-<path d="M470 1000 Q500 1010 550 1020 L650 1040 Q700 1050 750 1060" class="road" stroke-width="10"/>
-
-<!-- Road between pipe stacks (horizontal, middle) -->
-<path d="M250 700 L400 695 Q420 694 440 695 L600 700 L700 705" class="road-edge" stroke-width="12"/>
-<path d="M250 700 L400 695 Q420 694 440 695 L600 700 L700 705" class="road" stroke-width="8"/>
-
-<!-- Western road along water/forest -->
-<path d="M210 270 L220 340 Q225 400 230 460 L235 520 Q240 560 245 600 L250 700" class="road-edge" stroke-width="12"/>
-<path d="M210 270 L220 340 Q225 400 230 460 L235 520 Q240 560 245 600 L250 700" class="road" stroke-width="8"/>
-
-<!-- =================== MAIN BUILDING: ТЭСЦ =================== -->
-<!-- Large production hall ~56.4305-56.4325, 38.1490-38.1545 -->
-<rect x="420" y="70" width="380" height="180" rx="3" class="building"/>
-<rect x="430" y="80" width="170" height="75" rx="2" fill="#b8bdb5" stroke="#8a918a" stroke-width="0.5"/>
-<rect x="610" y="80" width="180" height="75" rx="2" fill="#b8bdb5" stroke="#8a918a" stroke-width="0.5"/>
-<rect x="430" y="165" width="360" height="75" rx="2" fill="#bcc1b8" stroke="#8a918a" stroke-width="0.5"/>
-<text x="610" y="145" class="label" font-size="14">ТЭСЦ</text>
-<text x="610" y="162" class="label-sm">Трубоэлектросварочный цех</text>
-
-<!-- =================== PIPE STORAGE AREAS =================== -->
-<!-- North pipe stacks (56.4285-56.4300, 38.1470-38.1530) -->
-<g>
-  <rect x="270" y="310" width="80" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="360" y="310" width="80" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="270" y="355" width="80" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="360" y="355" width="80" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="270" y="400" width="80" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="360" y="400" width="80" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="270" y="445" width="80" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="360" y="445" width="80" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-</g>
-<!-- East pipe stacks -->
-<g>
-  <rect x="510" y="310" width="75" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="595" y="310" width="75" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="510" y="355" width="75" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="595" y="355" width="75" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="510" y="400" width="75" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="595" y="400" width="75" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="510" y="445" width="75" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="595" y="445" width="75" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-</g>
-
-<!-- South pipe stacks (below central forest strip) -->
-<g>
-  <rect x="270" y="580" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="350" y="580" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="270" y="618" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="350" y="618" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="270" y="656" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="350" y="656" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="500" y="580" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="580" y="580" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="500" y="618" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="580" y="618" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="500" y="656" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="580" y="656" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-</g>
-
-<!-- Far south pipe stacks -->
-<g>
-  <rect x="300" y="740" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="375" y="740" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="300" y="776" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="375" y="776" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="300" y="812" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="375" y="812" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="520" y="740" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="595" y="740" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="520" y="776" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="595" y="776" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="520" y="812" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-  <rect x="595" y="812" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
-</g>
-
-<!-- =================== СКЛАД ГП + КРАНЫ (west) =================== -->
-<!-- Crane area near 56.4294, 38.1476 -->
-<rect x="220" y="280" width="40" height="40" rx="2" fill="#d4a44a" stroke="#a07830" stroke-width="1.5"/>
-<text x="240" y="305" class="label-sm" fill="#704000" font-size="8">Кран</text>
-<text x="240" y="340" class="label" font-size="10">Склад ГП</text>
-<text x="240" y="355" class="label-sm" font-size="8">Погрузка</text>
-
-<!-- =================== SMALL BUILDINGS =================== -->
-<!-- Admin/utility buildings south area -->
-<rect x="500" y="950" width="60" height="40" rx="2" class="building-small"/>
-<rect x="580" y="940" width="50" height="50" rx="2" class="building-small"/>
-<rect x="650" y="960" width="45" height="35" rx="2" class="building-small"/>
-
-<!-- Весовая (near entrance road, south) -->
-<rect x="440" y="1040" width="35" height="20" rx="2" fill="#c7b89a" stroke="#8a7e6e" stroke-width="1.5"/>
-<text x="458" y="1055" class="label-sm" font-size="8">Весовая</text>
-
-<!-- =================== КПП (south entrance) =================== -->
-<rect x="445" y="1110" width="50" height="25" rx="3" fill="#d4a44a" stroke="#a07830" stroke-width="2"/>
-<text x="470" y="1128" class="label" font-size="10" fill="#704000">КПП</text>
-<!-- Gate barrier -->
-<line x1="440" y1="1120" x2="420" y2="1120" stroke="#c04040" stroke-width="3" stroke-linecap="round"/>
-<line x1="500" y1="1120" x2="520" y2="1120" stroke="#c04040" stroke-width="3" stroke-linecap="round"/>
-
-<!-- =================== ПАРКОВКА "Узбекгородок" =================== -->
-<rect x="600" y="1000" width="120" height="60" rx="4" fill="none" stroke="#6a6a6a" stroke-width="1.5" stroke-dasharray="6,3"/>
-<!-- Parking lines -->
-<line x1="620" y1="1005" x2="620" y2="1055" stroke="#888" stroke-width="0.5"/>
-<line x1="640" y1="1005" x2="640" y2="1055" stroke="#888" stroke-width="0.5"/>
-<line x1="660" y1="1005" x2="660" y2="1055" stroke="#888" stroke-width="0.5"/>
-<line x1="680" y1="1005" x2="680" y2="1055" stroke="#888" stroke-width="0.5"/>
-<line x1="700" y1="1005" x2="700" y2="1055" stroke="#888" stroke-width="0.5"/>
-<text x="660" y="1080" class="label" font-size="10">Парковка</text>
-
-<!-- =================== Ж/Д пути (south edge) =================== -->
-<g stroke="#8a8078" stroke-width="2">
-  <line x1="0" y1="1160" x2="900" y2="1160"/>
-  <line x1="0" y1="1165" x2="900" y2="1165"/>
-</g>
-<!-- Rail ties -->
-<g stroke="#9a9490" stroke-width="1">
-  <line x1="20" y1="1157" x2="20" y2="1168"/><line x1="40" y1="1157" x2="40" y2="1168"/>
-  <line x1="60" y1="1157" x2="60" y2="1168"/><line x1="80" y1="1157" x2="80" y2="1168"/>
-  <line x1="100" y1="1157" x2="100" y2="1168"/><line x1="120" y1="1157" x2="120" y2="1168"/>
-  <line x1="140" y1="1157" x2="140" y2="1168"/><line x1="160" y1="1157" x2="160" y2="1168"/>
-  <line x1="180" y1="1157" x2="180" y2="1168"/><line x1="200" y1="1157" x2="200" y2="1168"/>
-  <line x1="220" y1="1157" x2="220" y2="1168"/><line x1="240" y1="1157" x2="240" y2="1168"/>
-  <line x1="260" y1="1157" x2="260" y2="1168"/><line x1="280" y1="1157" x2="280" y2="1168"/>
-  <line x1="300" y1="1157" x2="300" y2="1168"/><line x1="320" y1="1157" x2="320" y2="1168"/>
-  <line x1="340" y1="1157" x2="340" y2="1168"/><line x1="360" y1="1157" x2="360" y2="1168"/>
-  <line x1="380" y1="1157" x2="380" y2="1168"/><line x1="400" y1="1157" x2="400" y2="1168"/>
-  <line x1="420" y1="1157" x2="420" y2="1168"/><line x1="440" y1="1157" x2="440" y2="1168"/>
-  <line x1="460" y1="1157" x2="460" y2="1168"/><line x1="480" y1="1157" x2="480" y2="1168"/>
-  <line x1="500" y1="1157" x2="500" y2="1168"/><line x1="520" y1="1157" x2="520" y2="1168"/>
-  <line x1="540" y1="1157" x2="540" y2="1168"/><line x1="560" y1="1157" x2="560" y2="1168"/>
-  <line x1="580" y1="1157" x2="580" y2="1168"/><line x1="600" y1="1157" x2="600" y2="1168"/>
-  <line x1="620" y1="1157" x2="620" y2="1168"/><line x1="640" y1="1157" x2="640" y2="1168"/>
-  <line x1="660" y1="1157" x2="660" y2="1168"/><line x1="680" y1="1157" x2="680" y2="1168"/>
-  <line x1="700" y1="1157" x2="700" y2="1168"/><line x1="720" y1="1157" x2="720" y2="1168"/>
-  <line x1="740" y1="1157" x2="740" y2="1168"/><line x1="760" y1="1157" x2="760" y2="1168"/>
-  <line x1="780" y1="1157" x2="780" y2="1168"/><line x1="800" y1="1157" x2="800" y2="1168"/>
-  <line x1="820" y1="1157" x2="820" y2="1168"/><line x1="840" y1="1157" x2="840" y2="1168"/>
-  <line x1="860" y1="1157" x2="860" y2="1168"/><line x1="880" y1="1157" x2="880" y2="1168"/>
-</g>
-<text x="450" y="1185" class="label-sm" fill="#777">Ж/Д пути</text>
-
-<!-- =================== TERRITORY BOUNDARY =================== -->
-<path d="M180 50 L820 50 Q850 50 860 70 L870 200 Q875 400 870 600 L860 800 Q855 900 840 1000 L820 1100 Q810 1140 780 1150 L150 1150 Q120 1140 100 1100 L80 900 Q60 700 70 500 L90 300 Q100 200 120 120 Q140 60 180 50 Z" fill="none" stroke="#8a7e6e" stroke-width="2" stroke-dasharray="10,5"/>
-
-<!-- =================== LABELS =================== -->
-<!-- Section labels -->
-<text x="400" y="500" class="label-sm" font-size="9" fill="#777">Штабели труб (север)</text>
-<text x="400" y="670" class="label-sm" font-size="9" fill="#777">Штабели труб (юг)</text>
-
-<!-- Entrance label at ТЭСЦ -->
-<circle cx="480" cy="265" r="6" fill="#e74c3c" opacity="0.8"/>
-<text x="480" y="268" font-family="Arial" font-size="8" fill="#fff" text-anchor="middle" font-weight="bold">1</text>
-<text x="520" y="268" class="label-sm" fill="#c0392b">Въезд в цех</text>
-
-<!-- Legend -->
-<rect x="15" y="15" width="170" height="110" rx="6" fill="rgba(255,255,255,0.9)" stroke="#ccc" stroke-width="1"/>
-<text x="25" y="35" font-family="Arial" font-size="12" fill="#333" font-weight="bold">Условные обозначения</text>
-<rect x="25" y="45" width="16" height="12" rx="1" fill="url(#roof)" stroke="#7a8077" stroke-width="0.5"/>
-<text x="48" y="55" font-family="Arial" font-size="10" fill="#555">Корпуса</text>
-<rect x="25" y="63" width="16" height="12" rx="1" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.5"/>
-<text x="48" y="73" font-family="Arial" font-size="10" fill="#555">Штабели труб</text>
-<line x1="25" y1="85" x2="41" y2="85" stroke="#e8e4dc" stroke-width="4"/>
-<text x="48" y="89" font-family="Arial" font-size="10" fill="#555">Проезды</text>
-<rect x="25" y="97" width="16" height="12" rx="1" fill="url(#water)" stroke="#6a9bb0" stroke-width="0.5"/>
-<text x="48" y="107" font-family="Arial" font-size="10" fill="#555">Водоём</text>
-
+  <!-- Buildings -->
+  <g id="buildings">
+    <polygon class="building" points="522.6,159.2 465.6,254.1 647.6,317.9 695.4,216.3 522.6,159.2" fill="#b8c4d0" stroke="#7a8a9a"/>
+    <text class="label" x="571" y="221">ТЭСЦ</text>
+    <polygon class="building" points="513.7,278.8 507.6,294.8 542.8,305.2 545.3,298.3 551.3,299.8 542.6,320.4 554.6,323.9 558.1,315.1 565.4,313.3 563.7,303.8 567.8,294.4 513.7,278.8" fill="#c4b8a8" stroke="#8a7e6e"/>
+    <text class="label" x="544" y="302">АБК</text>
+    <polygon class="building" points="301.3,958 301,973.1 316.8,972.5 315.5,957.4 301.3,958" fill="#d4a574" stroke="#a07040"/>
+    <text class="label" x="307" y="964">КПП№1</text>
+    <polygon class="building" points="314.9,889.3 307.8,890.1 309.3,908.1 314.9,909.8 314.9,889.3" fill="#c4b8a8" stroke="#8a7e6e"/>
+    <text class="label label-small" x="312" y="897">Автовесовая</text>
+    <polygon class="building" points="402.5,739.2 387.3,738.9 387.5,779.7 403.3,779.4 402.5,739.2" fill="#a8b8a0" stroke="#6e8a60"/>
+    <text class="label" x="397" y="755">Склад</text>
+    <polygon class="building" points="407.3,807.2 406.5,797.3 396.1,797.3 396.9,807.6 407.3,807.2" fill="#c4b8a8" stroke="#8a7e6e"/>
+    <text class="label" x="403" y="803">АТЦ</text>
+    <polygon class="building" points="317.8,681.1 320.3,827.1 367.6,826.7 365.5,680.6 317.8,681.1" fill="#b0b8c4" stroke="#7a8294"/>
+    <text class="label label-small" x="338" y="739">ЦТИ/ШТС</text>
+    <polygon class="building" points="679.6,884.9 681.1,946.2 721.3,944.5 718.8,883.2 679.6,884.9" fill="#b0b8c4" stroke="#7a8294"/>
+    <text class="label" x="696" y="909">УСК</text>
+    <polygon class="building" points="845.8,860.3 847.8,817.5 760.4,815.4 796.5,840.6 797,860.7 845.8,860.3" fill="#d4c8b0" stroke="#a09478"/>
+    <text class="label label-small" x="816" y="842">Узбекгородок</text>
+  </g>
 </svg>
