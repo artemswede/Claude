@@ -11,7 +11,6 @@
   --wms-header: #68503a;
   --wms-header-text: #f5f0eb;
   --wms-accent: #ccb484;
-  --wms-accent-hover: #b89e6e;
   --wms-bg: #f0ecea;
   --wms-surface: #ffffff;
   --wms-text: #2d2a26;
@@ -23,246 +22,80 @@
   --wms-radius: 12px;
   --wms-shadow: 0 2px 8px rgba(45,42,38,0.08);
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --wms-bg: #1a1816;
-    --wms-surface: #2a2622;
-    --wms-text: #e8e2da;
-    --wms-text-sec: #a09688;
-    --wms-border: #3d3730;
-    --wms-shadow: 0 2px 8px rgba(0,0,0,0.3);
-  }
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --wms-bg:#1a1816;--wms-surface:#2a2622;--wms-text:#e8e2da;
+  --wms-text-sec:#a09688;--wms-border:#3d3730;--wms-shadow:0 2px 8px rgba(0,0,0,0.3);
+}}
+:root[data-theme="dark"]{
+  --wms-bg:#1a1816;--wms-surface:#2a2622;--wms-text:#e8e2da;
+  --wms-text-sec:#a09688;--wms-border:#3d3730;--wms-shadow:0 2px 8px rgba(0,0,0,0.3);
 }
-:root[data-theme="dark"] {
-  --wms-bg: #1a1816;
-  --wms-surface: #2a2622;
-  --wms-text: #e8e2da;
-  --wms-text-sec: #a09688;
-  --wms-border: #3d3730;
-  --wms-shadow: 0 2px 8px rgba(0,0,0,0.3);
-}
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  font-family: 'Inter', system-ui, sans-serif;
-  background: var(--wms-bg);
-  color: var(--wms-text);
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-  overflow-x: hidden;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* HEADER */
-.header {
-  background: var(--wms-header);
-  color: var(--wms-header-text);
-  padding: 10px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-}
-.header h1 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
-.header-right { display: flex; align-items: center; gap: 8px; }
-.mode-toggle {
-  display: flex;
-  background: rgba(255,255,255,0.12);
-  border-radius: 6px;
-  overflow: hidden;
-  font-size: 11px;
-  font-weight: 500;
-}
-.mode-toggle button {
-  border: none;
-  background: transparent;
-  color: var(--wms-header-text);
-  padding: 4px 10px;
-  cursor: pointer;
-  opacity: 0.5;
-  transition: all 0.2s;
-  font-family: inherit;
-}
-.mode-toggle button.active {
-  background: var(--wms-accent);
-  color: var(--wms-text);
-  opacity: 1;
-}
-.status-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--wms-success);
-  animation: pulse 2s infinite;
-}
-.status-dot.stale { background: var(--wms-warning); animation: none; }
-.status-dot.error { background: var(--wms-danger); animation: none; }
-@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.4 } }
-.update-time { font-size: 10px; opacity: 0.6; }
-
-/* MAIN */
-.main { flex: 1; padding: 0 0 68px 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-.tab-content { display: none; }
-.tab-content.active { display: block; }
-
-/* MAP TAB */
-.map-container { padding: 8px 12px; }
-.map-wrapper {
-  background: var(--wms-surface);
-  border-radius: var(--wms-radius);
-  box-shadow: var(--wms-shadow);
-  overflow: hidden;
-  position: relative;
-}
-.map-wrapper svg.factory-svg {
-  width: 100%;
-  height: auto;
-  display: block;
-}
-.map-legend {
-  display: flex;
-  gap: 12px;
-  padding: 6px 12px;
-  font-size: 10px;
-  color: var(--wms-text-sec);
-  border-top: 1px solid var(--wms-border);
-  flex-wrap: wrap;
-}
-.legend-item { display: flex; align-items: center; gap: 4px; }
-.legend-dot { width: 8px; height: 8px; border-radius: 50%; }
-
-.map-stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-  padding: 8px 12px;
-}
-.stat-card {
-  background: var(--wms-surface);
-  border-radius: 10px;
-  padding: 10px 8px;
-  box-shadow: var(--wms-shadow);
-  text-align: center;
-}
-.stat-value { font-size: 22px; font-weight: 700; color: var(--wms-header); line-height: 1; }
-.stat-label { font-size: 10px; color: var(--wms-text-sec); margin-top: 3px; }
-
-/* vehicle markers on SVG */
-.v-marker { cursor: pointer; }
-.v-marker .outer { animation: markerPulse 2s infinite; }
-@keyframes markerPulse {
-  0%,100% { r: 16; opacity: 0.25; }
-  50% { r: 22; opacity: 0.1; }
-}
-.v-marker.parking .outer { animation: none; r: 16; opacity: 0.15; }
-.v-marker .trail { fill: none; stroke-width: 2; stroke-linecap: round; opacity: 0.4; }
-
-/* popup */
-.vehicle-popup {
-  position: absolute;
-  background: var(--wms-surface);
-  border-radius: 10px;
-  padding: 10px 14px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.18);
-  font-size: 12px;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.15s;
-  z-index: 50;
-  min-width: 160px;
-  border: 1px solid var(--wms-border);
-}
-.vehicle-popup.show { opacity: 1; }
-.vp-plate { font-weight: 600; font-size: 14px; }
-.vp-model { color: var(--wms-text-sec); margin-top: 1px; font-size: 11px; }
-.vp-status { margin-top: 6px; display: flex; align-items: center; gap: 4px; font-size: 11px; }
-.vp-zone { margin-top: 3px; font-size: 11px; color: var(--wms-text-sec); }
-
-/* VEHICLES TAB */
-.vehicles-list { padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
-.vehicle-card {
-  background: var(--wms-surface);
-  border-radius: var(--wms-radius);
-  padding: 12px 14px;
-  box-shadow: var(--wms-shadow);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.v-icon {
-  width: 36px; height: 36px;
-  border-radius: 8px;
-  background: var(--wms-bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.v-icon svg { width: 20px; height: 20px; }
-.v-info { flex: 1; min-width: 0; }
-.v-plate { font-weight: 600; font-size: 13px; }
-.v-model { font-size: 11px; color: var(--wms-text-sec); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.v-meta { display: flex; gap: 10px; margin-top: 3px; font-size: 10px; color: var(--wms-text-sec); }
-.v-badge {
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 10px;
-  font-weight: 600;
-  flex-shrink: 0;
-  letter-spacing: 0.02em;
-}
-.v-badge.moving { background: #e8f5e9; color: var(--wms-success); }
-.v-badge.parking { background: #fff3e0; color: var(--wms-warning); }
-.v-badge.no_data { background: #fce4ec; color: var(--wms-danger); }
-
-/* TRIPS TAB */
-.trips-header { padding: 20px 16px 12px; text-align: center; }
-.shift-label { font-size: 11px; color: var(--wms-text-sec); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500; }
-.trip-count { font-size: 52px; font-weight: 700; color: var(--wms-header); line-height: 1.1; }
-.trip-unit { font-size: 13px; color: var(--wms-text-sec); }
-.trips-routes { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 6px; }
-.route-card {
-  background: var(--wms-surface);
-  border-radius: var(--wms-radius);
-  padding: 12px 14px;
-  box-shadow: var(--wms-shadow);
-}
-.route-name { font-weight: 600; font-size: 13px; }
-.route-bar { height: 5px; background: var(--wms-bg); border-radius: 3px; margin-top: 6px; overflow: hidden; }
-.route-bar-fill { height: 100%; background: var(--wms-accent); border-radius: 3px; transition: width 0.8s ease; }
-.route-meta { display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px; color: var(--wms-text-sec); }
-
-/* NAV BAR */
-.nav-bar {
-  position: fixed;
-  bottom: 0; left: 0; right: 0;
-  background: var(--wms-surface);
-  border-top: 1px solid var(--wms-border);
-  display: flex;
-  z-index: 100;
-  padding-bottom: env(safe-area-inset-bottom, 0);
-  box-shadow: 0 -2px 8px rgba(0,0,0,0.06);
-}
-.nav-btn {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 6px 0 5px;
-  border: none;
-  background: transparent;
-  color: var(--wms-text-sec);
-  font-size: 10px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: color 0.2s;
-  gap: 1px;
-}
-.nav-btn.active { color: var(--wms-header); }
-.nav-btn svg { width: 20px; height: 20px; }
-.nav-btn span { font-weight: 500; }
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--wms-bg);color:var(--wms-text);min-height:100dvh;display:flex;flex-direction:column;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+.header{background:var(--wms-header);color:var(--wms-header-text);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,0.15)}
+.header h1{font-size:15px;font-weight:600}
+.header-right{display:flex;align-items:center;gap:8px}
+.mode-toggle{display:flex;background:rgba(255,255,255,0.12);border-radius:6px;overflow:hidden;font-size:11px;font-weight:500}
+.mode-toggle button{border:none;background:transparent;color:var(--wms-header-text);padding:4px 10px;cursor:pointer;opacity:0.5;transition:all .2s;font-family:inherit}
+.mode-toggle button.active{background:var(--wms-accent);color:var(--wms-text);opacity:1}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--wms-success);animation:pulse 2s infinite}
+.status-dot.stale{background:var(--wms-warning);animation:none}
+.status-dot.error{background:var(--wms-danger);animation:none}
+.status-dot.loading{background:var(--wms-accent);animation:pulse .5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.update-time{font-size:10px;opacity:.6}
+.main{flex:1;padding:0 0 68px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.tab-content{display:none}.tab-content.active{display:block}
+.map-container{padding:8px 12px}
+.map-wrapper{background:var(--wms-surface);border-radius:var(--wms-radius);box-shadow:var(--wms-shadow);overflow:hidden;position:relative}
+.map-wrapper svg.factory-svg{width:100%;height:auto;display:block}
+.map-legend{display:flex;gap:12px;padding:6px 12px;font-size:10px;color:var(--wms-text-sec);border-top:1px solid var(--wms-border);flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:4px}
+.legend-dot{width:8px;height:8px;border-radius:50%}
+.map-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px 12px}
+.stat-card{background:var(--wms-surface);border-radius:10px;padding:10px 8px;box-shadow:var(--wms-shadow);text-align:center}
+.stat-value{font-size:22px;font-weight:700;color:var(--wms-header);line-height:1}
+.stat-label{font-size:10px;color:var(--wms-text-sec);margin-top:3px}
+.v-marker{cursor:pointer}
+.v-marker .pulse-ring{animation:markerPulse 2s infinite}
+.v-marker.parking .pulse-ring{animation:none;opacity:.1}
+@keyframes markerPulse{0%,100%{r:18;opacity:.2}50%{r:24;opacity:.08}}
+.vehicle-popup{position:absolute;background:var(--wms-surface);border-radius:10px;padding:10px 14px;box-shadow:0 4px 20px rgba(0,0,0,.18);font-size:12px;pointer-events:none;opacity:0;transition:opacity .15s;z-index:50;min-width:170px;border:1px solid var(--wms-border)}
+.vehicle-popup.show{opacity:1}
+.vp-plate{font-weight:600;font-size:14px}
+.vp-model{color:var(--wms-text-sec);margin-top:1px;font-size:11px}
+.vp-status{margin-top:6px;display:flex;align-items:center;gap:4px;font-size:11px}
+.vp-extra{margin-top:3px;font-size:10px;color:var(--wms-text-sec)}
+.vehicles-list{padding:8px 12px;display:flex;flex-direction:column;gap:6px}
+.vehicle-card{background:var(--wms-surface);border-radius:var(--wms-radius);padding:12px 14px;box-shadow:var(--wms-shadow);display:flex;align-items:center;gap:10px}
+.v-icon{width:36px;height:36px;border-radius:8px;background:var(--wms-bg);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.v-icon svg{width:20px;height:20px}
+.v-info{flex:1;min-width:0}
+.v-plate{font-weight:600;font-size:13px}
+.v-model{font-size:11px;color:var(--wms-text-sec);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v-meta{display:flex;gap:10px;margin-top:3px;font-size:10px;color:var(--wms-text-sec)}
+.v-badge{padding:3px 8px;border-radius:6px;font-size:10px;font-weight:600;flex-shrink:0}
+.v-badge.moving{background:#e8f5e9;color:var(--wms-success)}
+.v-badge.parking{background:#fff3e0;color:var(--wms-warning)}
+.v-badge.no_data{background:#fce4ec;color:var(--wms-danger)}
+.v-badge.off_site{background:#e3e8f0;color:#5b7095}
+.trips-header{padding:20px 16px 12px;text-align:center}
+.shift-label{font-size:11px;color:var(--wms-text-sec);text-transform:uppercase;letter-spacing:.06em;font-weight:500}
+.trip-count{font-size:52px;font-weight:700;color:var(--wms-header);line-height:1.1}
+.trip-unit{font-size:13px;color:var(--wms-text-sec)}
+.trips-routes{padding:0 12px 12px;display:flex;flex-direction:column;gap:6px}
+.route-card{background:var(--wms-surface);border-radius:var(--wms-radius);padding:12px 14px;box-shadow:var(--wms-shadow)}
+.route-name{font-weight:600;font-size:13px}
+.route-bar{height:5px;background:var(--wms-bg);border-radius:3px;margin-top:6px;overflow:hidden}
+.route-bar-fill{height:100%;background:var(--wms-accent);border-radius:3px;transition:width .8s ease}
+.route-meta{display:flex;justify-content:space-between;margin-top:4px;font-size:11px;color:var(--wms-text-sec)}
+.nav-bar{position:fixed;bottom:0;left:0;right:0;background:var(--wms-surface);border-top:1px solid var(--wms-border);display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom,0);box-shadow:0 -2px 8px rgba(0,0,0,.06)}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;padding:6px 0 5px;border:none;background:transparent;color:var(--wms-text-sec);font-size:10px;font-family:inherit;cursor:pointer;transition:color .2s;gap:1px}
+.nav-btn.active{color:var(--wms-header)}
+.nav-btn svg{width:20px;height:20px}
+.nav-btn span{font-weight:500}
+.error-banner{background:#fff3e0;color:#7a5a00;padding:8px 12px;font-size:12px;text-align:center;display:none}
+.error-banner.show{display:block}
 </style>
 </head>
 <body>
@@ -272,15 +105,16 @@ body {
   <div class="header-right">
     <span class="update-time" id="updateTime">--:--</span>
     <div class="mode-toggle">
-      <button id="modeDemo" class="active" onclick="setMode('demo')">Demo</button>
-      <button id="modeLive" onclick="setMode('live')">Live</button>
+      <button id="modeLive" class="active" onclick="setMode('live')">Live</button>
+      <button id="modeDemo" onclick="setMode('demo')">Demo</button>
     </div>
-    <div class="status-dot" id="statusDot"></div>
+    <div class="status-dot loading" id="statusDot"></div>
   </div>
 </div>
 
+<div class="error-banner" id="errorBanner"></div>
+
 <div class="main">
-  <!-- MAP TAB -->
   <div class="tab-content active" id="tabMap">
     <div class="map-container">
       <div class="map-wrapper" id="mapWrapper">
@@ -288,33 +122,32 @@ body {
           <div class="vp-plate" id="vpPlate"></div>
           <div class="vp-model" id="vpModel"></div>
           <div class="vp-status" id="vpStatus"></div>
-          <div class="vp-zone" id="vpZone"></div>
+          <div class="vp-extra" id="vpExtra"></div>
         </div>
         <div class="map-legend">
           <div class="legend-item"><div class="legend-dot" style="background:var(--wms-success)"></div>В движении</div>
           <div class="legend-item"><div class="legend-dot" style="background:var(--wms-warning)"></div>Стоянка</div>
           <div class="legend-item"><div class="legend-dot" style="background:var(--wms-danger)"></div>Нет связи</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#5b7095"></div>Вне территории</div>
         </div>
       </div>
     </div>
     <div class="map-stats">
-      <div class="stat-card"><div class="stat-value" id="statTotal">0</div><div class="stat-label">Всего ТС</div></div>
-      <div class="stat-card"><div class="stat-value" id="statMoving">0</div><div class="stat-label">В пути</div></div>
-      <div class="stat-card"><div class="stat-value" id="statParking">0</div><div class="stat-label">Стоянка</div></div>
-      <div class="stat-card"><div class="stat-value" id="statTrips">0</div><div class="stat-label">Рейсов</div></div>
+      <div class="stat-card"><div class="stat-value" id="statTotal">-</div><div class="stat-label">Всего ТС</div></div>
+      <div class="stat-card"><div class="stat-value" id="statMoving">-</div><div class="stat-label">В пути</div></div>
+      <div class="stat-card"><div class="stat-value" id="statParking">-</div><div class="stat-label">Стоянка</div></div>
+      <div class="stat-card"><div class="stat-value" id="statOnSite">-</div><div class="stat-label">На заводе</div></div>
     </div>
   </div>
 
-  <!-- VEHICLES TAB -->
   <div class="tab-content" id="tabVehicles">
     <div class="vehicles-list" id="vehiclesList"></div>
   </div>
 
-  <!-- TRIPS TAB -->
   <div class="tab-content" id="tabTrips">
     <div class="trips-header">
       <div class="shift-label">Текущая смена</div>
-      <div class="trip-count" id="tripTotal">0</div>
+      <div class="trip-count" id="tripTotal">-</div>
       <div class="trip-unit">рейсов выполнено</div>
     </div>
     <div class="trips-routes" id="tripsRoutes"></div>
@@ -322,299 +155,229 @@ body {
 </div>
 
 <nav class="nav-bar">
-  <button class="nav-btn active" data-tab="tabMap" onclick="switchTab('tabMap',this)">
+  <button class="nav-btn active" onclick="switchTab('tabMap',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
     <span>Карта</span>
   </button>
-  <button class="nav-btn" data-tab="tabVehicles" onclick="switchTab('tabVehicles',this)">
+  <button class="nav-btn" onclick="switchTab('tabVehicles',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
     <span>Машины</span>
   </button>
-  <button class="nav-btn" data-tab="tabTrips" onclick="switchTab('tabTrips',this)">
+  <button class="nav-btn" onclick="switchTab('tabTrips',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
     <span>Рейсы</span>
   </button>
 </nav>
 
 <script>
+// ========== CONFIG ==========
+const API_BASE = '/api/agr';
+const POLL_INTERVAL = 45000;
+const INERTIA = 0.6;
+const ANIM_MS = 100;
+
 // ========== GEO-REFERENCE ==========
-// ZTZ factory approximate geo bounds (from satellite imagery)
+// Real vehicle coordinates: lat 56.421..56.431, lng 38.144..38.153
 // SVG viewBox: 0 0 806 1344
-// Top-left corner (NW):  lat 56.2895, lon 38.1720
-// Bottom-right (SE):     lat 56.2830, lon 38.1810
+// Map these to the factory site boundary in SVG (roughly x:190..620, y:20..1290)
 const GEO = {
-  latN: 56.2895, latS: 56.2830,
-  lonW: 38.1720, lonE: 38.1810,
-  svgW: 806, svgH: 1344,
+  latN: 56.4320,  // top of SVG
+  latS: 56.4195,  // bottom of SVG
+  lonW: 38.1410,  // left of SVG
+  lonE: 38.1560,  // right of SVG
+  svgW: 806,
+  svgH: 1344,
 };
+
 function geoToSvg(lat, lon) {
   const x = ((lon - GEO.lonW) / (GEO.lonE - GEO.lonW)) * GEO.svgW;
   const y = ((GEO.latN - lat) / (GEO.latN - GEO.latS)) * GEO.svgH;
-  return [Math.round(x * 10) / 10, Math.round(y * 10) / 10];
+  return [x, y];
 }
 
-// ========== ZONES on SVG (approximate SVG coords) ==========
-const ZONES = {
-  'КПП':        { cx: 200, cy: 1280 },
-  'ТЭСЦ':      { cx: 480, cy: 140 },
-  'Склад труб': { cx: 370, cy: 400 },
-  'Весовая':    { cx: 490, cy: 970 },
-  'Склад ГП':  { cx: 640, cy: 830 },
-  'Цех':       { cx: 340, cy: 830 },
-  'Погрузка':  { cx: 350, cy: 1170 },
-};
+function isOnSite(lat, lon) {
+  return lat > 56.419 && lat < 56.434 && lon > 38.140 && lon < 38.158;
+}
 
-// Waypoint paths between zones (SVG coords along roads from the real map)
-const ROAD_PATHS = {
-  'КПП→Склад труб': [[200,1280],[236,1240],[205,1102],[205,900],[205,716],[205,483],[337,478],[344,400]],
-  'Склад труб→ТЭСЦ': [[370,400],[380,350],[400,285],[482,230],[480,140]],
-  'ТЭСЦ→Весовая':  [[480,140],[482,230],[482,714],[484,716],[440,800],[440,900],[490,970]],
-  'Весовая→КПП':   [[490,970],[440,1000],[343,1099],[343,1100],[236,1240],[200,1280]],
-  'Склад ГП→КПП':  [[640,830],[591,901],[563,902],[343,902],[343,1099],[236,1240],[200,1280]],
-  'КПП→Погрузка':  [[200,1280],[236,1240],[350,1238],[350,1170]],
-  'ТЭСЦ→Склад ГП': [[480,140],[482,230],[532,264],[532,903],[591,901],[640,830]],
-  'Погрузка→КПП':  [[350,1170],[350,1238],[236,1240],[200,1280]],
-  'Склад труб→Весовая': [[370,400],[400,450],[400,483],[594,483],[595,477],[591,716],[591,901],[563,902],[490,970]],
-};
-const ROUTE_NAMES = Object.keys(ROAD_PATHS);
-
-// ========== MOCK VEHICLES (expanded to 12) ==========
-const MOCK_VEHICLES = [
-  { id:'d1',  plate:'А 123 МО 50', model:'КАМАЗ 65115',   state:'moving',  speed:18, distance:12.4 },
-  { id:'d2',  plate:'В 456 КА 50', model:'МАЗ 6430',      state:'moving',  speed:22, distance:8.7  },
-  { id:'d3',  plate:'Е 789 ТР 50', model:'КАМАЗ 53215',   state:'parking', speed:0,  distance:15.1 },
-  { id:'d4',  plate:'К 012 ЗТ 50', model:'Volvo FH16',    state:'moving',  speed:15, distance:22.3 },
-  { id:'d5',  plate:'М 345 РО 50', model:'Scania R440',   state:'parking', speed:0,  distance:5.6  },
-  { id:'d6',  plate:'Н 678 АП 50', model:'КАМАЗ 6520',    state:'moving',  speed:20, distance:18.9 },
-  { id:'d7',  plate:'О 901 ВК 50', model:'MAN TGS',       state:'moving',  speed:12, distance:9.2  },
-  { id:'d8',  plate:'Р 234 ЕМ 50', model:'DAF XF',        state:'parking', speed:0,  distance:3.1  },
-  { id:'d9',  plate:'С 567 НТ 50', model:'КАМАЗ 65201',   state:'moving',  speed:25, distance:31.4 },
-  { id:'d10', plate:'Т 890 ОР 50', model:'Iveco Stralis', state:'parking', speed:0,  distance:7.8  },
-  { id:'d11', plate:'У 111 ПЛ 50', model:'МАЗ 5440',      state:'moving',  speed:16, distance:14.5 },
-  { id:'d12', plate:'Х 222 СК 50', model:'КАМАЗ 54901',   state:'moving',  speed:19, distance:20.1 },
-];
-
-let mode = 'demo';
+// ========== STATE ==========
+let mode = 'live';
 let vehicles = [];
 let svgEl = null;
 let markersGroup = null;
-let animRunning = false;
 let pollTimer = null;
+let animTimer = null;
 
 // ========== INIT ==========
 async function init() {
   await loadSvgMap();
-  loadDemo();
+  fetchData();
 }
 
 async function loadSvgMap() {
+  const wrapper = document.getElementById('mapWrapper');
+  const popup = wrapper.querySelector('.vehicle-popup');
+  const legend = wrapper.querySelector('.map-legend');
   try {
     const resp = await fetch('ztz-map.svg');
     const text = await resp.text();
-    const wrapper = document.getElementById('mapWrapper');
-    const legendEl = wrapper.querySelector('.map-legend');
-    const popupEl = wrapper.querySelector('.vehicle-popup');
     const div = document.createElement('div');
     div.innerHTML = text;
     svgEl = div.querySelector('svg');
     svgEl.classList.add('factory-svg');
-    // add markers group
-    markersGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    markersGroup.id = 'vehicleMarkers';
-    svgEl.appendChild(markersGroup);
-    wrapper.insertBefore(svgEl, popupEl);
   } catch(e) {
-    console.error('SVG load failed, using inline fallback', e);
-    createFallbackMap();
+    svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svgEl.setAttribute('viewBox', '0 0 806 1344');
+    svgEl.classList.add('factory-svg');
+    svgEl.innerHTML = '<rect width="806" height="1344" fill="#e8e4df"/><text x="403" y="672" text-anchor="middle" font-size="18" fill="#999">Карта загружается...</text>';
   }
-}
-
-function createFallbackMap() {
-  const wrapper = document.getElementById('mapWrapper');
-  const popupEl = wrapper.querySelector('.vehicle-popup');
-  svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svgEl.setAttribute('viewBox', '0 0 806 1344');
-  svgEl.classList.add('factory-svg');
-  svgEl.innerHTML = `<rect width="806" height="1344" fill="#e8e4df"/>
-    <text x="403" y="672" text-anchor="middle" font-size="20" fill="#999">Карта не загружена</text>`;
   markersGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   markersGroup.id = 'vehicleMarkers';
   svgEl.appendChild(markersGroup);
-  wrapper.insertBefore(svgEl, popupEl);
+  wrapper.insertBefore(svgEl, popup);
 }
 
 // ========== MODE ==========
 function setMode(m) {
   mode = m;
-  document.getElementById('modeDemo').classList.toggle('active', m === 'demo');
-  document.getElementById('modeLive').classList.toggle('active', m === 'live');
+  document.getElementById('modeLive').classList.toggle('active', m==='live');
+  document.getElementById('modeDemo').classList.toggle('active', m==='demo');
   clearTimeout(pollTimer);
-  if (m === 'live') fetchLive();
-  else loadDemo();
+  fetchData();
 }
 
-function switchTab(tabId, btn) {
+function switchTab(id, btn) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-  document.getElementById(tabId).classList.add('active');
+  document.getElementById(id).classList.add('active');
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
 }
 
-// ========== DEMO DATA ==========
-function loadDemo() {
-  vehicles = MOCK_VEHICLES.map((v, i) => {
-    const routeName = ROUTE_NAMES[i % ROUTE_NAMES.length];
-    const path = ROAD_PATHS[routeName];
-    const startPt = path[0];
+// ========== FETCH ==========
+async function fetchData() {
+  const dot = document.getElementById('statusDot');
+  const banner = document.getElementById('errorBanner');
+  dot.className = 'status-dot loading';
+
+  if (mode === 'demo') {
+    loadDemoData();
+    dot.className = 'status-dot';
+    banner.classList.remove('show');
+    return;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const todayStart = now - (now % 86400) - 3 * 3600; // midnight MSK approx
+  const tsStart = Math.max(todayStart, now - 86400);
+
+  try {
+    const res = await fetch(`${API_BASE}?report=route/detail&ts_start=${tsStart}&ts_stop=${now}&offset_utc=3&with_track=true`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    if (!Array.isArray(data) || data.length === 0) {
+      dot.className = 'status-dot stale';
+      banner.textContent = 'Нет данных за сегодня';
+      banner.classList.add('show');
+      if (!vehicles.length) loadDemoData();
+      pollTimer = setTimeout(fetchData, POLL_INTERVAL);
+      return;
+    }
+
+    processApiData(data);
+    dot.className = 'status-dot';
+    banner.classList.remove('show');
+    updateTime();
+  } catch(e) {
+    console.error('API error:', e);
+    dot.className = 'status-dot error';
+    banner.textContent = 'Ошибка API: ' + e.message;
+    banner.classList.add('show');
+    if (!vehicles.length) loadDemoData();
+  }
+
+  pollTimer = setTimeout(fetchData, POLL_INTERVAL);
+}
+
+function processApiData(data) {
+  const oldMap = new Map(vehicles.map(v => [v.id, v]));
+
+  vehicles = data.map(d => {
+    const track = Array.isArray(d.track) ? d.track : [];
+    const events = Array.isArray(d.events) ? d.events : [];
+    const lastPoint = track.length > 0 ? track[track.length - 1] : null;
+    const lastEvent = events.length > 0 ? events[events.length - 1] : {};
+    const lat = lastPoint ? lastPoint.lat : 0;
+    const lon = lastPoint ? lastPoint.lng : 0;
+    const onSite = isOnSite(lat, lon);
+    const [sx, sy] = onSite ? geoToSvg(lat, lon) : [0, 0];
+    const old = oldMap.get(d.device_id);
+
+    let state = lastEvent.event_type || 'no_data';
+    if (state !== 'moving' && state !== 'parking') state = 'no_data';
+    if (!lastPoint) state = 'no_data';
+
+    const recentTrail = track.slice(-10).filter(p => isOnSite(p.lat, p.lng))
+      .map(p => geoToSvg(p.lat, p.lng));
+
     return {
-      ...v,
-      x: startPt[0], y: startPt[1],
-      vx: 0, vy: 0,             // velocity for inertia
-      heading: 0,                // direction in radians
-      trail: [startPt.slice()],  // trail of last N positions
-      routeName,
-      path: path.map(p => p.slice()),
-      wpIdx: 0,
-      progress: 0,
-      zoneName: routeName.split('→')[0],
+      id: d.device_id,
+      plate: d.state_number || '???',
+      model: [d.vehicle_manufacturer, d.vehicle_model].filter(Boolean).join(' ') || '—',
+      state,
+      speed: lastPoint ? (lastPoint.speed || 0) : 0,
+      heading: lastPoint ? ((lastPoint.az || 0) * Math.PI / 180) : 0,
+      distance: ((d.distance || 0) / 1000).toFixed(1),
+      lat, lon,
+      x: old ? old.x : sx,
+      y: old ? old.y : sy,
+      targetX: sx,
+      targetY: sy,
+      vx: old ? old.vx : 0,
+      vy: old ? old.vy : 0,
+      onSite,
+      trackPoints: track.length,
+      trail: recentTrail,
+      lastTime: lastPoint ? lastPoint.packet_time : 0,
+      eventsCount: events.length,
     };
   });
+
   updateStats();
+  renderMarkers();
   renderVehiclesList();
   renderTrips();
-  renderMarkers();
-  updateTime();
-  document.getElementById('statusDot').className = 'status-dot';
-  if (!animRunning) { animRunning = true; animate(); }
+  startAnimation();
 }
 
-// ========== LIVE DATA ==========
-async function fetchLive() {
-  const dot = document.getElementById('statusDot');
-  try {
-    const ts1 = new Date(Date.now() - 86400000).toISOString().slice(0,10);
-    const ts2 = new Date().toISOString().slice(0,10);
-    const res = await fetch(`/api/agr?report=route/summary&ts_start=${ts1}&ts_stop=${ts2}&offset_utc=3`);
-    if (!res.ok) throw new Error(res.status);
-    const data = await res.json();
-    if (Array.isArray(data) && data.length > 0) {
-      vehicles = data.map((d, i) => {
-        const routeName = ROUTE_NAMES[i % ROUTE_NAMES.length];
-        const path = ROAD_PATHS[routeName];
-        const pos = path[0];
-        return {
-          id: d.device_id || 'd'+i,
-          plate: d.state_number || '???',
-          model: [d.vehicle_manufacturer, d.vehicle_model].filter(Boolean).join(' ') || '—',
-          state: (d.moving_time > 0 && d.parking_time < d.moving_time) ? 'moving' : 'parking',
-          speed: d.speed_max || 0,
-          distance: ((d.race||0)/1000).toFixed(1),
-          x: pos[0], y: pos[1],
-          vx: 0, vy: 0,
-          heading: 0,
-          trail: [pos.slice()],
-          routeName,
-          path: path.map(p => p.slice()),
-          wpIdx: 0,
-          zoneName: routeName.split('→')[0],
-        };
-      });
-      dot.className = 'status-dot';
-    } else {
-      dot.className = 'status-dot stale';
-      if (!vehicles.length) loadDemo();
-    }
-    updateStats();
-    renderVehiclesList();
-    renderMarkers();
-    updateTime();
-    if (!animRunning) { animRunning = true; animate(); }
-  } catch(e) {
-    dot.className = 'status-dot error';
-    if (!vehicles.length) loadDemo();
-  }
-  pollTimer = setTimeout(fetchLive, 45000);
+// ========== ANIMATION (smooth interpolation + inertia) ==========
+function startAnimation() {
+  if (animTimer) return;
+  tick();
 }
 
-// ========== ANIMATION with INERTIA ==========
-const ANIM_INTERVAL = 80;  // ms between frames
-const SPEED_PX = 4;        // base px per frame
-const INERTIA = 0.7;       // velocity smoothing (0=instant, 1=no change)
-const TRAIL_LEN = 8;       // trail points to keep
-
-function animate() {
+function tick() {
+  let anyMoving = false;
   vehicles.forEach(v => {
-    if (v.state !== 'moving') {
-      // parked vehicles occasionally start moving
-      if (Math.random() < 0.003) {
-        v.state = 'moving';
-        v.wpIdx = 0;
-        const newRoute = ROUTE_NAMES[Math.floor(Math.random() * ROUTE_NAMES.length)];
-        v.routeName = newRoute;
-        v.path = ROAD_PATHS[newRoute].map(p => p.slice());
-        const start = v.path[0];
-        v.x = start[0]; v.y = start[1];
-        v.trail = [start.slice()];
-      }
-      return;
-    }
+    if (!v.onSite) return;
+    const dx = v.targetX - v.x;
+    const dy = v.targetY - v.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < 0.5) return;
+    anyMoving = true;
 
-    if (v.wpIdx >= v.path.length) {
-      // arrived at destination
-      v.state = 'parking';
-      v.speed = 0;
-      v.vx = 0; v.vy = 0;
-      v.zoneName = v.routeName.split('→')[1] || v.routeName.split('→')[0];
-      return;
-    }
+    const targetVx = dx * 0.08;
+    const targetVy = dy * 0.08;
+    v.vx = v.vx * INERTIA + targetVx * (1 - INERTIA);
+    v.vy = v.vy * INERTIA + targetVy * (1 - INERTIA);
+    v.x += v.vx;
+    v.y += v.vy;
 
-    const [tx, ty] = v.path[v.wpIdx];
-    const dx = tx - v.x;
-    const dy = ty - v.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    const speed = SPEED_PX + Math.random() * 2;
-
-    if (dist < speed) {
-      v.x = tx;
-      v.y = ty;
-      v.wpIdx++;
-    } else {
-      const targetVx = (dx / dist) * speed;
-      const targetVy = (dy / dist) * speed;
-      v.vx = v.vx * INERTIA + targetVx * (1 - INERTIA);
-      v.vy = v.vy * INERTIA + targetVy * (1 - INERTIA);
-      v.x += v.vx;
-      v.y += v.vy;
-      v.heading = Math.atan2(v.vy, v.vx);
-    }
-
-    v.speed = Math.floor(8 + Math.random() * 22);
-
-    // trail
-    v.trail.push([v.x, v.y]);
-    if (v.trail.length > TRAIL_LEN) v.trail.shift();
-
-    // update marker position
-    const marker = document.getElementById('marker-' + v.id);
-    if (marker) {
-      marker.setAttribute('transform', `translate(${v.x.toFixed(1)},${v.y.toFixed(1)})`);
-      // update trail path
-      const trailEl = marker.querySelector('.trail');
-      if (trailEl && v.trail.length > 1) {
-        const pts = v.trail.map((p, i) => `${i === 0 ? 'M' : 'L'}${(p[0]-v.x).toFixed(1)},${(p[1]-v.y).toFixed(1)}`).join(' ');
-        trailEl.setAttribute('d', pts);
-      }
-    }
+    const marker = document.getElementById('m-' + v.id);
+    if (marker) marker.setAttribute('transform', `translate(${v.x.toFixed(1)},${v.y.toFixed(1)})`);
   });
 
-  // periodic UI updates
-  if (Math.random() < 0.05) {
-    updateStats();
-    renderVehiclesList();
-  }
-
-  setTimeout(() => requestAnimationFrame(animate), ANIM_INTERVAL);
+  animTimer = setTimeout(() => { animTimer = null; if (anyMoving) tick(); }, ANIM_MS);
 }
 
 // ========== RENDER MARKERS ==========
@@ -622,107 +385,119 @@ function renderMarkers() {
   if (!markersGroup) return;
   markersGroup.innerHTML = '';
   vehicles.forEach(v => {
-    const color = v.state === 'moving' ? '#4a7c59' : v.state === 'parking' ? '#c4943a' : '#a94442';
+    if (!v.onSite) return;
+    const colors = { moving: '#4a7c59', parking: '#c4943a', no_data: '#a94442' };
+    const c = colors[v.state] || colors.no_data;
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    g.id = 'marker-' + v.id;
+    g.id = 'm-' + v.id;
     g.classList.add('v-marker');
     if (v.state !== 'moving') g.classList.add('parking');
-    g.setAttribute('transform', `translate(${v.x},${v.y})`);
+    g.setAttribute('transform', `translate(${v.x.toFixed(1)},${v.y.toFixed(1)})`);
+
+    // trail
+    let trailD = '';
+    if (v.trail.length > 1) {
+      trailD = v.trail.map((p,i) => `${i?'L':'M'}${(p[0]-v.x).toFixed(1)},${(p[1]-v.y).toFixed(1)}`).join(' ');
+    }
 
     g.innerHTML = `
-      <path class="trail" d="" stroke="${color}"/>
-      <circle class="outer" r="16" fill="${color}" opacity="0.25"/>
-      <circle r="8" fill="${color}" stroke="#fff" stroke-width="2"/>
-      <polygon points="0,-5 4,3 -4,3" fill="#fff" opacity="0.9" transform="rotate(${(v.heading||0)*180/Math.PI})"/>
+      <path d="${trailD}" fill="none" stroke="${c}" stroke-width="2" opacity=".3" stroke-linecap="round"/>
+      <circle class="pulse-ring" r="18" fill="${c}" opacity=".2"/>
+      <circle r="9" fill="${c}" stroke="#fff" stroke-width="2.5"/>
+      <polygon points="0,-5 3.5,2 -3.5,2" fill="#fff" opacity=".85" transform="rotate(${(v.heading*180/Math.PI).toFixed(0)})"/>
     `;
-
-    g.addEventListener('pointerenter', e => showPopup(v, e));
+    g.addEventListener('pointerenter', e => showPopup(v));
     g.addEventListener('pointerleave', hidePopup);
     markersGroup.appendChild(g);
   });
 }
 
-function showPopup(v, e) {
+// ========== POPUP ==========
+function showPopup(v) {
   const popup = document.getElementById('vehiclePopup');
   document.getElementById('vpPlate').textContent = v.plate;
   document.getElementById('vpModel').textContent = v.model;
-  const stText = v.state === 'moving' ? 'В движении' : 'Стоянка';
-  const stColor = v.state === 'moving' ? 'var(--wms-success)' : 'var(--wms-warning)';
+  const stLabel = {moving:'В движении', parking:'Стоянка', no_data:'Нет данных'}[v.state] || v.state;
+  const stColor = {moving:'var(--wms-success)', parking:'var(--wms-warning)', no_data:'var(--wms-danger)'}[v.state];
   document.getElementById('vpStatus').innerHTML =
-    `<span style="width:6px;height:6px;border-radius:50%;background:${stColor};display:inline-block"></span> ${stText}` +
-    (v.speed > 0 ? ` · ${v.speed} км/ч` : '');
-  document.getElementById('vpZone').textContent = v.zoneName ? `Зона: ${v.zoneName}` : '';
+    `<span style="width:6px;height:6px;border-radius:50%;background:${stColor};display:inline-block"></span> ${stLabel}` +
+    (v.speed > 0 ? ` &middot; ${v.speed} км/ч` : '');
+  const ago = v.lastTime ? Math.round((Date.now()/1000 - v.lastTime)/60) : 0;
+  document.getElementById('vpExtra').textContent =
+    `${v.distance} км` + (ago > 0 ? ` · ${ago} мин назад` : '') + ` · ${v.trackPoints} точек`;
 
   const rect = document.getElementById('mapWrapper').getBoundingClientRect();
   const svgRect = svgEl.getBoundingClientRect();
-  const scaleX = svgRect.width / GEO.svgW;
-  const scaleY = svgRect.height / GEO.svgH;
-  const px = v.x * scaleX + (svgRect.left - rect.left);
-  const py = v.y * scaleY + (svgRect.top - rect.top);
-  popup.style.left = Math.min(Math.max(px + 15, 5), rect.width - 175) + 'px';
-  popup.style.top = Math.max(py - 50, 5) + 'px';
+  const sx = svgRect.width / GEO.svgW;
+  const sy = svgRect.height / GEO.svgH;
+  const px = v.x * sx + (svgRect.left - rect.left);
+  const py = v.y * sy + (svgRect.top - rect.top);
+  popup.style.left = Math.min(Math.max(px + 18, 5), rect.width - 185) + 'px';
+  popup.style.top = Math.max(py - 55, 5) + 'px';
   popup.classList.add('show');
 }
-
 function hidePopup() { document.getElementById('vehiclePopup').classList.remove('show'); }
 
 // ========== STATS ==========
 function updateStats() {
   const moving = vehicles.filter(v => v.state === 'moving').length;
-  const parking = vehicles.filter(v => v.state !== 'moving').length;
+  const parking = vehicles.filter(v => v.state === 'parking').length;
+  const onSite = vehicles.filter(v => v.onSite).length;
   document.getElementById('statTotal').textContent = vehicles.length;
   document.getElementById('statMoving').textContent = moving;
   document.getElementById('statParking').textContent = parking;
-  document.getElementById('statTrips').textContent = Math.floor(vehicles.length * 3.2);
+  document.getElementById('statOnSite').textContent = onSite;
 }
 
 function updateTime() {
-  const now = new Date();
   document.getElementById('updateTime').textContent =
-    now.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    new Date().toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
 }
 setInterval(updateTime, 1000);
 
 // ========== VEHICLES LIST ==========
 function renderVehiclesList() {
-  const list = document.getElementById('vehiclesList');
-  list.innerHTML = vehicles.map(v => `
-    <div class="vehicle-card">
-      <div class="v-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="${v.state==='moving'?'var(--wms-success)':'var(--wms-warning)'}" stroke-width="2">
-          <rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/>
-          <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
-        </svg>
-      </div>
+  document.getElementById('vehiclesList').innerHTML = vehicles
+    .sort((a,b) => (a.state==='moving'?0:1) - (b.state==='moving'?0:1))
+    .map(v => {
+    const stateClass = !v.onSite ? 'off_site' : v.state;
+    const stateLabel = !v.onSite ? 'Вне зав.' : v.state==='moving' ? 'В пути' : v.state==='parking' ? 'Стоит' : 'Нет связи';
+    const sColor = v.state==='moving' ? 'var(--wms-success)' : 'var(--wms-warning)';
+    const ago = v.lastTime ? Math.round((Date.now()/1000 - v.lastTime)/60) : null;
+    return `<div class="vehicle-card">
+      <div class="v-icon"><svg viewBox="0 0 24 24" fill="none" stroke="${sColor}" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div>
       <div class="v-info">
         <div class="v-plate">${v.plate}</div>
         <div class="v-model">${v.model}</div>
         <div class="v-meta">
-          <span>${v.speed} км/ч</span>
+          ${v.speed > 0 ? `<span>${v.speed} км/ч</span>` : ''}
           <span>${v.distance} км</span>
-          <span>${v.zoneName || '—'}</span>
+          ${ago !== null ? `<span>${ago} мин</span>` : ''}
         </div>
       </div>
-      <div class="v-badge ${v.state}">${v.state==='moving'?'В пути':'Стоит'}</div>
-    </div>
-  `).join('');
+      <div class="v-badge ${stateClass}">${stateLabel}</div>
+    </div>`;
+  }).join('');
 }
 
 // ========== TRIPS ==========
-const TRIP_ROUTES = [
-  { name: 'Склад труб → КПП', count: 12, max: 20 },
-  { name: 'КПП → Склад труб', count: 11, max: 20 },
-  { name: 'ТЭСЦ → Весовая', count: 8, max: 15 },
-  { name: 'Весовая → КПП', count: 7, max: 15 },
-  { name: 'Склад ГП → КПП', count: 6, max: 12 },
-  { name: 'ТЭСЦ → Склад ГП', count: 5, max: 10 },
-  { name: 'КПП → Погрузка', count: 4, max: 8 },
-];
-
 function renderTrips() {
-  const total = TRIP_ROUTES.reduce((s,r) => s + r.count, 0);
-  document.getElementById('tripTotal').textContent = total;
-  document.getElementById('tripsRoutes').innerHTML = TRIP_ROUTES.map(r => `
+  const evTotal = vehicles.reduce((s,v) => s + v.eventsCount, 0);
+  const movingEvents = vehicles.reduce((s,v) => s + (v.state==='moving' ? v.eventsCount : 0), 0);
+  const tripEstimate = Math.round(evTotal / 3);
+  document.getElementById('tripTotal').textContent = tripEstimate;
+
+  const routes = vehicles
+    .filter(v => v.eventsCount > 2)
+    .sort((a,b) => b.eventsCount - a.eventsCount)
+    .slice(0, 8)
+    .map(v => ({
+      name: `${v.plate} (${v.model})`,
+      count: Math.round(v.eventsCount / 2),
+      max: Math.round(v.eventsCount / 2) + 5,
+    }));
+
+  document.getElementById('tripsRoutes').innerHTML = routes.map(r => `
     <div class="route-card">
       <div class="route-name">${r.name}</div>
       <div class="route-bar"><div class="route-bar-fill" style="width:${(r.count/r.max*100).toFixed(0)}%"></div></div>
@@ -731,7 +506,49 @@ function renderTrips() {
   `).join('');
 }
 
-// ========== START ==========
+// ========== DEMO DATA ==========
+function loadDemoData() {
+  const demoCoords = [
+    [56.4290, 38.1473], [56.4255, 38.1480], [56.4270, 38.1510],
+    [56.4230, 38.1490], [56.4275, 38.1450], [56.4260, 38.1520],
+    [56.4245, 38.1465], [56.4285, 38.1500], [56.4220, 38.1530],
+    [56.4265, 38.1440], [56.4235, 38.1505], [56.4250, 38.1475],
+  ];
+  const names = [
+    ['А147ВН790','МАЗ 5550'],['Н424ВС250','GAC G8'],['Е629ММ150','КАКМАЗ 65115'],
+    ['Н658ТТ750','МАЗ 5550'],['А987РО90','МАЗ 5440'],['Н479ВС250','GAC G8'],
+    ['К329ХХ150','МАЗ 5440'],['Т649УО150','МАЗ 5440'],['Т648УО150','МАЗ 5440'],
+    ['В989УМ750','МАЗ 5550'],['Н083ЕР190','КАМАЗ 65115'],['С176УХ150','КАМАЗ 65115'],
+  ];
+  vehicles = demoCoords.map(([lat,lon], i) => {
+    const [sx,sy] = geoToSvg(lat, lon);
+    const st = i % 3 === 0 ? 'moving' : 'parking';
+    return {
+      id: 'demo'+i, plate: names[i][0], model: names[i][1],
+      state: st, speed: st==='moving' ? 10+Math.floor(Math.random()*15) : 0,
+      heading: Math.random()*Math.PI*2, distance: (5+Math.random()*30).toFixed(1),
+      lat, lon, x: sx, y: sy, targetX: sx, targetY: sy,
+      vx: 0, vy: 0, onSite: true, trackPoints: 100+i*50,
+      trail: [], lastTime: Date.now()/1000 - i*60, eventsCount: 5+i*2,
+    };
+  });
+  updateStats();
+  renderMarkers();
+  renderVehiclesList();
+  renderTrips();
+  // animate demo
+  setInterval(() => {
+    vehicles.forEach(v => {
+      if (v.state !== 'moving') { if (Math.random()<.01) v.state='moving'; return; }
+      v.targetX += (Math.random()-.5) * 20;
+      v.targetY += (Math.random()-.5) * 20;
+      v.targetX = Math.max(100, Math.min(700, v.targetX));
+      v.targetY = Math.max(50, Math.min(1280, v.targetY));
+    });
+    startAnimation();
+  }, 3000);
+}
+
 init();
 </script>
 </body>

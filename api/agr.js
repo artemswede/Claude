@@ -32,7 +32,8 @@ module.exports = async (req, res) => {
   try {
     const resp = await fetch(url);
     if (!resp.ok) {
-      return res.status(resp.status).json({ error: `AGR returned ${resp.status}` });
+      const text = await resp.text();
+      return res.status(resp.status).json({ error: `AGR ${resp.status}`, detail: text });
     }
     const data = await resp.json();
     cache.set(url, { data, ts: Date.now() });
