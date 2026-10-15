@@ -349,17 +349,22 @@ function processApiData(data) {
     let state = lastEvent.event_type || 'no_data';
     if (state !== 'moving' && state !== 'parking') state = 'no_data';
     if (!lastPoint) state = 'no_data';
+    // If last GPS packet is > 10 min old, don't show as moving
+    const lastPktTime = lastPoint ? (lastPoint.packet_time || 0) : 0;
+    if (state === 'moving' && lastPktTime && (Date.now()/1000 - lastPktTime) > 600) state = 'parking';
 
     const lastEventTime = lastEvent.ts_stop || lastEvent.ts_start || 0;
     const bestTime = Math.max(lastPoint ? (lastPoint.packet_time || 0) : 0, lastEventTime);
 
     const speedKmh = lastPoint ? (lastPoint.speed || 0) : 0;
     const headingRad = lastPoint ? ((lastPoint.az || 0) * Math.PI / 180) : 0;
-    const speedPxPerSec = (speedKmh / 3600) * KM_TO_PX;
 
-    // Dead-reckoning velocity in SVG px/s
-    const drVx = speedPxPerSec * Math.sin(headingRad);
-    const drVy = -speedPxPerSec * Math.cos(headingRad);
+    // Only dead-reckon if GPS packet is fresh (< 5 min old)
+    const pktAge = bestTime ? (Date.now()/1000 - bestTime) : Infinity;
+    const drSpeed = pktAge < 300 ? (speedKmh / 3600) * KM_TO_PX : 0;
+
+    const drVx = drSpeed * Math.sin(headingRad);
+    const drVy = -drSpeed * Math.cos(headingRad);
 
     // Correction: difference between real GPS position and current predicted position
     const nowMs = performance.now();
