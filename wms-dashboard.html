@@ -203,17 +203,23 @@ const KM_TO_PX = (KM_TO_PX_X + KM_TO_PX_Y) / 2; // ~702 px/km
 
 // ========== STOP WAYPOINTS (from GPS clustering) ==========
 const STOP_POINTS = [
-  {x:612.7,y:301},{x:765,y:828.9},{x:677.9,y:883.4},{x:535.3,y:575.3},
-  {x:589.4,y:323.6},{x:620.3,y:281.9},{x:588.2,y:360.2},{x:698,y:947.4},
-  {x:695,y:887.1},{x:616.3,y:355.6},{x:625.3,y:300.2},{x:637.2,y:295.3},
-  {x:571.1,y:406.5},{x:610.5,y:479.1},{x:654,y:299.3},{x:480.4,y:661.1},
-  {x:468.7,y:675.8},{x:307.2,y:895.7},{x:547.2,y:494},{x:415.1,y:780.2},
+  {x:677.9,y:883.6},{x:612.6,y:300.9},{x:764.3,y:828.8},{x:611.5,y:354.4},
+  {x:620,y:282.5},{x:589,y:323.3},{x:530.6,y:580.1},{x:694.8,y:887.7},
+  {x:696.8,y:948.1},{x:557.4,y:356.2},{x:620.8,y:325.7},{x:528.9,y:479.9},
+  {x:617.2,y:245.8},{x:586.5,y:339.5},{x:679.7,y:948.8},{x:422.5,y:496},
+  {x:656.5,y:702.5},{x:663.1,y:204},{x:561.6,y:483.7},{x:789.3,y:950.2},
+  {x:627.2,y:264.4},{x:318.6,y:672.4},{x:752.8,y:832.5},{x:583.5,y:288.8},
+  {x:643.8,y:876.5},{x:582.8,y:372.4},{x:629.3,y:298.4},{x:545.7,y:569.9},
+  {x:579.2,y:481.7},{x:565.4,y:567.3},{x:683,y:210},{x:579,y:671.6},
+  {x:633.1,y:222.5},{x:645.3,y:901.3},{x:643.3,y:849.8},{x:458.8,y:372.8},
+  {x:448.7,y:477.5},{x:665,y:807.5},{x:633.4,y:672},{x:464,y:340.3},
 ];
 
 // ========== STATE ==========
 let vehicles = [];
 let svgEl = null;
 let markersGroup = null;
+let trailsGroup = null;
 let pollTimer = null;
 let animRunning = false;
 let lastFrameTime = 0;
@@ -337,6 +343,13 @@ function processApiData(data) {
       corrStart = nowMs;
     }
 
+    // Trail: keep history of positions
+    const trail = old ? (old.trail || []) : [];
+    if (old && old.onSite) {
+      trail.push({x: old.x, y: old.y});
+      if (trail.length > 15) trail.shift();
+    }
+
     return {
       id: d.device_id,
       plate: d.state_number || '???',
@@ -344,16 +357,18 @@ function processApiData(data) {
       state,
       speed: speedKmh,
       heading: headingRad,
-      distance: ((d.distance || 0) / 1000).toFixed(1),
       lat, lon,
       x: old ? old.x : sx,
       y: old ? old.y : sy,
+      targetX: sx,
+      targetY: sy,
       drVx, drVy,
       corrX, corrY, corrStart,
       onSite,
       trackPoints: track.length,
       lastTime: bestTime,
       eventsCount: events.length,
+      trail,
     };
   });
 
@@ -396,51 +411,60 @@ function tick(now) {
   vehicles.forEach(v => {
     if (!v.onSite) return;
 
-    // Apply correction easing (works for both moving and stopped)
-    if (v.corrX !== 0 || v.corrY !== 0) {
+    // Correction easing toward GPS position
+    let corrFrac = 0;
+    if (v.corrStart > 0) {
       const elapsed = now - v.corrStart;
-      const t = Math.min(elapsed / CORRECTION_DURATION, 1);
-      const eased = t * (2 - t);
-      if (t >= 1) {
+      corrFrac = Math.min(elapsed / CORRECTION_DURATION, 1);
+      corrFrac = corrFrac * (2 - corrFrac); // ease-out
+      if (corrFrac >= 1) {
         v.x += v.corrX; v.y += v.corrY;
-        v.corrX = 0; v.corrY = 0;
+        v.corrX = 0; v.corrY = 0; v.corrStart = 0;
+        corrFrac = 0;
       }
     }
 
-    if (v.state !== 'moving' || v.speed === 0) {
-      // Stopped: just show corrected position
-      const marker = document.getElementById('m-' + v.id);
-      if (marker) {
-        let px = v.x, py = v.y;
-        if (v.corrX !== 0 || v.corrY !== 0) {
-          const elapsed = now - v.corrStart;
-          const eased = Math.min(elapsed / CORRECTION_DURATION, 1) * (2 - Math.min(elapsed / CORRECTION_DURATION, 1));
-          px += v.corrX * eased; py += v.corrY * eased;
+    let px = v.x + v.corrX * corrFrac;
+    let py = v.y + v.corrY * corrFrac;
+
+    if (v.state === 'moving' && v.speed > 0) {
+      // Dead reckoning
+      let vx = v.drVx, vy = v.drVy;
+      const target = findTargetStop(v.x, v.y, v.heading, v.speed);
+      if (target) {
+        const dx = target.x - v.x, dy = target.y - v.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const spd = Math.sqrt(vx*vx + vy*vy);
+        if (spd > 0 && dist > 0) {
+          vx = vx * 0.7 + (dx / dist) * spd * 0.3;
+          vy = vy * 0.7 + (dy / dist) * spd * 0.3;
         }
-        marker.setAttribute('transform', `translate(${px.toFixed(1)},${py.toFixed(1)})`);
       }
-      return;
-    }
+      v.x += vx * dt;
+      v.y += vy * dt;
+      px = v.x + v.corrX * corrFrac;
+      py = v.y + v.corrY * corrFrac;
 
-    // Dead reckoning with stop-point attraction
-    let vx = v.drVx, vy = v.drVy;
-    const target = findTargetStop(v.x, v.y, v.heading, v.speed);
-    if (target) {
-      const dx = target.x - v.x, dy = target.y - v.y;
-      const dist = Math.sqrt(dx*dx + dy*dy);
-      const spd = Math.sqrt(vx*vx + vy*vy);
-      if (spd > 0 && dist > 0) {
-        const blend = 0.3; // 30% attraction toward stop point
-        vx = vx * (1 - blend) + (dx / dist) * spd * blend;
-        vy = vy * (1 - blend) + (dy / dist) * spd * blend;
+      // Record trail
+      if (!v._lastTrailTime || now - v._lastTrailTime > 500) {
+        v.trail.push({x: px, y: py});
+        if (v.trail.length > 15) v.trail.shift();
+        v._lastTrailTime = now;
       }
     }
-
-    v.x += vx * dt;
-    v.y += vy * dt;
 
     const marker = document.getElementById('m-' + v.id);
-    if (marker) marker.setAttribute('transform', `translate(${v.x.toFixed(1)},${v.y.toFixed(1)})`);
+    if (marker) marker.setAttribute('transform', `translate(${px.toFixed(1)},${py.toFixed(1)})`);
+
+    // Render trail
+    const trailEl = document.getElementById('trail-' + v.id);
+    if (trailEl && v.trail.length >= 2) {
+      const pts = v.trail.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+      trailEl.setAttribute('points', pts);
+      trailEl.style.display = '';
+    } else if (trailEl) {
+      trailEl.style.display = 'none';
+    }
   });
 
   requestAnimationFrame(tick);
@@ -450,10 +474,32 @@ function tick(now) {
 function renderMarkers() {
   if (!markersGroup) return;
   markersGroup.innerHTML = '';
+  if (!trailsGroup) {
+    trailsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    trailsGroup.id = 'trails';
+    markersGroup.parentNode.insertBefore(trailsGroup, markersGroup);
+  }
+  trailsGroup.innerHTML = '';
+
   vehicles.forEach(v => {
     if (!v.onSite) return;
     const colors = { moving: '#4a7c59', parking: '#c4943a', no_data: '#a94442' };
     const c = colors[v.state] || colors.no_data;
+
+    // Trail polyline
+    const trail = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    trail.id = 'trail-' + v.id;
+    trail.setAttribute('fill', 'none');
+    trail.setAttribute('stroke', c);
+    trail.setAttribute('stroke-width', '3');
+    trail.setAttribute('stroke-linecap', 'round');
+    trail.setAttribute('stroke-linejoin', 'round');
+    trail.setAttribute('opacity', '0.35');
+    trail.setAttribute('stroke-dasharray', '4 3');
+    trail.style.display = 'none';
+    trailsGroup.appendChild(trail);
+
+    // Marker
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.id = 'm-' + v.id;
     g.classList.add('v-marker');
@@ -480,10 +526,11 @@ function showPopup(v) {
   const stColor = {moving:'var(--wms-success)', parking:'var(--wms-warning)', no_data:'var(--wms-danger)'}[v.state];
   document.getElementById('vpStatus').innerHTML =
     `<span style="width:6px;height:6px;border-radius:50%;background:${stColor};display:inline-block"></span> ${stLabel}` +
-    (v.speed > 0 ? ` &middot; ${v.speed} км/ч` : '');
+    ` &middot; ${v.speed} км/ч`;
   const ago = v.lastTime ? Math.round((Date.now()/1000 - v.lastTime)/60) : 0;
+  const agoStr = ago >= 60 ? `${Math.floor(ago/60)} ч ${ago%60} мин` : ago > 0 ? `${ago} мин` : 'только что';
   document.getElementById('vpExtra').textContent =
-    `${v.distance} км` + (ago > 0 ? ` · ${ago} мин назад` : '') + ` · ${v.trackPoints} точек`;
+    `Обновлено: ${agoStr}` + ` · ${v.trackPoints} точек`;
 
   const rect = document.getElementById('mapWrapper').getBoundingClientRect();
   const svgRect = svgEl.getBoundingClientRect();
@@ -529,9 +576,8 @@ function renderVehiclesList() {
         <div class="v-plate">${v.plate}</div>
         <div class="v-model">${v.model}</div>
         <div class="v-meta">
-          ${v.speed > 0 ? `<span>${v.speed} км/ч</span>` : ''}
-          <span>${v.distance} км</span>
-          ${ago !== null ? `<span>${ago} мин</span>` : ''}
+          <span>${v.speed} км/ч</span>
+          ${ago !== null ? `<span>${ago >= 60 ? Math.floor(ago/60) + ' ч ' + ago%60 + ' мин' : ago + ' мин'}</span>` : ''}
         </div>
       </div>
       <div class="v-badge ${stateClass}">${stateLabel}</div>
