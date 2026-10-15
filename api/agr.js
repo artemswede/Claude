@@ -2,11 +2,11 @@ const API_BASE = 'https://agr-test.kgk-global.com/api/reports';
 const TOKEN = process.env.AGR_TOKEN || '788d5f7bafb462b7849ed3ed42356b9c';
 
 const cache = new Map();
-const CACHE_TTL = 30000;
+const CACHE_TTL = 10000;
 
 const ALLOWED_REPORTS = [
   'route/detail', 'route/summary', 'trips/summary',
-  'zones', 'mileage/summary', 'fuel/detail', 'fuel/summary'
+  'zones', 'mileage', 'mileage/summary', 'fuel/detail', 'fuel/summary'
 ];
 
 module.exports = async (req, res) => {

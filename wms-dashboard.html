@@ -181,7 +181,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--wms-bg);color:var
 <script>
 // ========== CONFIG ==========
 const API_BASE = '/api/agr';
-const POLL_INTERVAL = 45000;
+const POLL_INTERVAL = 15000;
 const CORRECTION_DURATION = 2000; // ms to ease correction after new GPS
 
 // ========== GEO-REFERENCE ==========
@@ -297,16 +297,33 @@ async function fetchData() {
   dot.className = 'status-dot loading';
 
   const now = Math.floor(Date.now() / 1000);
-  const todayStart = now - (now % 86400) - 3 * 3600; // midnight MSK approx
-  const tsStart = Math.max(todayStart, now - 86400);
+  const tsShort = now - 1800; // 30 min window for fresh segments
+  const todayStart = now - (now % 86400) - 3 * 3600;
+  const tsLong = Math.max(todayStart, now - 86400);
 
   try {
-    const res = await fetch(`${API_BASE}?report=route/detail&ts_start=${tsStart}&ts_stop=${now}&offset_utc=3&with_track=true`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
+    // Two parallel requests: short window (fast, catches fresh data) + full day (all vehicles)
+    const [resShort, resLong] = await Promise.all([
+      fetch(`${API_BASE}?report=route/detail&ts_start=${tsShort}&ts_stop=${now}&offset_utc=3&with_track=true`),
+      fetch(`${API_BASE}?report=route/detail&ts_start=${tsLong}&ts_stop=${now}&offset_utc=3&with_track=true`),
+    ]);
+    const [dataShort, dataLong] = await Promise.all([resShort.json(), resLong.json()]);
 
-    if (!Array.isArray(data) || data.length === 0) {
+    // Merge: prefer short-window data (fresher), fill in from long
+    const merged = new Map();
+    for (const d of (Array.isArray(dataLong) ? dataLong : [])) merged.set(d.device_id, d);
+    for (const d of (Array.isArray(dataShort) ? dataShort : [])) {
+      const existing = merged.get(d.device_id);
+      if (!existing) { merged.set(d.device_id, d); continue; }
+      // Merge track points and events, keeping the freshest
+      const eTrack = existing.track || [], dTrack = d.track || [];
+      const eEvts = existing.events || [], dEvts = d.events || [];
+      if (dTrack.length > 0) existing.track = eTrack.concat(dTrack);
+      if (dEvts.length > 0) existing.events = eEvts.concat(dEvts);
+    }
+    const data = [...merged.values()];
+
+    if (data.length === 0) {
       dot.className = 'status-dot stale';
       banner.textContent = 'Нет данных за сегодня';
       banner.classList.add('show');
