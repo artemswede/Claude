@@ -97,9 +97,11 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--wms-bg);color:var
 .error-banner{background:#fff3e0;color:#7a5a00;padding:8px 12px;font-size:12px;text-align:center;display:none}
 .error-banner.show{display:block}
 .map-controls{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:4px;z-index:10}
-.map-ctrl{width:32px;height:32px;border-radius:8px;border:1px solid var(--wms-border);background:var(--wms-surface);color:var(--wms-text);font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:var(--wms-shadow);font-family:inherit;line-height:1}
+.map-ctrl{width:36px;height:36px;border-radius:8px;border:1px solid var(--wms-border);background:var(--wms-surface);color:var(--wms-text);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:var(--wms-shadow);font-family:inherit;line-height:1}
 .map-ctrl:active{background:var(--wms-bg)}
-.map-svg-wrap{transform-origin:center center;transition:transform .3s ease}
+.map-ctrl.active-rot{background:var(--wms-header);color:var(--wms-header-text)}
+.compass-indicator{position:absolute;top:8px;left:8px;z-index:10;font-size:10px;color:var(--wms-text-sec);background:var(--wms-surface);border-radius:6px;padding:3px 7px;box-shadow:var(--wms-shadow);display:none;border:1px solid var(--wms-border)}
+.compass-indicator.show{display:block}
 </style>
 </head>
 <body>
@@ -120,12 +122,13 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--wms-bg);color:var
     <div class="map-container">
       <div class="map-wrapper" id="mapWrapper" style="overflow:hidden">
         <div class="map-controls">
-          <button class="map-ctrl" onclick="mapRotate(-15)" title="Повернуть влево">↺</button>
-          <button class="map-ctrl" onclick="mapRotate(15)" title="Повернуть вправо">↻</button>
+          <button class="map-ctrl" id="btnLandscape" onclick="toggleLandscape()" title="Развернуть горизонтально">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M12 2v2m0 16v2"/></svg>
+          </button>
           <button class="map-ctrl" onclick="mapZoom(0.2)" title="Увеличить">+</button>
           <button class="map-ctrl" onclick="mapZoom(-0.2)" title="Уменьшить">−</button>
-          <button class="map-ctrl" onclick="mapReset()" title="Сбросить" style="font-size:12px">⟲</button>
         </div>
+        <div class="compass-indicator" id="compass">N ↗ повёрнуто 90°</div>
         <div class="vehicle-popup" id="vehiclePopup">
           <div class="vp-plate" id="vpPlate"></div>
           <div class="vp-model" id="vpModel"></div>
@@ -264,16 +267,23 @@ async function loadSvgMap() {
   wrapper.insertBefore(svgEl, popup);
 }
 
-// ========== MAP TRANSFORM (rotate + zoom) ==========
-let mapAngle = 0, mapScale = 1;
+// ========== MAP TRANSFORM (landscape toggle + zoom) ==========
+let mapLandscape = false, mapScale = 1;
 function applyMapTransform() {
   if (!svgEl) return;
-  svgEl.style.transform = `rotate(${mapAngle}deg) scale(${mapScale})`;
+  const angle = mapLandscape ? 90 : 0;
+  svgEl.style.transform = `rotate(${angle}deg) scale(${mapScale})`;
   svgEl.style.transformOrigin = 'center center';
+  svgEl.style.transition = 'transform .4s ease';
+  // Counter-rotate labels so text stays readable
+  svgEl.querySelectorAll('#labels text').forEach(t => {
+    t.setAttribute('transform', mapLandscape ? `rotate(-90, ${t.getAttribute('x')}, ${t.getAttribute('y')})` : '');
+  });
+  document.getElementById('compass').classList.toggle('show', mapLandscape);
+  document.getElementById('btnLandscape').classList.toggle('active-rot', mapLandscape);
 }
-function mapRotate(deg) { mapAngle = (mapAngle + deg) % 360; applyMapTransform(); }
+function toggleLandscape() { mapLandscape = !mapLandscape; applyMapTransform(); }
 function mapZoom(delta) { mapScale = Math.max(0.3, Math.min(3, mapScale + delta)); applyMapTransform(); }
-function mapReset() { mapAngle = 0; mapScale = 1; applyMapTransform(); }
 
 // Wheel zoom on map
 document.addEventListener('DOMContentLoaded', () => {
@@ -295,10 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.touches.length === 2) {
       e.preventDefault();
       const dist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
-      if (lastPinchDist > 0) {
-        const delta = (dist - lastPinchDist) / 200;
-        mapZoom(delta);
-      }
+      if (lastPinchDist > 0) mapZoom((dist - lastPinchDist) / 200);
       lastPinchDist = dist;
     }
   }, {passive: false});
