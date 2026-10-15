@@ -1,117 +1,239 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="806" height="1344" viewBox="0 0 806 1344">
-<title>Векторная схема территории предприятия</title>
-<desc>Упрощённая векторная перерисовка по спутниковому изображению: контур территории, лесные зоны, дороги, производственные корпуса, складские площадки и штабели.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+<title>Схема территории ЗТЗ</title>
+<desc>GPS-referenced factory map. Geo bounds: latN=56.4335, latS=56.4195, lonW=38.1400, lonE=38.1570. SVG 900x1200.</desc>
 <defs>
-  <pattern id="grass" width="34" height="34" patternUnits="userSpaceOnUse">
-    <rect width="34" height="34" fill="#e5eadc"/>
-    <path d="M4 8l5 -2 M22 25l7 -3 M14 17l3 -1" stroke="#d4dfca" stroke-width="1.5" stroke-linecap="round"/>
+  <pattern id="grass" width="30" height="30" patternUnits="userSpaceOnUse">
+    <rect width="30" height="30" fill="#d8e4cc"/>
+    <circle cx="8" cy="12" r="1.5" fill="#c2d4b0"/>
+    <circle cx="22" cy="6" r="1" fill="#c8d8b4"/>
+    <circle cx="15" cy="24" r="1.2" fill="#c0d0ae"/>
   </pattern>
-  <pattern id="forest" width="26" height="26" patternUnits="userSpaceOnUse">
-    <rect width="26" height="26" fill="#d4dfca"/>
-    <circle cx="6" cy="7" r="5" fill="#78956e"/>
-    <circle cx="17" cy="5" r="4" fill="#8ca681"/>
-    <circle cx="20" cy="18" r="6" fill="#6f8c65"/>
-    <circle cx="7" cy="21" r="4.5" fill="#9aaf8c"/>
+  <pattern id="forest" width="24" height="24" patternUnits="userSpaceOnUse">
+    <rect width="24" height="24" fill="#9db88e"/>
+    <circle cx="6" cy="6" r="5" fill="#7a9c6b" opacity="0.7"/>
+    <circle cx="18" cy="8" r="4" fill="#6d8f5e" opacity="0.6"/>
+    <circle cx="12" cy="18" r="5.5" fill="#7fa870" opacity="0.7"/>
   </pattern>
-  <pattern id="pipeStacks" width="23" height="18" patternUnits="userSpaceOnUse">
-    <rect width="23" height="18" fill="#b8b2a5"/>
-    <rect x="1" y="2" width="20" height="6" rx="1" fill="#887f72"/>
-    <rect x="1" y="10" width="20" height="6" rx="1" fill="#a39a8b"/>
-    <path d="M3 2v6 M8 2v6 M13 2v6 M18 2v6 M3 10v6 M8 10v6 M13 10v6 M18 10v6" stroke="#6e685f" stroke-width=".8"/>
+  <pattern id="pipes" width="20" height="14" patternUnits="userSpaceOnUse">
+    <rect width="20" height="14" fill="#b5a894"/>
+    <rect x="1" y="1" width="18" height="5" rx="1" fill="#9a8d7a"/>
+    <rect x="1" y="8" width="18" height="5" rx="1" fill="#a8997f"/>
+    <path d="M5 1v5M10 1v5M15 1v5M5 8v5M10 8v5M15 8v5" stroke="#7d7263" stroke-width="0.6"/>
   </pattern>
-  <pattern id="roof" width="20" height="20" patternUnits="userSpaceOnUse">
-    <rect width="20" height="20" fill="#d7d9d6"/>
-    <path d="M0 5H20 M0 15H20" stroke="#b7bcb9" stroke-width="1"/>
+  <pattern id="water" width="40" height="20" patternUnits="userSpaceOnUse">
+    <rect width="40" height="20" fill="#8ab4c7"/>
+    <path d="M0 10Q10 7 20 10T40 10" fill="none" stroke="#9dc4d4" stroke-width="1.2" opacity="0.5"/>
+  </pattern>
+  <pattern id="roof" width="16" height="16" patternUnits="userSpaceOnUse">
+    <rect width="16" height="16" fill="#c5c8c3"/>
+    <path d="M0 4H16M0 12H16" stroke="#adb2aa" stroke-width="0.8"/>
   </pattern>
   <style>
-    .road-edge{fill:none;stroke:#c7c9c2;stroke-linecap:round;stroke-linejoin:round}
-    .road{fill:none;stroke:#f7f6ef;stroke-linecap:round;stroke-linejoin:round}
-    .building{fill:#c9ceca;stroke:#8e9792;stroke-width:2}
-    .roofline{fill:none;stroke:#a4aaa6;stroke-width:2}
-    .stack{fill:url(#pipeStacks);stroke:#8e877b;stroke-width:1}
+    .road{fill:none;stroke:#e8e4dc;stroke-linecap:round;stroke-linejoin:round}
+    .road-edge{fill:none;stroke:#bfb9ae;stroke-linecap:round;stroke-linejoin:round}
+    .building{fill:url(#roof);stroke:#7a8077;stroke-width:1.5}
+    .building-small{fill:#c0c4be;stroke:#7a8077;stroke-width:1}
+    .label{font-family:Arial,Helvetica,sans-serif;fill:#3a3a3a;font-size:11px;font-weight:bold;text-anchor:middle}
+    .label-sm{font-family:Arial,Helvetica,sans-serif;fill:#555;font-size:9px;text-anchor:middle}
+    .road-label{font-family:Arial,Helvetica,sans-serif;fill:#666;font-size:8px;text-anchor:middle}
   </style>
 </defs>
-<!-- Surrounding land -->
-<rect width="806" height="1344" fill="#f5f6f2"/>
-<path d="M0 0H806V1344H0Z" fill="url(#grass)"/>
-<!-- wooded perimeter and green buffers -->
-<path d="M364 0L643 0 660 88 631 174 656 264 685 333 729 387 806 453 806 919 746 934 690 987 638 1088 598 1196 519 1318 459 1344 0 1344 0 1130 95 1087 171 1011 166 864 173 767 185 662 222 569 217 478 263 386 294 300 276 219 317 119Z" fill="url(#forest)"/>
-<path d="M0 0H260L260 170 220 245 250 323 208 405 179 488 177 650 196 779 179 934 198 1070 183 1210 226 1344H0Z" fill="url(#grass)"/>
-<!-- Main site boundary / internal open yards -->
-<path d="M352 20L614 57 650 139 620 239 584 309 595 465 561 574 558 712 611 741 618 900 558 949 522 1097 463 1251 210 1256 198 1115 198 943 191 791 191 632 220 536 263 444 302 348 293 273 327 198Z" fill="#dce5d3" stroke="#c1cfb8" stroke-width="3"/>
-<!-- wooded eastern belt -->
-<path d="M613 263L653 310 681 390 733 442 806 494V914L745 931 692 981 647 1087 602 1170 561 1144 570 1004 606 927 588 804 582 666 603 549 591 422Z" fill="url(#forest)"/>
-<!-- Main roads -->
-<path class="road-edge" stroke-width="18" d="M190 483L594 483 M202 716L589 716 M204 902L563 902 M205 1102L504 1102 M344 285L337 478 M482 230L482 714 M532 264L532 903 M484 716L392 900 M205 483L205 1103 M595 477L591 901 M343 902L343 1099"/>
-<path class="road" stroke-width="12" d="M190 483L594 483 M202 716L589 716 M204 902L563 902 M205 1102L504 1102 M344 285L337 478 M482 230L482 714 M532 264L532 903 M484 716L392 900 M205 483L205 1103 M595 477L591 901 M343 902L343 1099"/>
-<!-- Upper production building -->
-<path d="M389 42L603 75 575 232 365 193Z" fill="#aeb5b2" stroke="#818b87" stroke-width="3"/>
-<path d="M403 51L590 81 566 219 380 185Z" fill="url(#roof)" stroke="#f0f1ed" stroke-width="2"/>
-<path class="roofline" d="M394 88L581 117 M389 111L577 141 M384 139L572 169 M379 163L568 193"/>
-<path d="M407 62L582 90 578 101 403 73Z M397 121L575 149 572 159 394 131Z M386 151L570 179 568 188 384 161Z" fill="#8b9692"/>
-<path d="M568 92L589 96 565 213 544 209Z" fill="#c2c8c5" stroke="#929c98" stroke-width="1.5"/>
-<!-- small utility buildings near upper hall -->
-<rect x="344" y="168" width="22" height="15" rx="2" fill="#d4d8d3" stroke="#929a94" transform="rotate(18 355 175)"/>
-<rect x="365" y="181" width="18" height="13" rx="2" fill="#c7ccc7" stroke="#929a94" transform="rotate(18 374 187)"/>
-<rect x="347" y="202" width="26" height="16" rx="2" fill="#e66c3e" stroke="#bd4c27" transform="rotate(18 360 210)"/>
-<rect x="328" y="185" width="20" height="14" rx="2" fill="#e66c3e" stroke="#bd4c27" transform="rotate(18 338 192)"/>
-<!-- upper pipe storage lanes -->
-<g transform="rotate(-13 300 315)"><rect class="stack" x="300" y="315" width="21" height="16" rx="1"/><rect class="stack" x="323" y="315" width="21" height="16" rx="1"/><rect class="stack" x="300" y="333" width="21" height="16" rx="1"/><rect class="stack" x="323" y="333" width="21" height="16" rx="1"/><rect class="stack" x="300" y="351" width="21" height="16" rx="1"/><rect class="stack" x="323" y="351" width="21" height="16" rx="1"/><rect class="stack" x="300" y="369" width="21" height="16" rx="1"/><rect class="stack" x="323" y="369" width="21" height="16" rx="1"/><rect class="stack" x="300" y="387" width="21" height="16" rx="1"/><rect class="stack" x="323" y="387" width="21" height="16" rx="1"/><rect class="stack" x="300" y="405" width="21" height="16" rx="1"/><rect class="stack" x="323" y="405" width="21" height="16" rx="1"/><rect class="stack" x="300" y="423" width="21" height="16" rx="1"/><rect class="stack" x="323" y="423" width="21" height="16" rx="1"/><rect class="stack" x="300" y="441" width="21" height="16" rx="1"/><rect class="stack" x="323" y="441" width="21" height="16" rx="1"/></g>
-<g transform="rotate(-13 337 296)"><rect class="stack" x="337" y="296" width="21" height="16" rx="1"/><rect class="stack" x="360" y="296" width="21" height="16" rx="1"/><rect class="stack" x="337" y="314" width="21" height="16" rx="1"/><rect class="stack" x="360" y="314" width="21" height="16" rx="1"/><rect class="stack" x="337" y="332" width="21" height="16" rx="1"/><rect class="stack" x="360" y="332" width="21" height="16" rx="1"/><rect class="stack" x="337" y="350" width="21" height="16" rx="1"/><rect class="stack" x="360" y="350" width="21" height="16" rx="1"/><rect class="stack" x="337" y="368" width="21" height="16" rx="1"/><rect class="stack" x="360" y="368" width="21" height="16" rx="1"/><rect class="stack" x="337" y="386" width="21" height="16" rx="1"/><rect class="stack" x="360" y="386" width="21" height="16" rx="1"/><rect class="stack" x="337" y="404" width="21" height="16" rx="1"/><rect class="stack" x="360" y="404" width="21" height="16" rx="1"/><rect class="stack" x="337" y="422" width="21" height="16" rx="1"/><rect class="stack" x="360" y="422" width="21" height="16" rx="1"/><rect class="stack" x="337" y="440" width="21" height="16" rx="1"/><rect class="stack" x="360" y="440" width="21" height="16" rx="1"/></g>
-<g transform="rotate(-4 380 288)"><rect class="stack" x="380" y="288" width="20" height="16" rx="1"/><rect class="stack" x="402" y="288" width="20" height="16" rx="1"/><rect class="stack" x="424" y="288" width="20" height="16" rx="1"/><rect class="stack" x="380" y="306" width="20" height="16" rx="1"/><rect class="stack" x="402" y="306" width="20" height="16" rx="1"/><rect class="stack" x="424" y="306" width="20" height="16" rx="1"/><rect class="stack" x="380" y="324" width="20" height="16" rx="1"/><rect class="stack" x="402" y="324" width="20" height="16" rx="1"/><rect class="stack" x="424" y="324" width="20" height="16" rx="1"/><rect class="stack" x="380" y="342" width="20" height="16" rx="1"/><rect class="stack" x="402" y="342" width="20" height="16" rx="1"/><rect class="stack" x="424" y="342" width="20" height="16" rx="1"/><rect class="stack" x="380" y="360" width="20" height="16" rx="1"/><rect class="stack" x="402" y="360" width="20" height="16" rx="1"/><rect class="stack" x="424" y="360" width="20" height="16" rx="1"/><rect class="stack" x="380" y="378" width="20" height="16" rx="1"/><rect class="stack" x="402" y="378" width="20" height="16" rx="1"/><rect class="stack" x="424" y="378" width="20" height="16" rx="1"/><rect class="stack" x="380" y="396" width="20" height="16" rx="1"/><rect class="stack" x="402" y="396" width="20" height="16" rx="1"/><rect class="stack" x="424" y="396" width="20" height="16" rx="1"/><rect class="stack" x="380" y="414" width="20" height="16" rx="1"/><rect class="stack" x="402" y="414" width="20" height="16" rx="1"/><rect class="stack" x="424" y="414" width="20" height="16" rx="1"/><rect class="stack" x="380" y="432" width="20" height="16" rx="1"/><rect class="stack" x="402" y="432" width="20" height="16" rx="1"/><rect class="stack" x="424" y="432" width="20" height="16" rx="1"/><rect class="stack" x="380" y="450" width="20" height="16" rx="1"/><rect class="stack" x="402" y="450" width="20" height="16" rx="1"/><rect class="stack" x="424" y="450" width="20" height="16" rx="1"/></g>
-<g transform="rotate(0 431 286)"><rect class="stack" x="431" y="286" width="20" height="16" rx="1"/><rect class="stack" x="453" y="286" width="20" height="16" rx="1"/><rect class="stack" x="431" y="304" width="20" height="16" rx="1"/><rect class="stack" x="453" y="304" width="20" height="16" rx="1"/><rect class="stack" x="431" y="322" width="20" height="16" rx="1"/><rect class="stack" x="453" y="322" width="20" height="16" rx="1"/><rect class="stack" x="431" y="340" width="20" height="16" rx="1"/><rect class="stack" x="453" y="340" width="20" height="16" rx="1"/><rect class="stack" x="431" y="358" width="20" height="16" rx="1"/><rect class="stack" x="453" y="358" width="20" height="16" rx="1"/><rect class="stack" x="431" y="376" width="20" height="16" rx="1"/><rect class="stack" x="453" y="376" width="20" height="16" rx="1"/><rect class="stack" x="431" y="394" width="20" height="16" rx="1"/><rect class="stack" x="453" y="394" width="20" height="16" rx="1"/><rect class="stack" x="431" y="412" width="20" height="16" rx="1"/><rect class="stack" x="453" y="412" width="20" height="16" rx="1"/><rect class="stack" x="431" y="430" width="20" height="16" rx="1"/><rect class="stack" x="453" y="430" width="20" height="16" rx="1"/><rect class="stack" x="431" y="448" width="20" height="16" rx="1"/><rect class="stack" x="453" y="448" width="20" height="16" rx="1"/></g>
-<g transform="rotate(-13 288 356)"><rect class="stack" x="288" y="356" width="20" height="16" rx="1"/><rect class="stack" x="310" y="356" width="20" height="16" rx="1"/><rect class="stack" x="288" y="374" width="20" height="16" rx="1"/><rect class="stack" x="310" y="374" width="20" height="16" rx="1"/><rect class="stack" x="288" y="392" width="20" height="16" rx="1"/><rect class="stack" x="310" y="392" width="20" height="16" rx="1"/><rect class="stack" x="288" y="410" width="20" height="16" rx="1"/><rect class="stack" x="310" y="410" width="20" height="16" rx="1"/><rect class="stack" x="288" y="428" width="20" height="16" rx="1"/><rect class="stack" x="310" y="428" width="20" height="16" rx="1"/><rect class="stack" x="288" y="446" width="20" height="16" rx="1"/><rect class="stack" x="310" y="446" width="20" height="16" rx="1"/></g>
-<g transform="rotate(0 456 321)"><rect class="stack" x="456" y="321" width="20" height="16" rx="1"/><rect class="stack" x="478" y="321" width="20" height="16" rx="1"/><rect class="stack" x="456" y="339" width="20" height="16" rx="1"/><rect class="stack" x="478" y="339" width="20" height="16" rx="1"/><rect class="stack" x="456" y="357" width="20" height="16" rx="1"/><rect class="stack" x="478" y="357" width="20" height="16" rx="1"/><rect class="stack" x="456" y="375" width="20" height="16" rx="1"/><rect class="stack" x="478" y="375" width="20" height="16" rx="1"/><rect class="stack" x="456" y="393" width="20" height="16" rx="1"/><rect class="stack" x="478" y="393" width="20" height="16" rx="1"/><rect class="stack" x="456" y="411" width="20" height="16" rx="1"/><rect class="stack" x="478" y="411" width="20" height="16" rx="1"/><rect class="stack" x="456" y="429" width="20" height="16" rx="1"/><rect class="stack" x="478" y="429" width="20" height="16" rx="1"/><rect class="stack" x="456" y="447" width="20" height="16" rx="1"/><rect class="stack" x="478" y="447" width="20" height="16" rx="1"/></g>
-<g transform="rotate(0 286 520)"><rect class="stack" x="286" y="520" width="20" height="16" rx="1"/><rect class="stack" x="308" y="520" width="20" height="16" rx="1"/><rect class="stack" x="286" y="538" width="20" height="16" rx="1"/><rect class="stack" x="308" y="538" width="20" height="16" rx="1"/><rect class="stack" x="286" y="556" width="20" height="16" rx="1"/><rect class="stack" x="308" y="556" width="20" height="16" rx="1"/><rect class="stack" x="286" y="574" width="20" height="16" rx="1"/><rect class="stack" x="308" y="574" width="20" height="16" rx="1"/><rect class="stack" x="286" y="592" width="20" height="16" rx="1"/><rect class="stack" x="308" y="592" width="20" height="16" rx="1"/></g>
-<g transform="rotate(0 290 615)"><rect class="stack" x="290" y="615" width="20" height="16" rx="1"/><rect class="stack" x="312" y="615" width="20" height="16" rx="1"/><rect class="stack" x="334" y="615" width="20" height="16" rx="1"/><rect class="stack" x="290" y="633" width="20" height="16" rx="1"/><rect class="stack" x="312" y="633" width="20" height="16" rx="1"/><rect class="stack" x="334" y="633" width="20" height="16" rx="1"/><rect class="stack" x="290" y="651" width="20" height="16" rx="1"/><rect class="stack" x="312" y="651" width="20" height="16" rx="1"/><rect class="stack" x="334" y="651" width="20" height="16" rx="1"/></g>
-<g transform="rotate(0 407 598)"><rect class="stack" x="407" y="598" width="20" height="16" rx="1"/><rect class="stack" x="429" y="598" width="20" height="16" rx="1"/><rect class="stack" x="451" y="598" width="20" height="16" rx="1"/><rect class="stack" x="407" y="616" width="20" height="16" rx="1"/><rect class="stack" x="429" y="616" width="20" height="16" rx="1"/><rect class="stack" x="451" y="616" width="20" height="16" rx="1"/><rect class="stack" x="407" y="634" width="20" height="16" rx="1"/><rect class="stack" x="429" y="634" width="20" height="16" rx="1"/><rect class="stack" x="451" y="634" width="20" height="16" rx="1"/><rect class="stack" x="407" y="652" width="20" height="16" rx="1"/><rect class="stack" x="429" y="652" width="20" height="16" rx="1"/><rect class="stack" x="451" y="652" width="20" height="16" rx="1"/><rect class="stack" x="407" y="670" width="20" height="16" rx="1"/><rect class="stack" x="429" y="670" width="20" height="16" rx="1"/><rect class="stack" x="451" y="670" width="20" height="16" rx="1"/></g>
-<g transform="rotate(0 441 540)"><rect class="stack" x="441" y="540" width="20" height="16" rx="1"/><rect class="stack" x="463" y="540" width="20" height="16" rx="1"/><rect class="stack" x="441" y="558" width="20" height="16" rx="1"/><rect class="stack" x="463" y="558" width="20" height="16" rx="1"/><rect class="stack" x="441" y="576" width="20" height="16" rx="1"/><rect class="stack" x="463" y="576" width="20" height="16" rx="1"/><rect class="stack" x="441" y="594" width="20" height="16" rx="1"/><rect class="stack" x="463" y="594" width="20" height="16" rx="1"/><rect class="stack" x="441" y="612" width="20" height="16" rx="1"/><rect class="stack" x="463" y="612" width="20" height="16" rx="1"/><rect class="stack" x="441" y="630" width="20" height="16" rx="1"/><rect class="stack" x="463" y="630" width="20" height="16" rx="1"/></g>
-<g transform="rotate(0 567 748)"><rect class="stack" x="567" y="748" width="20" height="16" rx="1"/><rect class="stack" x="589" y="748" width="20" height="16" rx="1"/><rect class="stack" x="567" y="766" width="20" height="16" rx="1"/><rect class="stack" x="589" y="766" width="20" height="16" rx="1"/><rect class="stack" x="567" y="784" width="20" height="16" rx="1"/><rect class="stack" x="589" y="784" width="20" height="16" rx="1"/><rect class="stack" x="567" y="802" width="20" height="16" rx="1"/><rect class="stack" x="589" y="802" width="20" height="16" rx="1"/><rect class="stack" x="567" y="820" width="20" height="16" rx="1"/><rect class="stack" x="589" y="820" width="20" height="16" rx="1"/><rect class="stack" x="567" y="838" width="20" height="16" rx="1"/><rect class="stack" x="589" y="838" width="20" height="16" rx="1"/><rect class="stack" x="567" y="856" width="20" height="16" rx="1"/><rect class="stack" x="589" y="856" width="20" height="16" rx="1"/><rect class="stack" x="567" y="874" width="20" height="16" rx="1"/><rect class="stack" x="589" y="874" width="20" height="16" rx="1"/></g>
-<g transform="rotate(0 616 772)"><rect class="stack" x="616" y="772" width="20" height="16" rx="1"/><rect class="stack" x="638" y="772" width="20" height="16" rx="1"/><rect class="stack" x="660" y="772" width="20" height="16" rx="1"/><rect class="stack" x="616" y="790" width="20" height="16" rx="1"/><rect class="stack" x="638" y="790" width="20" height="16" rx="1"/><rect class="stack" x="660" y="790" width="20" height="16" rx="1"/><rect class="stack" x="616" y="808" width="20" height="16" rx="1"/><rect class="stack" x="638" y="808" width="20" height="16" rx="1"/><rect class="stack" x="660" y="808" width="20" height="16" rx="1"/><rect class="stack" x="616" y="826" width="20" height="16" rx="1"/><rect class="stack" x="638" y="826" width="20" height="16" rx="1"/><rect class="stack" x="660" y="826" width="20" height="16" rx="1"/><rect class="stack" x="616" y="844" width="20" height="16" rx="1"/><rect class="stack" x="638" y="844" width="20" height="16" rx="1"/><rect class="stack" x="660" y="844" width="20" height="16" rx="1"/><rect class="stack" x="616" y="862" width="20" height="16" rx="1"/><rect class="stack" x="638" y="862" width="20" height="16" rx="1"/><rect class="stack" x="660" y="862" width="20" height="16" rx="1"/><rect class="stack" x="616" y="880" width="20" height="16" rx="1"/><rect class="stack" x="638" y="880" width="20" height="16" rx="1"/><rect class="stack" x="660" y="880" width="20" height="16" rx="1"/></g>
-<g transform="rotate(0 685 804)"><rect class="stack" x="685" y="804" width="20" height="16" rx="1"/><rect class="stack" x="707" y="804" width="20" height="16" rx="1"/><rect class="stack" x="729" y="804" width="20" height="16" rx="1"/><rect class="stack" x="685" y="822" width="20" height="16" rx="1"/><rect class="stack" x="707" y="822" width="20" height="16" rx="1"/><rect class="stack" x="729" y="822" width="20" height="16" rx="1"/><rect class="stack" x="685" y="840" width="20" height="16" rx="1"/><rect class="stack" x="707" y="840" width="20" height="16" rx="1"/><rect class="stack" x="729" y="840" width="20" height="16" rx="1"/><rect class="stack" x="685" y="858" width="20" height="16" rx="1"/><rect class="stack" x="707" y="858" width="20" height="16" rx="1"/><rect class="stack" x="729" y="858" width="20" height="16" rx="1"/><rect class="stack" x="685" y="876" width="20" height="16" rx="1"/><rect class="stack" x="707" y="876" width="20" height="16" rx="1"/><rect class="stack" x="729" y="876" width="20" height="16" rx="1"/><rect class="stack" x="685" y="894" width="20" height="16" rx="1"/><rect class="stack" x="707" y="894" width="20" height="16" rx="1"/><rect class="stack" x="729" y="894" width="20" height="16" rx="1"/></g>
-<g transform="rotate(0 235 741)"><rect class="stack" x="235" y="741" width="20" height="16" rx="1"/><rect class="stack" x="257" y="741" width="20" height="16" rx="1"/><rect class="stack" x="235" y="759" width="20" height="16" rx="1"/><rect class="stack" x="257" y="759" width="20" height="16" rx="1"/><rect class="stack" x="235" y="777" width="20" height="16" rx="1"/><rect class="stack" x="257" y="777" width="20" height="16" rx="1"/><rect class="stack" x="235" y="795" width="20" height="16" rx="1"/><rect class="stack" x="257" y="795" width="20" height="16" rx="1"/><rect class="stack" x="235" y="813" width="20" height="16" rx="1"/><rect class="stack" x="257" y="813" width="20" height="16" rx="1"/><rect class="stack" x="235" y="831" width="20" height="16" rx="1"/><rect class="stack" x="257" y="831" width="20" height="16" rx="1"/><rect class="stack" x="235" y="849" width="20" height="16" rx="1"/><rect class="stack" x="257" y="849" width="20" height="16" rx="1"/></g>
-<g transform="rotate(0 240 832)"><rect class="stack" x="240" y="832" width="20" height="16" rx="1"/><rect class="stack" x="262" y="832" width="20" height="16" rx="1"/><rect class="stack" x="284" y="832" width="20" height="16" rx="1"/><rect class="stack" x="240" y="850" width="20" height="16" rx="1"/><rect class="stack" x="262" y="850" width="20" height="16" rx="1"/><rect class="stack" x="284" y="850" width="20" height="16" rx="1"/><rect class="stack" x="240" y="868" width="20" height="16" rx="1"/><rect class="stack" x="262" y="868" width="20" height="16" rx="1"/><rect class="stack" x="284" y="868" width="20" height="16" rx="1"/></g>
-<g transform="rotate(0 385 644)"><rect class="stack" x="385" y="644" width="20" height="16" rx="1"/><rect class="stack" x="407" y="644" width="20" height="16" rx="1"/><rect class="stack" x="429" y="644" width="20" height="16" rx="1"/><rect class="stack" x="385" y="662" width="20" height="16" rx="1"/><rect class="stack" x="407" y="662" width="20" height="16" rx="1"/><rect class="stack" x="429" y="662" width="20" height="16" rx="1"/><rect class="stack" x="385" y="680" width="20" height="16" rx="1"/><rect class="stack" x="407" y="680" width="20" height="16" rx="1"/><rect class="stack" x="429" y="680" width="20" height="16" rx="1"/></g>
 
-<!-- Central large manufacturing complex -->
-<path d="M229 742L273 731 273 760 311 760 311 743 397 743 397 759 444 759 444 915 421 915 421 943 270 943 270 922 229 922Z" fill="#b8bfbc" stroke="#7e8984" stroke-width="3"/>
-<path d="M243 756L266 756 266 783 300 783 300 765 384 765 384 788 429 788 429 899 404 899 404 923 282 923 282 905 243 905Z" fill="url(#roof)" stroke="#929b96" stroke-width="2"/>
-<path d="M311 783L311 905 M345 765L345 923 M382 788L382 923 M243 811L429 811 M243 852L429 852 M243 889L429 889" class="roofline"/>
-<rect x="213" y="744" width="28" height="178" rx="3" fill="#8f9995" stroke="#707b76" stroke-width="2"/>
-<path d="M219 752V913 M228 752V913" stroke="#c8ceca" stroke-width="3"/>
-<rect x="452" y="733" width="24" height="205" fill="#aeb6b2" stroke="#7f8984" stroke-width="2"/>
-<path d="M458 742V930 M467 742V930" stroke="#d7dbd7" stroke-width="2"/>
-<!-- lower manufacturing / warehouse cluster -->
-<path d="M245 1128L352 1128 352 1209 245 1209Z" fill="#b6bdb9" stroke="#828c87" stroke-width="2"/>
-<rect x="255" y="1138" width="88" height="61" fill="url(#roof)" stroke="#8d9792" stroke-width="2"/>
-<path d="M366 1138L445 1138 445 1204 366 1204Z" fill="#c4cac6" stroke="#8d9792" stroke-width="2"/>
-<path d="M375 1147H436 M375 1162H436 M375 1177H436 M375 1192H436" class="roofline"/>
-<rect x="462" y="1155" width="18" height="62" fill="#aeb7b2" stroke="#89928e" stroke-width="2"/>
-<!-- lower road and loading lanes -->
-<path class="road-edge" stroke-width="16" d="M208 1238L475 1238 M210 1261L505 1261 M236 1212L236 1302 M458 1217L458 1292"/>
-<path class="road" stroke-width="10" d="M208 1238L475 1238 M210 1261L505 1261 M236 1212L236 1302 M458 1217L458 1292"/>
-<!-- Small ancillary sheds -->
-<rect x="555" y="597" width="13" height="32" fill="#c3cac5" stroke="#929b96" stroke-width="2"/>
-<rect x="487" y="968" width="37" height="92" fill="#b8c0bc" stroke="#858f8a" stroke-width="2"/>
-<path d="M493 979H518 M493 991H518 M493 1003H518 M493 1015H518 M493 1027H518 M493 1039H518" class="roofline"/>
-<rect x="547" y="1008" width="58" height="83" rx="2" fill="#c8ceca" stroke="#8b9590" stroke-width="2"/>
-<path d="M555 1018H597 M555 1032H597 M555 1046H597 M555 1060H597 M555 1074H597" class="roofline"/>
-<!-- open loading yard -->
-<path d="M213 965L469 965 469 1090 213 1090Z" fill="#e7e3d7" stroke="#d1cbbc" stroke-width="2"/>
-<path d="M223 981L458 981 M223 1010L458 1010 M223 1039L458 1039 M223 1068L458 1068" stroke="#d6d0c2" stroke-width="2"/>
-<!-- perimeter access road -->
-<path class="road-edge" stroke-width="14" d="M0 1193L197 1284 197 1344 M0 812L177 812"/>
-<path class="road" stroke-width="8" d="M0 1193L197 1284 197 1344 M0 812L177 812"/>
-<!-- clean legend -->
-<g transform="translate(24 24)">
-  <rect width="178" height="78" rx="8" fill="#ffffff" fill-opacity=".94" stroke="#d5d9d3"/>
-  <rect x="13" y="13" width="16" height="12" fill="#c9ceca" stroke="#8e9792"/>
-  <text x="38" y="23" font-family="Arial, sans-serif" font-size="11" fill="#333b37">Корпуса</text>
-  <rect x="13" y="33" width="16" height="12" fill="url(#pipeStacks)" stroke="#8e877b"/>
-  <text x="38" y="43" font-family="Arial, sans-serif" font-size="11" fill="#333b37">Складские штабели</text>
-  <path d="M13 59H29" stroke="#d7d8d1" stroke-width="8" stroke-linecap="round"/>
-  <path d="M13 59H29" stroke="#f7f6ef" stroke-width="5" stroke-linecap="round"/>
-  <text x="38" y="63" font-family="Arial, sans-serif" font-size="11" fill="#333b37">Проезды</text>
+<!-- Background -->
+<rect width="900" height="1200" fill="url(#grass)"/>
+
+<!-- Water body (west side, pond) approx 56.4280-56.4310, 38.1420-38.1460 -->
+<path d="M60 250 Q30 350 50 480 Q70 530 110 520 Q160 500 180 430 Q190 350 170 280 Q150 240 100 230 Z" fill="url(#water)" stroke="#6a9bb0" stroke-width="1.5"/>
+<text x="110" y="390" class="label-sm" fill="#4a7a90">Пруд</text>
+
+<!-- Forest strips -->
+<!-- West forest along water -->
+<path d="M150 180 Q180 200 190 260 Q200 350 195 450 Q190 500 170 530 L200 540 Q220 470 220 380 Q220 280 210 220 Q200 190 180 175 Z" fill="url(#forest)" opacity="0.7"/>
+<!-- Central forest strip (between pipe zones) -->
+<path d="M250 520 Q350 510 450 515 Q500 520 530 530 L530 560 Q450 545 350 545 Q300 548 250 555 Z" fill="url(#forest)" opacity="0.6"/>
+<!-- East forest -->
+<path d="M750 400 Q770 300 780 200 Q790 150 800 100 L900 100 L900 500 Q850 480 800 450 Q770 430 750 400Z" fill="url(#forest)" opacity="0.5"/>
+
+<!-- =================== ROADS (from GPS tracks) =================== -->
+<!-- Main north-south road (central artery) -->
+<path d="M420 60 L420 180 Q420 200 430 210 L460 240 Q480 260 480 290 L480 420 Q480 440 470 460 L440 500 Q420 530 420 560 L420 700 L430 750 Q440 780 450 800 L460 850 Q470 880 470 920 L470 1000 L470 1100" class="road-edge" stroke-width="18"/>
+<path d="M420 60 L420 180 Q420 200 430 210 L460 240 Q480 260 480 290 L480 420 Q480 440 470 460 L440 500 Q420 530 420 560 L420 700 L430 750 Q440 780 450 800 L460 850 Q470 880 470 920 L470 1000 L470 1100" class="road" stroke-width="14"/>
+
+<!-- West road to crane/storage area -->
+<path d="M420 300 L350 290 Q300 285 260 280 L210 270" class="road-edge" stroke-width="14"/>
+<path d="M420 300 L350 290 Q300 285 260 280 L210 270" class="road" stroke-width="10"/>
+
+<!-- East spur to ТЭСЦ entrance -->
+<path d="M480 290 L550 285 Q600 280 650 275 L700 270" class="road-edge" stroke-width="14"/>
+<path d="M480 290 L550 285 Q600 280 650 275 L700 270" class="road" stroke-width="10"/>
+
+<!-- South road to uzbek area -->
+<path d="M470 1000 Q500 1010 550 1020 L650 1040 Q700 1050 750 1060" class="road-edge" stroke-width="14"/>
+<path d="M470 1000 Q500 1010 550 1020 L650 1040 Q700 1050 750 1060" class="road" stroke-width="10"/>
+
+<!-- Road between pipe stacks (horizontal, middle) -->
+<path d="M250 700 L400 695 Q420 694 440 695 L600 700 L700 705" class="road-edge" stroke-width="12"/>
+<path d="M250 700 L400 695 Q420 694 440 695 L600 700 L700 705" class="road" stroke-width="8"/>
+
+<!-- Western road along water/forest -->
+<path d="M210 270 L220 340 Q225 400 230 460 L235 520 Q240 560 245 600 L250 700" class="road-edge" stroke-width="12"/>
+<path d="M210 270 L220 340 Q225 400 230 460 L235 520 Q240 560 245 600 L250 700" class="road" stroke-width="8"/>
+
+<!-- =================== MAIN BUILDING: ТЭСЦ =================== -->
+<!-- Large production hall ~56.4305-56.4325, 38.1490-38.1545 -->
+<rect x="420" y="70" width="380" height="180" rx="3" class="building"/>
+<rect x="430" y="80" width="170" height="75" rx="2" fill="#b8bdb5" stroke="#8a918a" stroke-width="0.5"/>
+<rect x="610" y="80" width="180" height="75" rx="2" fill="#b8bdb5" stroke="#8a918a" stroke-width="0.5"/>
+<rect x="430" y="165" width="360" height="75" rx="2" fill="#bcc1b8" stroke="#8a918a" stroke-width="0.5"/>
+<text x="610" y="145" class="label" font-size="14">ТЭСЦ</text>
+<text x="610" y="162" class="label-sm">Трубоэлектросварочный цех</text>
+
+<!-- =================== PIPE STORAGE AREAS =================== -->
+<!-- North pipe stacks (56.4285-56.4300, 38.1470-38.1530) -->
+<g>
+  <rect x="270" y="310" width="80" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="360" y="310" width="80" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="270" y="355" width="80" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="360" y="355" width="80" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="270" y="400" width="80" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="360" y="400" width="80" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="270" y="445" width="80" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="360" y="445" width="80" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
 </g>
+<!-- East pipe stacks -->
+<g>
+  <rect x="510" y="310" width="75" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="595" y="310" width="75" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="510" y="355" width="75" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="595" y="355" width="75" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="510" y="400" width="75" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="595" y="400" width="75" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="510" y="445" width="75" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="595" y="445" width="75" height="35" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+</g>
+
+<!-- South pipe stacks (below central forest strip) -->
+<g>
+  <rect x="270" y="580" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="350" y="580" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="270" y="618" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="350" y="618" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="270" y="656" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="350" y="656" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="500" y="580" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="580" y="580" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="500" y="618" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="580" y="618" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="500" y="656" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="580" y="656" width="70" height="30" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+</g>
+
+<!-- Far south pipe stacks -->
+<g>
+  <rect x="300" y="740" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="375" y="740" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="300" y="776" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="375" y="776" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="300" y="812" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="375" y="812" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="520" y="740" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="595" y="740" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="520" y="776" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="595" y="776" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="520" y="812" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+  <rect x="595" y="812" width="65" height="28" rx="2" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.8"/>
+</g>
+
+<!-- =================== СКЛАД ГП + КРАНЫ (west) =================== -->
+<!-- Crane area near 56.4294, 38.1476 -->
+<rect x="220" y="280" width="40" height="40" rx="2" fill="#d4a44a" stroke="#a07830" stroke-width="1.5"/>
+<text x="240" y="305" class="label-sm" fill="#704000" font-size="8">Кран</text>
+<text x="240" y="340" class="label" font-size="10">Склад ГП</text>
+<text x="240" y="355" class="label-sm" font-size="8">Погрузка</text>
+
+<!-- =================== SMALL BUILDINGS =================== -->
+<!-- Admin/utility buildings south area -->
+<rect x="500" y="950" width="60" height="40" rx="2" class="building-small"/>
+<rect x="580" y="940" width="50" height="50" rx="2" class="building-small"/>
+<rect x="650" y="960" width="45" height="35" rx="2" class="building-small"/>
+
+<!-- Весовая (near entrance road, south) -->
+<rect x="440" y="1040" width="35" height="20" rx="2" fill="#c7b89a" stroke="#8a7e6e" stroke-width="1.5"/>
+<text x="458" y="1055" class="label-sm" font-size="8">Весовая</text>
+
+<!-- =================== КПП (south entrance) =================== -->
+<rect x="445" y="1110" width="50" height="25" rx="3" fill="#d4a44a" stroke="#a07830" stroke-width="2"/>
+<text x="470" y="1128" class="label" font-size="10" fill="#704000">КПП</text>
+<!-- Gate barrier -->
+<line x1="440" y1="1120" x2="420" y2="1120" stroke="#c04040" stroke-width="3" stroke-linecap="round"/>
+<line x1="500" y1="1120" x2="520" y2="1120" stroke="#c04040" stroke-width="3" stroke-linecap="round"/>
+
+<!-- =================== ПАРКОВКА "Узбекгородок" =================== -->
+<rect x="600" y="1000" width="120" height="60" rx="4" fill="none" stroke="#6a6a6a" stroke-width="1.5" stroke-dasharray="6,3"/>
+<!-- Parking lines -->
+<line x1="620" y1="1005" x2="620" y2="1055" stroke="#888" stroke-width="0.5"/>
+<line x1="640" y1="1005" x2="640" y2="1055" stroke="#888" stroke-width="0.5"/>
+<line x1="660" y1="1005" x2="660" y2="1055" stroke="#888" stroke-width="0.5"/>
+<line x1="680" y1="1005" x2="680" y2="1055" stroke="#888" stroke-width="0.5"/>
+<line x1="700" y1="1005" x2="700" y2="1055" stroke="#888" stroke-width="0.5"/>
+<text x="660" y="1080" class="label" font-size="10">Парковка</text>
+
+<!-- =================== Ж/Д пути (south edge) =================== -->
+<g stroke="#8a8078" stroke-width="2">
+  <line x1="0" y1="1160" x2="900" y2="1160"/>
+  <line x1="0" y1="1165" x2="900" y2="1165"/>
+</g>
+<!-- Rail ties -->
+<g stroke="#9a9490" stroke-width="1">
+  <line x1="20" y1="1157" x2="20" y2="1168"/><line x1="40" y1="1157" x2="40" y2="1168"/>
+  <line x1="60" y1="1157" x2="60" y2="1168"/><line x1="80" y1="1157" x2="80" y2="1168"/>
+  <line x1="100" y1="1157" x2="100" y2="1168"/><line x1="120" y1="1157" x2="120" y2="1168"/>
+  <line x1="140" y1="1157" x2="140" y2="1168"/><line x1="160" y1="1157" x2="160" y2="1168"/>
+  <line x1="180" y1="1157" x2="180" y2="1168"/><line x1="200" y1="1157" x2="200" y2="1168"/>
+  <line x1="220" y1="1157" x2="220" y2="1168"/><line x1="240" y1="1157" x2="240" y2="1168"/>
+  <line x1="260" y1="1157" x2="260" y2="1168"/><line x1="280" y1="1157" x2="280" y2="1168"/>
+  <line x1="300" y1="1157" x2="300" y2="1168"/><line x1="320" y1="1157" x2="320" y2="1168"/>
+  <line x1="340" y1="1157" x2="340" y2="1168"/><line x1="360" y1="1157" x2="360" y2="1168"/>
+  <line x1="380" y1="1157" x2="380" y2="1168"/><line x1="400" y1="1157" x2="400" y2="1168"/>
+  <line x1="420" y1="1157" x2="420" y2="1168"/><line x1="440" y1="1157" x2="440" y2="1168"/>
+  <line x1="460" y1="1157" x2="460" y2="1168"/><line x1="480" y1="1157" x2="480" y2="1168"/>
+  <line x1="500" y1="1157" x2="500" y2="1168"/><line x1="520" y1="1157" x2="520" y2="1168"/>
+  <line x1="540" y1="1157" x2="540" y2="1168"/><line x1="560" y1="1157" x2="560" y2="1168"/>
+  <line x1="580" y1="1157" x2="580" y2="1168"/><line x1="600" y1="1157" x2="600" y2="1168"/>
+  <line x1="620" y1="1157" x2="620" y2="1168"/><line x1="640" y1="1157" x2="640" y2="1168"/>
+  <line x1="660" y1="1157" x2="660" y2="1168"/><line x1="680" y1="1157" x2="680" y2="1168"/>
+  <line x1="700" y1="1157" x2="700" y2="1168"/><line x1="720" y1="1157" x2="720" y2="1168"/>
+  <line x1="740" y1="1157" x2="740" y2="1168"/><line x1="760" y1="1157" x2="760" y2="1168"/>
+  <line x1="780" y1="1157" x2="780" y2="1168"/><line x1="800" y1="1157" x2="800" y2="1168"/>
+  <line x1="820" y1="1157" x2="820" y2="1168"/><line x1="840" y1="1157" x2="840" y2="1168"/>
+  <line x1="860" y1="1157" x2="860" y2="1168"/><line x1="880" y1="1157" x2="880" y2="1168"/>
+</g>
+<text x="450" y="1185" class="label-sm" fill="#777">Ж/Д пути</text>
+
+<!-- =================== TERRITORY BOUNDARY =================== -->
+<path d="M180 50 L820 50 Q850 50 860 70 L870 200 Q875 400 870 600 L860 800 Q855 900 840 1000 L820 1100 Q810 1140 780 1150 L150 1150 Q120 1140 100 1100 L80 900 Q60 700 70 500 L90 300 Q100 200 120 120 Q140 60 180 50 Z" fill="none" stroke="#8a7e6e" stroke-width="2" stroke-dasharray="10,5"/>
+
+<!-- =================== LABELS =================== -->
+<!-- Section labels -->
+<text x="400" y="500" class="label-sm" font-size="9" fill="#777">Штабели труб (север)</text>
+<text x="400" y="670" class="label-sm" font-size="9" fill="#777">Штабели труб (юг)</text>
+
+<!-- Entrance label at ТЭСЦ -->
+<circle cx="480" cy="265" r="6" fill="#e74c3c" opacity="0.8"/>
+<text x="480" y="268" font-family="Arial" font-size="8" fill="#fff" text-anchor="middle" font-weight="bold">1</text>
+<text x="520" y="268" class="label-sm" fill="#c0392b">Въезд в цех</text>
+
+<!-- Legend -->
+<rect x="15" y="15" width="170" height="110" rx="6" fill="rgba(255,255,255,0.9)" stroke="#ccc" stroke-width="1"/>
+<text x="25" y="35" font-family="Arial" font-size="12" fill="#333" font-weight="bold">Условные обозначения</text>
+<rect x="25" y="45" width="16" height="12" rx="1" fill="url(#roof)" stroke="#7a8077" stroke-width="0.5"/>
+<text x="48" y="55" font-family="Arial" font-size="10" fill="#555">Корпуса</text>
+<rect x="25" y="63" width="16" height="12" rx="1" fill="url(#pipes)" stroke="#8a7e6e" stroke-width="0.5"/>
+<text x="48" y="73" font-family="Arial" font-size="10" fill="#555">Штабели труб</text>
+<line x1="25" y1="85" x2="41" y2="85" stroke="#e8e4dc" stroke-width="4"/>
+<text x="48" y="89" font-family="Arial" font-size="10" fill="#555">Проезды</text>
+<rect x="25" y="97" width="16" height="12" rx="1" fill="url(#water)" stroke="#6a9bb0" stroke-width="0.5"/>
+<text x="48" y="107" font-family="Arial" font-size="10" fill="#555">Водоём</text>
+
 </svg>

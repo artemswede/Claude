@@ -175,15 +175,14 @@ const ANIM_MS = 100;
 
 // ========== GEO-REFERENCE ==========
 // Real vehicle coordinates: lat 56.421..56.431, lng 38.144..38.153
-// SVG viewBox: 0 0 806 1344
-// Map these to the factory site boundary in SVG (roughly x:190..620, y:20..1290)
+// SVG viewBox: 0 0 900 1200
 const GEO = {
-  latN: 56.4320,  // top of SVG
-  latS: 56.4195,  // bottom of SVG
-  lonW: 38.1410,  // left of SVG
-  lonE: 38.1560,  // right of SVG
-  svgW: 806,
-  svgH: 1344,
+  latN: 56.4335,
+  latS: 56.4195,
+  lonW: 38.1400,
+  lonE: 38.1570,
+  svgW: 900,
+  svgH: 1200,
 };
 
 function geoToSvg(lat, lon) {
