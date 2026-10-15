@@ -96,6 +96,10 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--wms-bg);color:var
 .nav-btn span{font-weight:500}
 .error-banner{background:#fff3e0;color:#7a5a00;padding:8px 12px;font-size:12px;text-align:center;display:none}
 .error-banner.show{display:block}
+.map-controls{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:4px;z-index:10}
+.map-ctrl{width:32px;height:32px;border-radius:8px;border:1px solid var(--wms-border);background:var(--wms-surface);color:var(--wms-text);font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:var(--wms-shadow);font-family:inherit;line-height:1}
+.map-ctrl:active{background:var(--wms-bg)}
+.map-svg-wrap{transform-origin:center center;transition:transform .3s ease}
 </style>
 </head>
 <body>
@@ -114,7 +118,14 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--wms-bg);color:var
 <div class="main">
   <div class="tab-content active" id="tabMap">
     <div class="map-container">
-      <div class="map-wrapper" id="mapWrapper">
+      <div class="map-wrapper" id="mapWrapper" style="overflow:hidden">
+        <div class="map-controls">
+          <button class="map-ctrl" onclick="mapRotate(-15)" title="Повернуть влево">↺</button>
+          <button class="map-ctrl" onclick="mapRotate(15)" title="Повернуть вправо">↻</button>
+          <button class="map-ctrl" onclick="mapZoom(0.2)" title="Увеличить">+</button>
+          <button class="map-ctrl" onclick="mapZoom(-0.2)" title="Уменьшить">−</button>
+          <button class="map-ctrl" onclick="mapReset()" title="Сбросить" style="font-size:12px">⟲</button>
+        </div>
         <div class="vehicle-popup" id="vehiclePopup">
           <div class="vp-plate" id="vpPlate"></div>
           <div class="vp-model" id="vpModel"></div>
@@ -252,6 +263,47 @@ async function loadSvgMap() {
   svgEl.appendChild(markersGroup);
   wrapper.insertBefore(svgEl, popup);
 }
+
+// ========== MAP TRANSFORM (rotate + zoom) ==========
+let mapAngle = 0, mapScale = 1;
+function applyMapTransform() {
+  if (!svgEl) return;
+  svgEl.style.transform = `rotate(${mapAngle}deg) scale(${mapScale})`;
+  svgEl.style.transformOrigin = 'center center';
+}
+function mapRotate(deg) { mapAngle = (mapAngle + deg) % 360; applyMapTransform(); }
+function mapZoom(delta) { mapScale = Math.max(0.3, Math.min(3, mapScale + delta)); applyMapTransform(); }
+function mapReset() { mapAngle = 0; mapScale = 1; applyMapTransform(); }
+
+// Wheel zoom on map
+document.addEventListener('DOMContentLoaded', () => {
+  const wrapper = document.getElementById('mapWrapper');
+  wrapper.addEventListener('wheel', e => {
+    if (!e.target.closest('.map-wrapper')) return;
+    e.preventDefault();
+    mapZoom(e.deltaY > 0 ? -0.1 : 0.1);
+  }, {passive: false});
+
+  // Pinch zoom on touch
+  let lastPinchDist = 0;
+  wrapper.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      lastPinchDist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
+    }
+  });
+  wrapper.addEventListener('touchmove', e => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
+      if (lastPinchDist > 0) {
+        const delta = (dist - lastPinchDist) / 200;
+        mapZoom(delta);
+      }
+      lastPinchDist = dist;
+    }
+  }, {passive: false});
+  wrapper.addEventListener('touchend', () => { lastPinchDist = 0; });
+});
 
 // ========== EXCLUDED MODELS ==========
 const EXCLUDED_MODELS = ['GAC G8', 'GAC  G8'];
@@ -530,7 +582,7 @@ function showPopup(v) {
   const ago = v.lastTime ? Math.round((Date.now()/1000 - v.lastTime)/60) : 0;
   const agoStr = ago >= 60 ? `${Math.floor(ago/60)} ч ${ago%60} мин` : ago > 0 ? `${ago} мин` : 'только что';
   document.getElementById('vpExtra').textContent =
-    `Обновлено: ${agoStr}` + ` · ${v.trackPoints} точек`;
+    `GPS: ${agoStr} назад · ${v.trackPoints} точек`;
 
   const rect = document.getElementById('mapWrapper').getBoundingClientRect();
   const svgRect = svgEl.getBoundingClientRect();
