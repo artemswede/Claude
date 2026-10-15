@@ -201,6 +201,15 @@ const KM_TO_PX_X = 900 / 1.17;  // ~769 px/km
 const KM_TO_PX_Y = 1200 / 1.89; // ~635 px/km
 const KM_TO_PX = (KM_TO_PX_X + KM_TO_PX_Y) / 2; // ~702 px/km
 
+// ========== STOP WAYPOINTS (from GPS clustering) ==========
+const STOP_POINTS = [
+  {x:612.7,y:301},{x:765,y:828.9},{x:677.9,y:883.4},{x:535.3,y:575.3},
+  {x:589.4,y:323.6},{x:620.3,y:281.9},{x:588.2,y:360.2},{x:698,y:947.4},
+  {x:695,y:887.1},{x:616.3,y:355.6},{x:625.3,y:300.2},{x:637.2,y:295.3},
+  {x:571.1,y:406.5},{x:610.5,y:479.1},{x:654,y:299.3},{x:480.4,y:661.1},
+  {x:468.7,y:675.8},{x:307.2,y:895.7},{x:547.2,y:494},{x:415.1,y:780.2},
+];
+
 // ========== STATE ==========
 let vehicles = [];
 let svgEl = null;
@@ -363,53 +372,72 @@ function startAnimation() {
   requestAnimationFrame(tick);
 }
 
+// Find nearest stop point ahead of vehicle's heading
+function findTargetStop(x, y, heading, speed) {
+  if (speed < 3) return null;
+  let bestDist = Infinity, best = null;
+  const hx = Math.sin(heading), hy = -Math.cos(heading);
+  for (const s of STOP_POINTS) {
+    const dx = s.x - x, dy = s.y - y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < 15 || dist > 400) continue;
+    const dot = (dx * hx + dy * hy) / dist;
+    if (dot < 0.3) continue; // must be roughly ahead
+    const score = dist / (dot * dot); // prefer close + aligned
+    if (score < bestDist) { bestDist = score; best = s; }
+  }
+  return best;
+}
+
 function tick(now) {
   const dt = Math.min((now - lastFrameTime) / 1000, 0.5);
   lastFrameTime = now;
 
   vehicles.forEach(v => {
     if (!v.onSite) return;
+
+    // Apply correction easing (works for both moving and stopped)
+    if (v.corrX !== 0 || v.corrY !== 0) {
+      const elapsed = now - v.corrStart;
+      const t = Math.min(elapsed / CORRECTION_DURATION, 1);
+      const eased = t * (2 - t);
+      if (t >= 1) {
+        v.x += v.corrX; v.y += v.corrY;
+        v.corrX = 0; v.corrY = 0;
+      }
+    }
+
     if (v.state !== 'moving' || v.speed === 0) {
-      // Apply remaining correction for stopped vehicles
-      if (v.corrX !== 0 || v.corrY !== 0) {
-        const elapsed = now - v.corrStart;
-        const t = Math.min(elapsed / CORRECTION_DURATION, 1);
-        if (t < 1) {
-          const eased = t * (2 - t); // ease-out
-          const marker = document.getElementById('m-' + v.id);
-          if (marker) {
-            const cx = v.corrX * eased;
-            const cy = v.corrY * eased;
-            marker.setAttribute('transform', `translate(${(v.x + cx - v.corrX + v.corrX).toFixed(1)},${(v.y + cy - v.corrY + v.corrY).toFixed(1)})`);
-          }
-        } else {
-          v.x += v.corrX;
-          v.y += v.corrY;
-          v.corrX = 0; v.corrY = 0;
-          const marker = document.getElementById('m-' + v.id);
-          if (marker) marker.setAttribute('transform', `translate(${v.x.toFixed(1)},${v.y.toFixed(1)})`);
+      // Stopped: just show corrected position
+      const marker = document.getElementById('m-' + v.id);
+      if (marker) {
+        let px = v.x, py = v.y;
+        if (v.corrX !== 0 || v.corrY !== 0) {
+          const elapsed = now - v.corrStart;
+          const eased = Math.min(elapsed / CORRECTION_DURATION, 1) * (2 - Math.min(elapsed / CORRECTION_DURATION, 1));
+          px += v.corrX * eased; py += v.corrY * eased;
         }
+        marker.setAttribute('transform', `translate(${px.toFixed(1)},${py.toFixed(1)})`);
       }
       return;
     }
 
-    // Dead reckoning: move along speed+heading vector
-    v.x += v.drVx * dt;
-    v.y += v.drVy * dt;
-
-    // Ease in correction from last GPS update
-    if (v.corrX !== 0 || v.corrY !== 0) {
-      const elapsed = now - v.corrStart;
-      const t = Math.min(elapsed / CORRECTION_DURATION, 1);
-      const step = dt / (CORRECTION_DURATION / 1000);
-      if (t < 1) {
-        v.x += v.corrX * step;
-        v.y += v.corrY * step;
-      } else {
-        v.corrX = 0;
-        v.corrY = 0;
+    // Dead reckoning with stop-point attraction
+    let vx = v.drVx, vy = v.drVy;
+    const target = findTargetStop(v.x, v.y, v.heading, v.speed);
+    if (target) {
+      const dx = target.x - v.x, dy = target.y - v.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const spd = Math.sqrt(vx*vx + vy*vy);
+      if (spd > 0 && dist > 0) {
+        const blend = 0.3; // 30% attraction toward stop point
+        vx = vx * (1 - blend) + (dx / dist) * spd * blend;
+        vy = vy * (1 - blend) + (dy / dist) * spd * blend;
       }
     }
+
+    v.x += vx * dt;
+    v.y += vy * dt;
 
     const marker = document.getElementById('m-' + v.id);
     if (marker) marker.setAttribute('transform', `translate(${v.x.toFixed(1)},${v.y.toFixed(1)})`);
