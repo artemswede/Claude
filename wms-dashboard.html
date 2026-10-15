@@ -32,18 +32,20 @@
 }
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Inter',system-ui,sans-serif;background:var(--wms-bg);color:var(--wms-text);min-height:100dvh;display:flex;flex-direction:column;overflow-x:hidden;-webkit-font-smoothing:antialiased}
-.header{background:var(--wms-header);color:var(--wms-header-text);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,0.15)}
+.header{background:var(--wms-header);color:var(--wms-header-text);padding:8px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,0.15)}
+.header-left{display:flex;flex-direction:column;gap:1px}
 .header h1{font-size:15px;font-weight:600}
+.header-sub{display:flex;align-items:center;gap:5px}
 .header-right{display:flex;align-items:center;gap:8px}
-.mode-toggle{display:flex;background:rgba(255,255,255,0.12);border-radius:6px;overflow:hidden;font-size:11px;font-weight:500}
-.mode-toggle button{border:none;background:transparent;color:var(--wms-header-text);padding:4px 10px;cursor:pointer;opacity:0.5;transition:all .2s;font-family:inherit}
-.mode-toggle button.active{background:var(--wms-accent);color:var(--wms-text);opacity:1}
-.status-dot{width:8px;height:8px;border-radius:50%;background:var(--wms-success);animation:pulse 2s infinite}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--wms-success);animation:pulse 2s infinite;flex-shrink:0}
 .status-dot.stale{background:var(--wms-warning);animation:none}
 .status-dot.error{background:var(--wms-danger);animation:none}
 .status-dot.loading{background:var(--wms-accent);animation:pulse .5s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.update-time{font-size:10px;opacity:.6}
+.update-time{font-size:10px;opacity:.7}
+.gps-age-badge{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,0.12);border-radius:6px;padding:4px 8px;font-size:10px;font-weight:500;color:var(--wms-header-text);opacity:.85}
+.gps-age-badge.warn{background:rgba(196,148,58,0.3);opacity:1}
+.gps-age-badge.old{background:rgba(169,68,66,0.3);opacity:1}
 .main{flex:1;padding:0 0 68px;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .tab-content{display:none}.tab-content.active{display:block}
 .map-container{padding:8px 12px}
@@ -107,11 +109,18 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--wms-bg);color:var
 <body>
 
 <div class="header">
-  <h1>ЗТЗ Транспорт</h1>
+  <div class="header-left">
+    <h1>ЗТЗ Транспорт</h1>
+    <div class="header-sub">
+      <div class="status-dot loading" id="statusDot"></div>
+      <span class="update-time" id="updateTime">обновление...</span>
+    </div>
+  </div>
   <div class="header-right">
-    <span class="update-time" id="updateTime">--:--</span>
-    <span style="font-size:10px;opacity:.7">Live</span>
-    <div class="status-dot loading" id="statusDot"></div>
+    <div class="gps-age-badge" id="gpsAgeBadge" title="Возраст GPS-данных от KGK">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      <span id="gpsAgeText">—</span>
+    </div>
   </div>
 </div>
 
@@ -150,6 +159,9 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--wms-bg);color:var
   </div>
 
   <div class="tab-content" id="tabVehicles">
+    <div style="padding:8px 12px 0">
+      <input type="search" id="vehicleSearch" placeholder="Поиск по номеру или модели..." style="width:100%;padding:8px 12px;border:1px solid var(--wms-border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--wms-surface);color:var(--wms-text);outline:none" oninput="filterVehicles()">
+    </div>
     <div class="vehicles-list" id="vehiclesList"></div>
   </div>
 
@@ -336,6 +348,15 @@ async function fetchData() {
       return !EXCLUDED_MODELS.some(ex => m.includes(ex));
     });
     processApiData(filtered);
+    fetchCount++;
+    // Track newest GPS packet across all vehicles
+    let newest = 0;
+    for (const d of filtered) {
+      for (const p of (d.track || [])) {
+        if (p.packet_time > newest) newest = p.packet_time;
+      }
+    }
+    if (newest > 0) newestPacketTime = newest;
     dot.className = 'status-dot';
     banner.classList.remove('show');
     updateTime();
@@ -551,10 +572,12 @@ function renderMarkers() {
     if (v.state !== 'moving') g.classList.add('parking');
     g.setAttribute('transform', `translate(${v.x.toFixed(1)},${v.y.toFixed(1)})`);
 
+    const shortPlate = v.plate.replace(/\s/g,'').slice(-4);
     g.innerHTML = `
-      <circle class="pulse-ring" r="12" fill="${c}" opacity=".15"/>
-      <circle r="8" fill="${c}" stroke="#fff" stroke-width="2"/>
-      <polygon points="0,-4 3,1.5 -3,1.5" fill="#fff" opacity=".9" transform="rotate(${(v.heading*180/Math.PI).toFixed(0)})"/>
+      <circle class="pulse-ring" r="14" fill="${c}" opacity=".15"/>
+      <circle r="9" fill="${c}" stroke="#fff" stroke-width="2.5"/>
+      <polygon points="0,-5 3.5,1.5 -3.5,1.5" fill="#fff" opacity=".9" transform="rotate(${(v.heading*180/Math.PI).toFixed(0)})"/>
+      <text y="-14" text-anchor="middle" font-size="7" font-weight="700" fill="${c}" stroke="#fff" stroke-width="2.5" paint-order="stroke">${shortPlate}</text>
     `;
     g.addEventListener('pointerenter', e => showPopup(v));
     g.addEventListener('pointerleave', hidePopup);
@@ -600,29 +623,53 @@ function updateStats() {
   document.getElementById('statOnSite').textContent = onSite;
 }
 
+let newestPacketTime = 0;
+let fetchCount = 0;
+
 function updateTime() {
-  document.getElementById('updateTime').textContent =
-    new Date().toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('updateTime').textContent = `обн. ${timeStr} (#${fetchCount})`;
+
+  // Update GPS age display
+  const badge = document.getElementById('gpsAgeBadge');
+  const ageEl = document.getElementById('gpsAgeText');
+  if (newestPacketTime > 0) {
+    const agoSec = Math.floor(Date.now() / 1000 - newestPacketTime);
+    const agoMin = Math.floor(agoSec / 60);
+    let ageStr;
+    if (agoMin < 1) ageStr = 'GPS: сейчас';
+    else if (agoMin < 60) ageStr = `GPS: ${agoMin} мин`;
+    else ageStr = `GPS: ${Math.floor(agoMin/60)} ч ${agoMin%60} мин`;
+    ageEl.textContent = ageStr;
+    badge.className = 'gps-age-badge' + (agoMin > 120 ? ' old' : agoMin > 30 ? ' warn' : '');
+  }
 }
 setInterval(updateTime, 1000);
 
 // ========== VEHICLES LIST ==========
+function filterVehicles() { renderVehiclesList(); }
+
 function renderVehiclesList() {
-  document.getElementById('vehiclesList').innerHTML = vehicles
-    .sort((a,b) => (a.state==='moving'?0:1) - (b.state==='moving'?0:1))
-    .map(v => {
+  const q = (document.getElementById('vehicleSearch')?.value || '').toLowerCase();
+  const filtered = vehicles
+    .filter(v => !q || v.plate.toLowerCase().includes(q) || v.model.toLowerCase().includes(q))
+    .sort((a,b) => (a.state==='moving'?0:1) - (b.state==='moving'?0:1));
+
+  document.getElementById('vehiclesList').innerHTML = filtered.map(v => {
     const stateClass = !v.onSite ? 'off_site' : v.state;
-    const stateLabel = !v.onSite ? 'Вне зав.' : v.state==='moving' ? 'В пути' : v.state==='parking' ? 'Стоит' : 'Нет связи';
-    const sColor = v.state==='moving' ? 'var(--wms-success)' : 'var(--wms-warning)';
+    const stateLabel = !v.onSite ? 'Вне завода' : v.state==='moving' ? 'В движении' : v.state==='parking' ? 'Стоянка' : 'Нет связи';
+    const sColor = v.state==='moving' ? 'var(--wms-success)' : v.state==='parking' ? 'var(--wms-warning)' : 'var(--wms-danger)';
     const ago = v.lastTime ? Math.round((Date.now()/1000 - v.lastTime)/60) : null;
+    const agoStr = ago === null ? '' : ago >= 60 ? `${Math.floor(ago/60)}ч ${ago%60}м назад` : ago > 0 ? `${ago} мин назад` : 'сейчас';
     return `<div class="vehicle-card">
-      <div class="v-icon"><svg viewBox="0 0 24 24" fill="none" stroke="${sColor}" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div>
+      <div class="v-icon" style="background:${sColor}15"><svg viewBox="0 0 24 24" fill="none" stroke="${sColor}" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div>
       <div class="v-info">
         <div class="v-plate">${v.plate}</div>
         <div class="v-model">${v.model}</div>
         <div class="v-meta">
-          <span>${v.speed} км/ч</span>
-          ${ago !== null ? `<span>${ago >= 60 ? Math.floor(ago/60) + ' ч ' + ago%60 + ' мин' : ago + ' мин'}</span>` : ''}
+          <span>${v.speed > 0 ? v.speed + ' км/ч' : '—'}</span>
+          ${agoStr ? `<span>GPS: ${agoStr}</span>` : ''}
         </div>
       </div>
       <div class="v-badge ${stateClass}">${stateLabel}</div>
