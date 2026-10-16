@@ -1,13 +1,8 @@
-// Try production first (real-time data), fall back to test server
-const API_HOSTS = [
-  'https://monitor.kgk-global.com/api/reports',
-  'https://agr.kgk-global.com/api/reports',
-  'https://agr-test.kgk-global.com/api/reports',
-];
+const API_BASE = 'https://agr-test.kgk-global.com/api/reports';
 const TOKEN = process.env.AGR_TOKEN || '788d5f7bafb462b7849ed3ed42356b9c';
 
 const cache = new Map();
-const CACHE_TTL = 10000;
+const CACHE_TTL = 5000;
 
 const ALLOWED_REPORTS = [
   'route/detail', 'route/summary', 'trips/summary',
@@ -34,26 +29,21 @@ module.exports = async (req, res) => {
     return res.json(cached.data);
   }
 
-  const errors = [];
-  for (const base of API_HOSTS) {
-    const url = `${base}/${report}?${qs}`;
-    try {
-      const resp = await fetch(url, { signal: AbortSignal.timeout(12000) });
-      if (!resp.ok) {
-        errors.push(`${base}: ${resp.status}`);
-        continue;
-      }
-      const data = await resp.json();
-      cache.set(cacheKey, { data, ts: Date.now() });
-      if (cache.size > 100) {
-        const oldest = cache.keys().next().value;
-        cache.delete(oldest);
-      }
-      res.setHeader('X-AGR-Source', base);
-      return res.json(data);
-    } catch (e) {
-      errors.push(`${base}: ${e.message}`);
+  const url = `${API_BASE}/${report}?${qs}`;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      const text = await resp.text();
+      return res.status(resp.status).json({ error: `AGR ${resp.status}`, detail: text });
     }
+    const data = await resp.json();
+    cache.set(cacheKey, { data, ts: Date.now() });
+    if (cache.size > 100) {
+      const oldest = cache.keys().next().value;
+      cache.delete(oldest);
+    }
+    return res.json(data);
+  } catch (e) {
+    return res.status(502).json({ error: 'AGR unreachable', detail: e.message });
   }
-  return res.status(502).json({ error: 'All AGR hosts unreachable', details: errors });
 };
