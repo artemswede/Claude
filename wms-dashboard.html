@@ -337,7 +337,7 @@ async function fetchData() {
     // Track newest timestamp
     let newest = 0;
     for (const d of filtered) {
-      const t = d.last_packet_time || d.packet_time || d.gps_time || d.last_time || d.time || 0;
+      const t = (d.state && d.state.last_active_time) || 0;
       if (t > newest) newest = t;
     }
     if (newest > 0) newestPacketTime = newest;
@@ -359,17 +359,15 @@ function processPackApiData(data) {
   const oldMap = new Map(vehicles.map(v => [v.id, v]));
 
   vehicles = data.map(d => {
-    // PackAPI field names (adapt to actual response structure)
-    const id = d.id || d.device_id || d.tracker_id || 0;
-    const lat = d.lat || d.latitude || (d.position && d.position.lat) || (d.last_point && d.last_point.lat) || 0;
-    const lon = d.lng || d.lon || d.longitude || (d.position && d.position.lng) || (d.last_point && d.last_point.lng) || 0;
-    const speed = d.speed || (d.last_point && d.last_point.speed) || 0;
-    const heading = d.heading || d.course || d.az || (d.last_point && d.last_point.az) || 0;
-    const plate = d.state_number || d.plate || d.reg_number || d.label || '???';
-    const model = d.mark || d.vehicle_manufacturer || '';
-    const modelName = d.model || d.vehicle_model || '';
-    const fullModel = [model, modelName].filter(Boolean).join(' ') || '—';
-    const lastTime = d.last_packet_time || d.packet_time || d.gps_time || d.last_time || d.time || 0;
+    const s = d.state || {};
+    const id = d.device_id || 0;
+    const lat = s.lat || 0;
+    const lon = s.lng || 0;
+    const speed = s.speed || 0;
+    const heading = s.az || 0;
+    const plate = d.state_number || '???';
+    const fullModel = [d.brand, d.model].filter(Boolean).join(' ') || '—';
+    const lastTime = s.last_active_time || 0;
 
     const onSite = isOnSite(lat, lon);
     const [sx, sy] = onSite ? geoToSvg(lat, lon) : [0, 0];
