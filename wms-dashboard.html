@@ -356,7 +356,7 @@ async function fetchData() {
         if (p.packet_time > newest) newest = p.packet_time;
       }
     }
-    if (newest > 0) newestPacketTime = newest;
+    if (newest > 0) newestPacketTime = newest - 3 * 3600; // KGK offset_utc=3 correction
     dot.className = 'status-dot';
     banner.classList.remove('show');
     updateTime();
@@ -389,7 +389,11 @@ function processApiData(data) {
     let state = !lastPoint ? 'no_data' : speedKmhRaw >= 3 ? 'moving' : 'parking';
 
     const lastEventTime = lastEvent.ts_stop || lastEvent.ts_start || 0;
-    const bestTime = Math.max(lastPoint ? (lastPoint.packet_time || 0) : 0, lastEventTime);
+    // KGK returns timestamps shifted by offset_utc (Moscow +3h as unix ts)
+    // Subtract 3h to get real UTC for comparison with Date.now()
+    const MSK_OFFSET = 3 * 3600;
+    const rawBest = Math.max(lastPoint ? (lastPoint.packet_time || 0) : 0, lastEventTime);
+    const bestTime = rawBest > 0 ? rawBest - MSK_OFFSET : 0;
 
     const speedKmh = speedKmhRaw;
     const headingRad = lastPoint ? ((lastPoint.az || 0) * Math.PI / 180) : 0;
