@@ -457,22 +457,6 @@ function startAnimation() {
   requestAnimationFrame(tick);
 }
 
-// Find nearest stop point ahead of vehicle's heading
-function findTargetStop(x, y, heading, speed) {
-  if (speed < 3) return null;
-  let bestDist = Infinity, best = null;
-  const hx = Math.sin(heading), hy = -Math.cos(heading);
-  for (const s of STOP_POINTS) {
-    const dx = s.x - x, dy = s.y - y;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    if (dist < 15 || dist > 400) continue;
-    const dot = (dx * hx + dy * hy) / dist;
-    if (dot < 0.3) continue; // must be roughly ahead
-    const score = dist / (dot * dot); // prefer close + aligned
-    if (score < bestDist) { bestDist = score; best = s; }
-  }
-  return best;
-}
 
 function tick(now) {
   const dt = Math.min((now - lastFrameTime) / 1000, 0.5);
@@ -497,31 +481,7 @@ function tick(now) {
     let px = v.x + v.corrX * corrFrac;
     let py = v.y + v.corrY * corrFrac;
 
-    if (v.state === 'moving' && v.speed > 0) {
-      // Dead reckoning
-      let vx = v.drVx, vy = v.drVy;
-      const target = findTargetStop(v.x, v.y, v.heading, v.speed);
-      if (target) {
-        const dx = target.x - v.x, dy = target.y - v.y;
-        const dist = Math.sqrt(dx*dx + dy*dy);
-        const spd = Math.sqrt(vx*vx + vy*vy);
-        if (spd > 0 && dist > 0) {
-          vx = vx * 0.7 + (dx / dist) * spd * 0.3;
-          vy = vy * 0.7 + (dy / dist) * spd * 0.3;
-        }
-      }
-      v.x += vx * dt;
-      v.y += vy * dt;
-      px = v.x + v.corrX * corrFrac;
-      py = v.y + v.corrY * corrFrac;
-
-      // Record trail
-      if (!v._lastTrailTime || now - v._lastTrailTime > 500) {
-        v.trail.push({x: px, y: py});
-        if (v.trail.length > 15) v.trail.shift();
-        v._lastTrailTime = now;
-      }
-    }
+    // No dead reckoning — vehicles stay on GPS positions (no field drift)
 
     const marker = document.getElementById('m-' + v.id);
     if (marker) marker.setAttribute('transform', `translate(${px.toFixed(1)},${py.toFixed(1)})`);
