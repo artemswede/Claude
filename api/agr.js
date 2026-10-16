@@ -1,8 +1,8 @@
 const AGR_BASE = 'https://agr-test.kgk-global.com/api/reports';
-const AGR_TOKEN = process.env.AGR_TOKEN;
+const AGR_TOKEN = process.env.AGR_TOKEN || '788d5f7bafb462b7849ed3ed42356b9c';
 
 const PACKAPI_BASE = 'https://packapi.kgk-global.com/api/v1';
-const PACKAPI_AUTH = process.env.PACKAPI_AUTH;
+const PACKAPI_AUTH = process.env.PACKAPI_AUTH || 'Basic bS5iZWx5aEBpLXQtei5ydTowZGY0ZGJlNjIwMDIyOGJiNTUwNTgxNmFkMWE4NDk0Mg==';
 const PACKAPI_GROUP = process.env.PACKAPI_GROUP || '10941';
 
 const cache = new Map();
