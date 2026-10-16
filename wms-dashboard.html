@@ -193,8 +193,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--wms-bg);color:var
 <script>
 // ========== CONFIG ==========
 const API_BASE = '/api/agr';
-const POLL_INTERVAL = 15000;
-const CORRECTION_DURATION = 2000; // ms to ease correction after new GPS
+const POLL_INTERVAL = 10000;
+const CORRECTION_DURATION = 2000;
 
 // ========== GEO-REFERENCE ==========
 // Real vehicle coordinates: lat 56.421..56.431, lng 38.144..38.153
@@ -302,109 +302,82 @@ function switchTab(id, btn) {
   btn.classList.add('active');
 }
 
-// ========== FETCH ==========
+// ========== FETCH (PackAPI real-time) ==========
 async function fetchData() {
   const dot = document.getElementById('statusDot');
   const banner = document.getElementById('errorBanner');
   dot.className = 'status-dot loading';
 
-  const now = Math.floor(Date.now() / 1000);
-  const tsShort = now - 1800; // 30 min window for fresh segments
-  const todayStart = now - (now % 86400) - 3 * 3600;
-  const tsLong = Math.max(todayStart, now - 86400);
-
   try {
-    // Two parallel requests: short window (fast, catches fresh data) + full day (all vehicles)
-    const [resShort, resLong] = await Promise.all([
-      fetch(`${API_BASE}?report=route/detail&ts_start=${tsShort}&ts_stop=${now}&offset_utc=3&with_track=true`),
-      fetch(`${API_BASE}?report=route/detail&ts_start=${tsLong}&ts_stop=${now}&offset_utc=3&with_track=true`),
-    ]);
-    const [dataShort, dataLong] = await Promise.all([resShort.json(), resLong.json()]);
+    const res = await fetch(`${API_BASE}?source=packapi&report=trackers`);
+    if (!res.ok) throw new Error(`PackAPI ${res.status}`);
+    const json = await res.json();
 
-    // Merge: prefer short-window data (fresher), fill in from long
-    const merged = new Map();
-    for (const d of (Array.isArray(dataLong) ? dataLong : [])) merged.set(d.device_id, d);
-    for (const d of (Array.isArray(dataShort) ? dataShort : [])) {
-      const existing = merged.get(d.device_id);
-      if (!existing) { merged.set(d.device_id, d); continue; }
-      // Merge track points and events, keeping the freshest
-      const eTrack = existing.track || [], dTrack = d.track || [];
-      const eEvts = existing.events || [], dEvts = d.events || [];
-      if (dTrack.length > 0) existing.track = eTrack.concat(dTrack);
-      if (dEvts.length > 0) existing.events = eEvts.concat(dEvts);
-    }
-    const data = [...merged.values()];
-
-    if (data.length === 0) {
+    // PackAPI returns { data: [...] } or [...] with tracker objects
+    const raw = Array.isArray(json) ? json : (json.data || json.trackers || json.items || []);
+    if (raw.length === 0) {
       dot.className = 'status-dot stale';
-      banner.textContent = 'Нет данных за сегодня';
+      banner.textContent = 'Нет данных от PackAPI';
       banner.classList.add('show');
       pollTimer = setTimeout(fetchData, POLL_INTERVAL);
       return;
     }
 
-    const filtered = data.filter(d => {
-      const m = [d.vehicle_manufacturer, d.vehicle_model].filter(Boolean).join(' ').trim();
+    // Log first item structure for debugging
+    if (fetchCount === 0) console.log('PackAPI sample:', JSON.stringify(raw[0]).slice(0, 500));
+
+    const filtered = raw.filter(d => {
+      const m = [d.vehicle_manufacturer, d.vehicle_model, d.mark, d.model].filter(Boolean).join(' ').trim();
       return !EXCLUDED_MODELS.some(ex => m.includes(ex));
     });
-    processApiData(filtered);
+
+    processPackApiData(filtered);
     fetchCount++;
-    // Track newest GPS packet across all vehicles
+
+    // Track newest timestamp
     let newest = 0;
     for (const d of filtered) {
-      for (const p of (d.track || [])) {
-        if (p.packet_time > newest) newest = p.packet_time;
-      }
+      const t = d.last_packet_time || d.packet_time || d.gps_time || d.last_time || d.time || 0;
+      if (t > newest) newest = t;
     }
-    if (newest > 0) newestPacketTime = newest + 3 * 3600; // KGK offset_utc=3: local→UTC
+    if (newest > 0) newestPacketTime = newest;
     dot.className = 'status-dot';
     banner.classList.remove('show');
     updateTime();
   } catch(e) {
-    console.error('API error:', e);
+    console.error('PackAPI error:', e);
     dot.className = 'status-dot error';
-    banner.textContent = 'Ошибка API: ' + e.message;
+    banner.textContent = 'Ошибка: ' + e.message;
     banner.classList.add('show');
   }
 
   pollTimer = setTimeout(fetchData, POLL_INTERVAL);
 }
 
-function processApiData(data) {
+// Process PackAPI tracker data (real-time positions)
+function processPackApiData(data) {
   const oldMap = new Map(vehicles.map(v => [v.id, v]));
 
   vehicles = data.map(d => {
-    const track = Array.isArray(d.track) ? d.track : [];
-    const events = Array.isArray(d.events) ? d.events : [];
-    const lastPoint = track.length > 0 ? track[track.length - 1] : null;
-    const lastEvent = events.length > 0 ? events[events.length - 1] : {};
-    const lat = lastPoint ? lastPoint.lat : 0;
-    const lon = lastPoint ? lastPoint.lng : 0;
+    // PackAPI field names (adapt to actual response structure)
+    const id = d.id || d.device_id || d.tracker_id || 0;
+    const lat = d.lat || d.latitude || (d.position && d.position.lat) || (d.last_point && d.last_point.lat) || 0;
+    const lon = d.lng || d.lon || d.longitude || (d.position && d.position.lng) || (d.last_point && d.last_point.lng) || 0;
+    const speed = d.speed || (d.last_point && d.last_point.speed) || 0;
+    const heading = d.heading || d.course || d.az || (d.last_point && d.last_point.az) || 0;
+    const plate = d.state_number || d.plate || d.reg_number || d.label || '???';
+    const model = d.mark || d.vehicle_manufacturer || '';
+    const modelName = d.model || d.vehicle_model || '';
+    const fullModel = [model, modelName].filter(Boolean).join(' ') || '—';
+    const lastTime = d.last_packet_time || d.packet_time || d.gps_time || d.last_time || d.time || 0;
+
     const onSite = isOnSite(lat, lon);
     const [sx, sy] = onSite ? geoToSvg(lat, lon) : [0, 0];
-    const old = oldMap.get(d.device_id);
+    const old = oldMap.get(id);
 
-    const speedKmhRaw = lastPoint ? (lastPoint.speed || 0) : 0;
-    // Determine status from actual speed, not from event_type (which lags behind)
-    let state = !lastPoint ? 'no_data' : speedKmhRaw >= 3 ? 'moving' : 'parking';
+    const state = lat === 0 ? 'no_data' : speed >= 3 ? 'moving' : 'parking';
+    const headingRad = heading * Math.PI / 180;
 
-    const lastEventTime = lastEvent.ts_stop || lastEvent.ts_start || 0;
-    // KGK with offset_utc=3 returns local Moscow time as unix ts
-    // Add 3h to convert to real UTC for comparison with Date.now()
-    const MSK_OFFSET = 3 * 3600;
-    const rawBest = Math.max(lastPoint ? (lastPoint.packet_time || 0) : 0, lastEventTime);
-    const bestTime = rawBest > 0 ? rawBest + MSK_OFFSET : 0;
-
-    const speedKmh = speedKmhRaw;
-    const headingRad = lastPoint ? ((lastPoint.az || 0) * Math.PI / 180) : 0;
-
-    // Dead-reckon only if actually moving (speed >= 3 km/h)
-    const drSpeed = speedKmh >= 3 ? (speedKmh / 3600) * KM_TO_PX : 0;
-
-    const drVx = drSpeed * Math.sin(headingRad);
-    const drVy = -drSpeed * Math.cos(headingRad);
-
-    // Correction: difference between real GPS position and current predicted position
     const nowMs = performance.now();
     let corrX = 0, corrY = 0, corrStart = 0;
     if (old && old.onSite && onSite) {
@@ -413,7 +386,6 @@ function processApiData(data) {
       corrStart = nowMs;
     }
 
-    // Trail: keep history of positions
     const trail = old ? (old.trail || []) : [];
     if (old && old.onSite) {
       trail.push({x: old.x, y: old.y});
@@ -421,24 +393,12 @@ function processApiData(data) {
     }
 
     return {
-      id: d.device_id,
-      plate: d.state_number || '???',
-      model: [d.vehicle_manufacturer, d.vehicle_model].filter(Boolean).join(' ') || '—',
-      state,
-      speed: speedKmh,
-      heading: headingRad,
+      id, plate, model: fullModel, state, speed, heading: headingRad,
       lat, lon,
-      x: old ? old.x : sx,
-      y: old ? old.y : sy,
-      targetX: sx,
-      targetY: sy,
-      drVx, drVy,
+      x: old ? old.x : sx, y: old ? old.y : sy,
+      targetX: sx, targetY: sy,
       corrX, corrY, corrStart,
-      onSite,
-      trackPoints: track.length,
-      lastTime: bestTime,
-      eventsCount: events.length,
-      trail,
+      onSite, trackPoints: 0, lastTime, eventsCount: 0, trail,
     };
   });
 
@@ -448,6 +408,7 @@ function processApiData(data) {
   renderTrips();
   startAnimation();
 }
+
 
 // ========== ANIMATION (dead reckoning + correction easing) ==========
 function startAnimation() {
