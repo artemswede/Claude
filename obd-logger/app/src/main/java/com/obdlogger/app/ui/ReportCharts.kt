@@ -93,19 +93,19 @@ object ReportCharts {
         val pts = v.indices.filter { v[it] != null }
         if (pts.isNotEmpty()) {
             sb.append("<polyline fill='none' stroke='$INK' stroke-width='1.4' stroke-linejoin='round' points='")
-            pts.forEach { i -> sb.append("${f(x(t.minutes[i]))},${f(y(v[i]!!))} ") }
+            pts.forEach { i -> val vi = v[i] ?: return@forEach; sb.append("${f(x(t.minutes[i]))},${f(y(vi))} ") }
             sb.append("'/>")
             var k = 0
             while (k < pts.size) {
-                if (v[pts[k]]!! <= 10) { k++; continue }
+                if ((v[pts[k]] ?: 0.0) <= 10) { k++; continue }
                 var e = k
-                while (e + 1 < pts.size && v[pts[e + 1]]!! > 10) e++
+                while (e + 1 < pts.size && (v[pts[e + 1]] ?: 0.0) > 10) e++
                 sb.append("<polygon fill='$AMB_FILL' stroke='$AMB' stroke-width='1.6' points='${f(x(t.minutes[pts[k]]))},${f(y(10.0))} ")
-                for (q in k..e) sb.append("${f(x(t.minutes[pts[q]]))},${f(y(v[pts[q]]!!))} ")
+                for (q in k..e) sb.append("${f(x(t.minutes[pts[q]]))},${f(y(v[pts[q]] ?: 0.0))} ")
                 sb.append("${f(x(t.minutes[pts[e]]))},${f(y(10.0))}'/>")
                 k = e + 1
             }
-            val lv = v[pts.last()]!!
+            val lv = v[pts.last()] ?: 0.0
             val ly = y(lv).coerceIn(top + 10, bottom - 12)
             sb.append(text(right + 8, ly - 2, "Коррекция Б1", 10, INK))
             sb.append(text(right + 8, ly + 11, TripAnalyzer.pct(lv), 11, if (lv > 10) AMB else INK, weight = 600))
@@ -141,9 +141,9 @@ object ReportCharts {
         val idx = values.indices.filter { values[it] != null }
         val step = max(1, idx.size / 600)
         sb.append("<polyline fill='none' stroke='$INK' stroke-width='1.1' stroke-linejoin='round' points='")
-        idx.filterIndexed { i, _ -> i % step == 0 || i == idx.lastIndex }.forEach { i -> sb.append("${f(x(ms[i]))},${f(y(values[i]!!))} ") }
+        idx.filterIndexed { i, _ -> i % step == 0 || i == idx.lastIndex }.forEach { i -> val vi = values[i] ?: return@forEach; sb.append("${f(x(ms[i]))},${f(y(vi))} ") }
         sb.append("'/>")
-        val last = values[idx.last()]!!
+        val last = values[idx.last()] ?: 0.0
         val out = norm != null && (last < norm.lo || last > norm.hi)
         sb.append(text(right + 10, h / 2.0 - 4, title, 10, INK))
         sb.append(text(right + 10, h / 2.0 + 10, "${Num.fmt(code, last)} $unit", 11, if (out) AMB else INK, weight = 600))

@@ -61,24 +61,30 @@ object AiOpinion {
 2–3 пункта why. Если всё в порядке — так и скажи в headline («Всё как обычно: …»), why — подтверждающие числа."""
 
     /** In the background after a trip was saved; [force] — «Пересчитать». [done] runs on any thread. */
-    fun refresh(ctx: Context, csv: File, force: Boolean = false, done: (Opinion?) -> Unit = {}) {
+    fun refresh(ctx: Context, csv: File, force: Boolean = false, excluded: Set<String> = emptySet(), done: (Opinion?) -> Unit = {}) {
         val key = AiChat.key(ctx)
         val trip = csv.nameWithoutExtension
         if (key.isEmpty() || running == trip) return done(null)
         if (!force && load(ctx)?.trip == trip) return done(load(ctx))
         running = trip
+        val appCtx = ctx.applicationContext
         Thread {
             val o = try {
-                val m = com.obdlogger.app.ui.TripsModel.build(ctx, Prefs.currentCar(ctx))
+                val m = com.obdlogger.app.ui.TripsModel.build(appCtx, Prefs.currentCar(appCtx))
                 val details = m.trips.take(3).mapNotNull { com.obdlogger.app.ui.TripCache.detail(it) }
-                val base = com.obdlogger.core.Baseline.render(CarProfile.of(ctx, m).profiles)
-                val system = com.obdlogger.core.ChatPrompt.system(Prefs.vehicle(ctx).ifBlank { "не названа" }, m.trips.map { it.summary },
+                val base = com.obdlogger.core.Baseline.render(CarProfile.of(appCtx, m).profiles)
+                val system = com.obdlogger.core.ChatPrompt.system(Prefs.vehicle(appCtx).ifBlank { "не названа" }, m.trips.map { it.summary },
                     m.checks.mapNotNull { it.check }, "", null, details, "", com.obdlogger.core.ChatPrompt.research(details, 0), base) +
-                    "\n\n" + MaintenanceStore.load(ctx).render()
-                val raw = AiChat.ask(key, AiChat.modelId(ctx, key), system,
-                    listOf(com.obdlogger.core.ChatMessage("user", ASK + "\nПоследняя поездка: " + TripIndex.title(trip))),
+                    "\n\n" + MaintenanceStore.load(appCtx).render()
+                val prompt = buildString {
+                    append(ASK)
+                    if (excluded.isNotEmpty()) append("\nНе повторяй уже рассмотренные темы: ${excluded.joinToString(", ")}. Ищи другие проблемы.")
+                    append("\nПоследняя поездка: " + TripIndex.title(trip))
+                }
+                val raw = AiChat.ask(key, AiChat.modelId(appCtx, key), system,
+                    listOf(com.obdlogger.core.ChatMessage("user", prompt)),
                     thinking = false, tier = "flash", format = "opinion")
-                parse(trip, raw, AiChat.lastModel)?.also { save(ctx, it) }
+                parse(trip, raw, AiChat.lastModel)?.also { save(appCtx, it) }
             } catch (_: Exception) { null } finally { running = null }
             done(o)
         }.start()

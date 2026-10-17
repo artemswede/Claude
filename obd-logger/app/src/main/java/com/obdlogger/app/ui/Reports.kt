@@ -116,7 +116,7 @@ object Reports {
             } else {
                 append("<div class='small'>Полоса — норма, серые подложки — прогретый холостой.</div>")
                 val ms = tr.minutes.map { (it * 60_000).toLong() }
-                val v = tr.of(focus)!!.map { if (it.isNaN()) null else it }
+                val v = (tr.of(focus) ?: return@let).map { if (it.isNaN()) null else it }
                 append("<div class='chart'>${ReportCharts.lane(focus, SensorNames.label(focus), SensorNames.unit(focus), ms, v, tr.modes.toList(), Norms.of(focus, LiveMode.IDLE), tr.start, h = 220)}</div>")
             }
         }

@@ -190,9 +190,27 @@ class Shell(private val activity: Activity) {
         info.visibility = if (info.text.isNullOrEmpty()) View.GONE else View.VISIBLE
     }
 
+    private var firstShow = true
+
     fun show(pg: Page) {
+        val prev = page
         page = pg
-        containers.forEach { (k, v) -> v.visibility = if (k == pg) View.VISIBLE else View.GONE }
+        val incoming = containers.getValue(pg)
+        if (firstShow || prev == pg) {
+            firstShow = false
+            containers.forEach { (k, v) -> v.visibility = if (k == pg) View.VISIBLE else View.GONE }
+        } else {
+            val outgoing = containers.getValue(prev)
+            outgoing.animate().cancel()
+            incoming.animate().cancel()
+            incoming.alpha = 0f
+            incoming.visibility = View.VISIBLE
+            incoming.animate().alpha(1f).setDuration(150).start()
+            outgoing.animate().alpha(0f).setDuration(150).withEndAction {
+                outgoing.visibility = View.GONE
+                outgoing.alpha = 1f
+            }.start()
+        }
         updateSlot()
         applyTheme(if (pg == Page.RECORD) Bt.DARK else Bt.theme)
         onPage(pg)

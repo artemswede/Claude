@@ -194,10 +194,16 @@ class HomeView(
             t?.durationMin?.toInt(), t?.warmIdleSec?.div(15)?.toInt(), m.past?.name, m.unseen, s.link, s.engine, s.linkText, s.engineText, m.liveMode, m.diagLabel, m.dismissed).toString()
         val rebuild = key != leftKey
         leftKey = key
-        if (rebuild) leftCol.removeAllViews()
+        if (rebuild) {
+            if (leftCol.childCount > 0) {
+                leftCol.animate().cancel()
+                leftCol.alpha = 0f
+                leftCol.removeAllViews()
+            }
+        }
         if (rebuild && ai != null) aiOpinion(ai)
         else if (rebuild) when (m.state) {
-            HomeState.VERSION -> version(m.effectiveTop ?: t!!.top!!)
+            HomeState.VERSION -> (m.effectiveTop ?: t?.top)?.let { version(it) }
             HomeState.CALM -> calm(m)
             HomeState.DTC -> dtc(m)
             HomeState.COLLECTING -> collecting(m)
@@ -208,6 +214,7 @@ class HomeView(
         }
         // Back from the scripted version to the AI's: one link under it.
         if (rebuild && scripted && m.ai != null) gap(link("‹ Мнение ИИ") { scripted = false; rebind() }, 12)
+        if (rebuild && leftCol.alpha < 1f) leftCol.animate().alpha(1f).setDuration(150).start()
 
         // The chart follows the problem: mixture, rpm, voltage, coolant… — whatever is worst for this car.
         val name = com.obdlogger.core.SensorNames.label(m.focus).uppercase()
@@ -354,11 +361,11 @@ class HomeView(
     }
 
     private fun dtc(m: HomeModel) {
-        val t = m.trip!!
+        val t = m.trip ?: return
         val box = column(
             context, dp(8),
             tag("Код записан блоком управления", p.red, R.drawable.ic_ecu),
-            context.text(t.dtcs!!.joinToString(", "), sc.hxl, p.t1, 600, mono = true),
+            context.text(t.dtcs.orEmpty().joinToString(", "), sc.hxl, p.t1, 600, mono = true),
             context.text("Коды прочитаны из ЭБУ", sc.p, p.t2),
         ).apply {
             setPadding(dp(20), dp(18), dp(20), dp(18))
@@ -440,7 +447,7 @@ class HomeView(
         if (!m.unseen) return
         val top = t.top?.takeIf { t.durationMin >= HomeLogic.NEED_TRIP_MIN }
         val verdict = when {
-            !t.dtcs.isNullOrEmpty() -> "Блок записал коды: ${t.dtcs!!.joinToString(", ")}"
+            !t.dtcs.isNullOrEmpty() -> "Блок записал коды: ${t.dtcs.orEmpty().joinToString(", ")}"
             t.durationMin < HomeLogic.NEED_TRIP_MIN -> "Короткая поездка — для вывода мало данных"
             top != null -> "Есть версия: ${top.headline.replaceFirstChar { it.lowercase() }}"
             t.warmIdleSec < HomeLogic.NEED_IDLE_SEC -> "Мало прогретого холостого — вывод неполный"

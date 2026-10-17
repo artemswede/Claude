@@ -31,9 +31,9 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
     private val banner = ctx.text("", if (sc.phone) 14f else 17f, p.t1).apply {
         setPadding(dp(sc.pad), dp(12), dp(sc.pad), dp(12))
         setBackgroundColor(p.s1)
-        val ic = context.getDrawable(R.drawable.ic_timer)!!.tinted(p.t2)
+        val ic = context.getDrawable(R.drawable.ic_timer)?.tinted(p.t2)
         val s = dp(22)
-        ic.setBounds(0, 0, s, s)
+        ic?.setBounds(0, 0, s, s)
         setCompoundDrawables(ic, null, null, null)
         compoundDrawablePadding = dp(14)
         visibility = GONE
@@ -352,7 +352,7 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         banner.visibility = if (stale) VISIBLE else GONE
         if (stale) {
             banner.text = android.text.SpannableStringBuilder().apply {
-                val head = "Запись остановлена ${Num.clockFull(last!!)}"
+                val head = "Запись остановлена ${Num.clockFull(last ?: now)}"
                 append(head)
                 setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, head.length, 0)
                 append(" — показаны данные прошлой записи." + if (snap.auto) " Новая начнётся сама при запуске мотора." else "")
@@ -388,7 +388,7 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
                 tiles.forEachIndexed { i, t ->
                     val code = codes.getOrNull(from + i)
                     t.visibility = if (code == null) INVISIBLE else VISIBLE
-                    if (code != null) t.set(code, s, mode, if (stale) last else null, if (stale) last!! else now)
+                    if (code != null) t.set(code, s, mode, if (stale) last else null, if (stale) (last ?: now) else now)
                 }
             }
             1 -> {

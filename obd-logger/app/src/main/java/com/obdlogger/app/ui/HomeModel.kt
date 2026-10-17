@@ -127,14 +127,18 @@ class HomeModel(
                 .takeIf { c -> trip?.trace?.of(c) != null } ?: listOf("trim_b1", "rpm").firstOrNull { trip?.trace?.of(it) != null } ?: "trim_b1"
             val elapsedSec = current?.durationMin?.times(60)?.toInt() ?: 0
             val diagStep = if (state == HomeState.COLLECTING && liveColumns.isNotEmpty())
-                DiagCycle.step(elapsedSec, liveColumns)
+                DiagCycle.step(elapsedSec, liveColumns, mode)
             else null
             val collectingFocus = diagStep?.focus
                 ?.takeIf { c -> trip?.trace?.of(c) != null } ?: focus
             val diagLabel = diagStep?.let {
                 val cr = it.crossRef
-                if (cr != null) "Проверяю зависимость: ${cr.label}"
-                else "Проверяю: ${it.label}"
+                when {
+                    it.label.isEmpty() -> ""
+                    cr != null -> "Проверяю зависимость: ${cr.label}"
+                    mode == com.obdlogger.core.LiveMode.IDLE -> "Проверяю: ${it.label}"
+                    else -> it.label
+                }
             } ?: ""
             val diagCross = diagStep?.crossRef?.label
             return HomeModel(state, trip, live, past, trend(history, metric), lastTrip(trip, live), !live && trip != null && trip.name != seenTrip, collectingFocus, liveMode = mode,

@@ -26,7 +26,7 @@ class TripVerdict(val text: String, val fg: Int, val bg: Int) {
             val top = s.top
             return when {
                 it.isCheck -> TripVerdict("Проверка: ${it.check?.kind?.title?.lowercase() ?: "смесь"}", p.t1, p.s3)
-                !s.dtcs.isNullOrEmpty() -> TripVerdict("Коды: ${s.dtcs!!.joinToString(", ")}", p.red, p.redT)
+                !s.dtcs.isNullOrEmpty() -> TripVerdict("Коды: ${s.dtcs.orEmpty().joinToString(", ")}", p.red, p.redT)
                 top != null && s.durationMin >= HomeLogic.NEED_TRIP_MIN -> TripVerdict("▲ Есть версия: ${top.headline.replaceFirstChar { c -> c.lowercase() }}", p.amb, p.ambT)
                 s.durationMin < HomeLogic.NEED_TRIP_MIN -> TripVerdict("Мало данных: короткая", p.t2, p.s3)
                 s.warmIdleSec < HomeLogic.NEED_IDLE_SEC -> TripVerdict("Мало данных: ХХ ${(s.warmIdleSec / 60).toInt()} мин", p.t2, p.s3)

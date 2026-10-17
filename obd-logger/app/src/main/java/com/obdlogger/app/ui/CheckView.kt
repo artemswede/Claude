@@ -72,7 +72,7 @@ class CheckView(ctx: Context, private val sc: Bt.Scale, private val actions: Che
         content.removeAllViews()
         val v = when {
             st == null && kind == null -> menu(s)
-            st == null -> prep(s, kind!!)
+            st == null -> prep(s, kind ?: return)
             st.phase == CheckTest.Phase.RUNNING -> running(st)
             st.phase == CheckTest.Phase.ABORTED -> aborted(st)
             else -> result(results)
@@ -165,7 +165,7 @@ class CheckView(ctx: Context, private val sc: Bt.Scale, private val actions: Che
         addTo(page, steps)
         // The warm-up watches coolant, the others rpm in a corridor.
         val big = if (warmup) st.coolant?.toInt()?.toString() ?: "—" else st.rpm?.toInt()?.toString() ?: "—"
-        val unit = if (warmup) "°C, цель ${st.step.untilCoolant!!.toInt()}" else "об/мин"
+        val unit = if (warmup) "°C, цель ${st.step.untilCoolant?.toInt() ?: 0}" else "об/мин"
         val left = column(context, dp(8),
             context.label("${st.kind.title} · шаг ${st.step.n} из ${all.size}", sc, p),
             context.text(st.step.title, if (sc.phone) 24f else 34f, p.t1, 700),
@@ -179,7 +179,7 @@ class CheckView(ctx: Context, private val sc: Bt.Scale, private val actions: Che
         )
         if (!warmup) addTo(left, Corridor(context, p, st).apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)) }, dp(8))
         val chip = when {
-            warmup -> context.chip("${(st.progress[0] * 100).toInt()} % пути до ${st.step.untilCoolant!!.toInt()} °C", p.acc, p.accT, 16f)
+            warmup -> context.chip("${(st.progress[0] * 100).toInt()} % пути до ${st.step.untilCoolant?.toInt() ?: 0} °C", p.acc, p.accT, 16f)
             st.inCorridor -> context.chip("✓ в коридоре ${st.step.lo}–${st.step.hi}", p.acc, p.accT, 16f)
             st.off == "ниже" -> context.chip("ниже ${st.step.lo} — ${if (st.step.lo >= 1500) "добавьте газ" else "таймер на паузе"}", p.amb, p.ambT, 16f)
             st.off == "выше" -> context.chip("выше ${st.step.hi} — ${if (st.step.lo >= 1500) "отпустите чуть газ" else "отпустите педаль"}", p.amb, p.ambT, 16f)

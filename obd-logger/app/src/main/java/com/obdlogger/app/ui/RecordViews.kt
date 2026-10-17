@@ -181,7 +181,7 @@ class TileView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
         if (staleAt != null) {
             c.drawText("последнее значение", pad, noteY, note)
             val tp = paint(0f, p.t3, 400, mono = true).apply { textSize = note.textSize }
-            c.drawText(Num.clockFull(staleAt!!), pad, noteY + note.textSize * 1.5f, tp)
+            c.drawText(Num.clockFull(staleAt ?: return), pad, noteY + note.textSize * 1.5f, tp)
             return
         }
         val text = when {
@@ -510,7 +510,8 @@ class LanesView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
             }
             val t = timeAt(e.x)
             // A second tap near the cursor takes it away.
-            cursorT = if (t == null || (cursorT != null && abs(x(cursorT!!) - e.x) < 24 * density)) null else t
+            val ct = cursorT
+            cursorT = if (t == null || (ct != null && abs(x(ct) - e.x) < 24 * density)) null else t
             onChange()
             return true
         }

@@ -826,7 +826,7 @@ class LoggerService : Service() {
         } ?: return
         val top = s.top
         val text = when {
-            !s.dtcs.isNullOrEmpty() -> "Записан код ${s.dtcs!!.joinToString(", ")} — откройте разбор"
+            !s.dtcs.isNullOrEmpty() -> "Записан код ${s.dtcs.orEmpty().joinToString(", ")} — откройте разбор"
             s.durationMin < com.obdlogger.core.HomeLogic.NEED_TRIP_MIN -> "Короткая поездка — для вывода мало данных"
             top != null -> "Есть версия — ${top.headline.replaceFirstChar { it.lowercase() }} (${top.confidence})"
             else -> "Отклонений не найдено"

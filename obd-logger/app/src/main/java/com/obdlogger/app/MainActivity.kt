@@ -668,6 +668,11 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         list += v
         box.addView(v)
         if (shell.page != page) shell.show(page)
+        v.post {
+            val w = box.width.toFloat().takeIf { it > 0 } ?: return@post
+            v.translationX = w
+            v.animate().translationX(0f).setDuration(200).start()
+        }
     }
 
     private fun pop(): Boolean {
@@ -677,8 +682,17 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         if (top === dtcView) dtcView = null
         if (top === baselineView) baselineView = null
         val box = shell.containers.getValue(shell.page)
-        box.removeView(top)
-        (list.lastOrNull() ?: box.getChildAt(0))?.visibility = View.VISIBLE
+        val under = list.lastOrNull() ?: box.getChildAt(0)
+        val w = box.width.toFloat().takeIf { it > 0 }
+        if (w != null) {
+            under?.visibility = View.VISIBLE
+            top.animate().translationX(w).setDuration(200).withEndAction {
+                box.removeView(top)
+            }.start()
+        } else {
+            box.removeView(top)
+            under?.visibility = View.VISIBLE
+        }
         return true
     }
 
@@ -709,7 +723,8 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
                     refreshHome()
                     if (kind == "ai" && AiChat.key(this@MainActivity).isNotEmpty()) {
                         val csv = SessionFiles.tripCsvs(this@MainActivity).firstOrNull { it.nameWithoutExtension == trip }
-                        if (csv != null) AiOpinion.refresh(this@MainActivity, csv, force = true) { runOnUiThread { refreshHome() } }
+                        val excl = Prefs.dismissed(this@MainActivity, trip) - "ai"
+                        if (csv != null) AiOpinion.refresh(this@MainActivity, csv, force = true, excluded = excl) { runOnUiThread { refreshHome() } }
                     }
                 }
             }
