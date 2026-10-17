@@ -239,8 +239,162 @@ let pollTimer = null;
 let animRunning = false;
 let lastFrameTime = 0;
 
+// ========== ROAD GRAPH + A* PATHFINDING ==========
+const ROAD_NEIGHBOR_DIST = 10; // max px distance to consider cells neighbors
+let roadGraph = []; // [{x,y,neighbors:[{idx,cost}]}]
+let roadSpatial = {}; // grid bucket -> [indices]
+const SPATIAL_BUCKET = 12;
+
+function buildRoadGraph() {
+  roadGraph = ROAD_DATA.map(([x, y, w]) => ({x, y, w, neighbors: []}));
+  // Spatial index for fast neighbor lookup
+  roadSpatial = {};
+  roadGraph.forEach((n, i) => {
+    const bx = Math.floor(n.x / SPATIAL_BUCKET);
+    const by = Math.floor(n.y / SPATIAL_BUCKET);
+    const key = bx + ',' + by;
+    if (!roadSpatial[key]) roadSpatial[key] = [];
+    roadSpatial[key].push(i);
+  });
+  // Connect neighbors
+  roadGraph.forEach((n, i) => {
+    const bx = Math.floor(n.x / SPATIAL_BUCKET);
+    const by = Math.floor(n.y / SPATIAL_BUCKET);
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const bucket = roadSpatial[(bx+dx)+','+(by+dy)];
+        if (!bucket) continue;
+        for (const j of bucket) {
+          if (j === i) continue;
+          const dist = Math.hypot(n.x - roadGraph[j].x, n.y - roadGraph[j].y);
+          if (dist <= ROAD_NEIGHBOR_DIST) {
+            const cost = dist / (1 + roadGraph[j].w * 0.3);
+            n.neighbors.push({idx: j, cost});
+          }
+        }
+      }
+    }
+  });
+}
+
+function snapToRoad(x, y) {
+  const bx = Math.floor(x / SPATIAL_BUCKET);
+  const by = Math.floor(y / SPATIAL_BUCKET);
+  let best = -1, bestD = 35; // max snap distance 35px
+  for (let dx = -3; dx <= 3; dx++) {
+    for (let dy = -3; dy <= 3; dy++) {
+      const bucket = roadSpatial[(bx+dx)+','+(by+dy)];
+      if (!bucket) continue;
+      for (const i of bucket) {
+        const d = Math.hypot(x - roadGraph[i].x, y - roadGraph[i].y);
+        if (d < bestD) { bestD = d; best = i; }
+      }
+    }
+  }
+  return best;
+}
+
+function findPath(fromIdx, toIdx) {
+  if (fromIdx === toIdx) return [fromIdx];
+  const N = roadGraph.length;
+  const g = new Float32Array(N).fill(Infinity);
+  const f = new Float32Array(N).fill(Infinity);
+  const came = new Int32Array(N).fill(-1);
+  const closed = new Uint8Array(N);
+  g[fromIdx] = 0;
+  const tx = roadGraph[toIdx].x, ty = roadGraph[toIdx].y;
+  f[fromIdx] = Math.hypot(roadGraph[fromIdx].x - tx, roadGraph[fromIdx].y - ty);
+
+  // Simple binary heap
+  const heap = [fromIdx];
+  const inHeap = new Uint8Array(N);
+  inHeap[fromIdx] = 1;
+
+  function heapPush(v) {
+    heap.push(v); inHeap[v] = 1;
+    let i = heap.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (f[heap[p]] <= f[heap[i]]) break;
+      [heap[p], heap[i]] = [heap[i], heap[p]];
+      i = p;
+    }
+  }
+  function heapPop() {
+    const top = heap[0];
+    inHeap[top] = 0;
+    const last = heap.pop();
+    if (heap.length > 0) {
+      heap[0] = last;
+      let i = 0;
+      while (true) {
+        let s = i, l = 2*i+1, r = 2*i+2;
+        if (l < heap.length && f[heap[l]] < f[heap[s]]) s = l;
+        if (r < heap.length && f[heap[r]] < f[heap[s]]) s = r;
+        if (s === i) break;
+        [heap[i], heap[s]] = [heap[s], heap[i]];
+        i = s;
+      }
+    }
+    return top;
+  }
+
+  let steps = 0;
+  while (heap.length > 0 && steps < 8000) {
+    steps++;
+    const cur = heapPop();
+    if (cur === toIdx) {
+      const path = [];
+      let c = toIdx;
+      while (c !== -1) { path.push(c); c = came[c]; }
+      path.reverse();
+      return path;
+    }
+    closed[cur] = 1;
+    for (const nb of roadGraph[cur].neighbors) {
+      if (closed[nb.idx]) continue;
+      const ng = g[cur] + nb.cost;
+      if (ng < g[nb.idx]) {
+        came[nb.idx] = cur;
+        g[nb.idx] = ng;
+        f[nb.idx] = ng + Math.hypot(roadGraph[nb.idx].x - tx, roadGraph[nb.idx].y - ty);
+        if (!inHeap[nb.idx]) heapPush(nb.idx);
+      }
+    }
+  }
+  return null; // no path
+}
+
+function pathToWaypoints(path) {
+  return path.map(i => ({x: roadGraph[i].x, y: roadGraph[i].y}));
+}
+
+function interpolateWaypoints(wps, frac) {
+  if (wps.length < 2) return wps[0] || {x: 0, y: 0};
+  // Total length
+  let totalLen = 0;
+  for (let i = 1; i < wps.length; i++) {
+    totalLen += Math.hypot(wps[i].x - wps[i-1].x, wps[i].y - wps[i-1].y);
+  }
+  const targetLen = frac * totalLen;
+  let accum = 0;
+  for (let i = 1; i < wps.length; i++) {
+    const segLen = Math.hypot(wps[i].x - wps[i-1].x, wps[i].y - wps[i-1].y);
+    if (accum + segLen >= targetLen && segLen > 0) {
+      const t = (targetLen - accum) / segLen;
+      return {
+        x: wps[i-1].x + (wps[i].x - wps[i-1].x) * t,
+        y: wps[i-1].y + (wps[i].y - wps[i-1].y) * t,
+      };
+    }
+    accum += segLen;
+  }
+  return wps[wps.length - 1];
+}
+
 // ========== INIT ==========
 async function init() {
+  buildRoadGraph();
   await loadSvgMap();
   fetchData();
 }
@@ -400,25 +554,43 @@ function processPackApiData(data) {
     const headingRad = heading * Math.PI / 180;
 
     const nowMs = performance.now();
-    let corrX = 0, corrY = 0, corrStart = 0;
-    if (old && old.onSite && onSite) {
-      corrX = sx - old.x;
-      corrY = sy - old.y;
-      corrStart = nowMs;
+    let waypoints = null, corrStart = 0;
+    let corrX = 0, corrY = 0; // fallback linear
+    const oldX = old ? old.x : sx;
+    const oldY = old ? old.y : sy;
+
+    if (old && old.onSite && onSite && (Math.abs(sx - oldX) > 1 || Math.abs(sy - oldY) > 1)) {
+      const fromNode = snapToRoad(oldX, oldY);
+      const toNode = snapToRoad(sx, sy);
+      if (fromNode >= 0 && toNode >= 0 && fromNode !== toNode) {
+        const path = findPath(fromNode, toNode);
+        if (path && path.length >= 2) {
+          waypoints = pathToWaypoints(path);
+          // Prepend actual start, append actual end for smooth endpoints
+          waypoints.unshift({x: oldX, y: oldY});
+          waypoints.push({x: sx, y: sy});
+          corrStart = nowMs;
+        }
+      }
+      if (!waypoints) {
+        corrX = sx - oldX;
+        corrY = sy - oldY;
+        corrStart = nowMs;
+      }
     }
 
     const trail = old ? (old.trail || []) : [];
     if (old && old.onSite) {
-      trail.push({x: old.x, y: old.y});
+      trail.push({x: oldX, y: oldY});
       if (trail.length > 15) trail.shift();
     }
 
     return {
       id, plate, model: fullModel, state, speed, heading: headingRad,
       lat, lon,
-      x: old ? old.x : sx, y: old ? old.y : sy,
+      x: oldX, y: oldY,
       targetX: sx, targetY: sy,
-      corrX, corrY, corrStart,
+      waypoints, corrX, corrY, corrStart,
       onSite, trackPoints: 0, lastTime, eventsCount: 0, trail,
     };
   });
@@ -447,23 +619,33 @@ function tick(now) {
   vehicles.forEach(v => {
     if (!v.onSite) return;
 
-    // Correction easing toward GPS position
-    let corrFrac = 0;
-    if (v.corrStart > 0) {
+    let px, py;
+    if (v.waypoints && v.corrStart > 0) {
+      // Animate along road waypoints
       const elapsed = now - v.corrStart;
-      corrFrac = Math.min(elapsed / CORRECTION_DURATION, 1);
-      corrFrac = corrFrac * (2 - corrFrac); // ease-out
+      let frac = Math.min(elapsed / CORRECTION_DURATION, 1);
+      frac = frac * (2 - frac); // ease-out
+      const pos = interpolateWaypoints(v.waypoints, frac);
+      px = pos.x; py = pos.y;
+      if (frac >= 1) {
+        v.x = v.targetX; v.y = v.targetY;
+        v.waypoints = null; v.corrStart = 0;
+        px = v.x; py = v.y;
+      }
+    } else if (v.corrStart > 0) {
+      // Fallback: linear correction easing
+      const elapsed = now - v.corrStart;
+      let corrFrac = Math.min(elapsed / CORRECTION_DURATION, 1);
+      corrFrac = corrFrac * (2 - corrFrac);
       if (corrFrac >= 1) {
         v.x += v.corrX; v.y += v.corrY;
         v.corrX = 0; v.corrY = 0; v.corrStart = 0;
-        corrFrac = 0;
       }
+      px = v.x + v.corrX * corrFrac;
+      py = v.y + v.corrY * corrFrac;
+    } else {
+      px = v.x; py = v.y;
     }
-
-    let px = v.x + v.corrX * corrFrac;
-    let py = v.y + v.corrY * corrFrac;
-
-    // No dead reckoning — vehicles stay on GPS positions (no field drift)
 
     const marker = document.getElementById('m-' + v.id);
     if (marker) marker.setAttribute('transform', `translate(${px.toFixed(1)},${py.toFixed(1)})`);
