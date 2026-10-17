@@ -76,8 +76,9 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
             if (id == EditorInfo.IME_ACTION_SEND || ev?.keyCode == KeyEvent.KEYCODE_ENTER) { send(); true } else false
         }
     }
-    private val sendBtn = ctx.text("➤", 22f, android.graphics.Color.WHITE, 700).apply {
-        gravity = Gravity.CENTER
+    private val sendBtn = android.widget.ImageView(ctx).apply {
+        setImageResource(com.obdlogger.app.R.drawable.ic_send)
+        scaleType = android.widget.ImageView.ScaleType.CENTER
         contentDescription = "Отправить"
         background = roundRect(p.acc, dp(14).toFloat())
         setOnClickListener { send() }
@@ -130,12 +131,13 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
             setPadding(dp(sc.pad), dp(6), dp(sc.pad), dp(8))
             setBackgroundColor(p.bg)
         }
-        bar.addView(ctx.text("🎤", 24f, p.t1).apply {
-            gravity = Gravity.CENTER
+        bar.addView(android.widget.ImageView(ctx).apply {
+            setImageResource(com.obdlogger.app.R.drawable.ic_mic)
+            imageTintList = android.content.res.ColorStateList.valueOf(p.t1)
+            scaleType = android.widget.ImageView.ScaleType.CENTER
             contentDescription = "Спросить голосом"
-            background = roundRect(p.s1, dp(14).toFloat(), dp(1), p.line2)
             setOnClickListener { actions.voiceQuestion() }
-        }.tap(), LinearLayout.LayoutParams(dp(56), dp(48)))
+        }.tap(), LinearLayout.LayoutParams(dp(48), dp(48)))
         bar.addView(input, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { leftMargin = dp(8); rightMargin = dp(8) })
         bar.addView(sendBtn, LinearLayout.LayoutParams(dp(56), dp(48)))
         col.addView(bar)

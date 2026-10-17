@@ -341,7 +341,7 @@ class Scenes(private val a: Activity) {
                 bind(com.obdlogger.core.ChatState(), null, false, "Ответы — по данным этой машины: Avensis 2.0 D-4 · поездок 4 · проверочных логов 1", null) }) } },
             "H4_chat_offline" to { shell(Shell.Page.CHAT, recording) { sh -> chatIn(sh, com.obdlogger.app.ui.ChatView(a, sh.sc, NoChat).apply {
                 bind(com.obdlogger.core.ChatState(mutableListOf(com.obdlogger.core.ChatMessage("user", "Почему дёргает на светофоре?"))), null, true,
-                    "Ответы — по данным этой машины · поездок 4", "Нет интернета на магнитоле. Вопрос сохранён — нажмите «Повторить», когда связь появится.") }) } },
+                    "Ответы — по данным этой машины · поездок 4", "Нет интернета. Вопрос сохранён — нажмите «Повторить», когда связь появится.") }) } },
             "H2_chat" to { shell(Shell.Page.CHAT, recording) { sh -> chatIn(sh, com.obdlogger.app.ui.ChatView(a, sh.sc, object : com.obdlogger.app.ui.ChatActions by NoChat {
                 override fun chartView(req: com.obdlogger.core.ChartRequest): android.view.View? = when (req) {
                     is com.obdlogger.core.ChartRequest.Overlay -> com.obdlogger.app.ui.TripCache.detail(Samples.realItems.last())?.let {

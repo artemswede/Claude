@@ -111,6 +111,15 @@ object Prefs {
     fun seenTrip(ctx: Context): String? = of(ctx).getString(SEEN_TRIP, null)
     fun setSeenTrip(ctx: Context, name: String) = of(ctx).edit().putString(SEEN_TRIP, name).apply()
 
+    fun dismissed(ctx: Context, trip: String): Set<String> {
+        val raw = of(ctx).getString("dismissed_$trip", null) ?: return emptySet()
+        return try { val a = org.json.JSONArray(raw); (0 until a.length()).map { a.getString(it) }.toSet() } catch (_: Exception) { emptySet() }
+    }
+    fun dismiss(ctx: Context, trip: String, kind: String) {
+        val set = dismissed(ctx, trip) + kind
+        of(ctx).edit().putString("dismissed_$trip", org.json.JSONArray(set.toList()).toString()).apply()
+    }
+
     fun theme(ctx: Context): String = of(ctx).getString(THEME, "auto") ?: "auto"
     fun setTheme(ctx: Context, v: String) = of(ctx).edit().putString(THEME, v).apply()
 }

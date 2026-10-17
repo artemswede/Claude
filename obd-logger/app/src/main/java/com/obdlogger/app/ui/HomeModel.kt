@@ -55,6 +55,10 @@ class HomeModel(
     val diagLabel: String = "",
     /** Cross-reference pair label, e.g. "зависимость оборотов и коррекции". */
     val diagCrossRef: String? = null,
+    /** Finding kinds the user dismissed for the current trip. */
+    val dismissed: Set<String> = emptySet(),
+    /** The top finding after filtering out dismissed kinds. */
+    val effectiveTop: com.obdlogger.core.Finding? = null,
 ) {
     fun withAi(o: com.obdlogger.app.AiOpinion.Opinion?): HomeModel {
         val fresh = o?.takeIf { !live && trip != null && it.trip == trip.name } ?: return this
@@ -83,8 +87,10 @@ class HomeModel(
                 com.obdlogger.core.LiveMode.of(rpm, speed, cool)
             } else com.obdlogger.core.LiveMode.OFF
             val liveCols = if (s.recording) com.obdlogger.app.LiveData.store.columns else emptyList()
-            return from(saved.filter { it.name != current?.name }, current, s, com.obdlogger.app.Prefs.seenTrip(ctx), drift, mode, liveCols)
-                .withAi(com.obdlogger.app.AiOpinion.load(ctx))
+            val tripName = (current ?: saved.lastOrNull())?.name ?: ""
+            val dism = com.obdlogger.app.Prefs.dismissed(ctx, tripName)
+            return from(saved.filter { it.name != current?.name }, current, s, com.obdlogger.app.Prefs.seenTrip(ctx), drift, mode, liveCols, dism)
+                .withAi(if ("ai" in dism) null else com.obdlogger.app.AiOpinion.load(ctx))
         }
 
         /** Pure part of [build]: decides the state from already analysed trips. */
@@ -92,7 +98,8 @@ class HomeModel(
             /** Strongest change against this car's own normal: charted when there is no version. */
             driftCode: String? = null,
             mode: com.obdlogger.core.LiveMode = com.obdlogger.core.LiveMode.OFF,
-            liveColumns: List<String> = emptyList()): HomeModel {
+            liveColumns: List<String> = emptyList(),
+            dismissed: Set<String> = emptySet()): HomeModel {
             // Only this car's trips: the tablet is moved between cars, their data must not mix.
             // The order of recording (trip numbers), then the clock: «the last trip» even after a 2007 start.
             val order = compareBy<TripSummary>({ com.obdlogger.app.TripIndex.number(it.name) ?: -1 }, { it.start })
@@ -102,13 +109,18 @@ class HomeModel(
             val trip = current ?: saved.lastOrNull()
 
             val lastSaved = saved.lastOrNull()
-            val state = HomeLogic.decide(current, lastSaved, s.recording, s.auto, s.link == Lamp.FAIL)
+            var state = HomeLogic.decide(current, lastSaved, s.recording, s.auto, s.link == Lamp.FAIL)
             val past = saved.lastOrNull { HomeLogic.conclusive(it) }
 
             val history = (saved + listOfNotNull(current)).distinctBy { it.name }
             // What to chart and trend: the version's own sensor and metric, otherwise the
             // row that is worst in this car's comparison (fix one problem, the next one shows).
-            val top = (trip?.top ?: past?.top)
+            val topRaw = (trip?.top ?: past?.top)
+            val top = if (topRaw != null && topRaw.kind in dismissed) {
+                val next = trip?.findings?.firstOrNull { it.severity >= com.obdlogger.core.Severity.WARN && it.kind !in dismissed }
+                if (next == null && state == HomeState.VERSION) state = HomeState.CALM
+                next
+            } else topRaw
             val worstRow = TripComparison.table(history).rows.firstOrNull { it.problem > 0.5 }
             val metric = top?.kind?.let(Focus::metric) ?: worstRow?.metric ?: Metric.IDLE_TRIM_B1
             val focus = (top?.kind?.let(Focus::code) ?: driftCode?.takeIf { c -> trip?.trace?.of(c) != null } ?: worstRow?.metric?.let(Focus::code) ?: "rpm")
@@ -126,7 +138,7 @@ class HomeModel(
             } ?: ""
             val diagCross = diagStep?.crossRef?.label
             return HomeModel(state, trip, live, past, trend(history, metric), lastTrip(trip, live), !live && trip != null && trip.name != seenTrip, collectingFocus, liveMode = mode,
-                diagLabel = diagLabel, diagCrossRef = diagCross)
+                diagLabel = diagLabel, diagCrossRef = diagCross, dismissed = dismissed, effectiveTop = top)
         }
 
         /** Sensor to chart for a trip: the one its version is about, else the mixture, else rpm. */

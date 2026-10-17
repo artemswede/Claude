@@ -702,6 +702,17 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
                     AiOpinion.refresh(this@MainActivity, csv, force = true) { o -> runOnUiThread { if (o == null) Toast.makeText(this@MainActivity, "ИИ не ответил — осталась прежняя версия", Toast.LENGTH_LONG).show(); refreshHome() } }
                 }
             }
+            onDismiss = { kind ->
+                val trip = homeModel?.trip?.name
+                if (trip != null) {
+                    Prefs.dismiss(this@MainActivity, trip, kind)
+                    refreshHome()
+                    if (kind == "ai" && AiChat.key(this@MainActivity).isNotEmpty()) {
+                        val csv = SessionFiles.tripCsvs(this@MainActivity).firstOrNull { it.nameWithoutExtension == trip }
+                        if (csv != null) AiOpinion.refresh(this@MainActivity, csv, force = true) { runOnUiThread { refreshHome() } }
+                    }
+                }
+            }
         }
 
     // ---- AI chat ----
@@ -768,13 +779,11 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         return true
     }
 
-    /** Under the newest answer: «Gemini Pro · 3 из 15 Pro сегодня». */
+    /** Under the newest answer: «Gemini Pro» or «Gemini Flash». */
     private fun chatMeta(): String {
         val m = prefs.getString(Prefs.AI_LAST_MODEL, null).orEmpty()
         if (m.isEmpty()) return ""
-        val name = AiChat.modelName(m)
-        val limit = AiChat.proLimit(this)
-        return if (AiChat.proxied(AiChat.key(this)) && limit > 0) "$name · Pro ${AiChat.proUsed(this)} из $limit сегодня" else name
+        return AiChat.modelName(m)
     }
 
     /** What the waiting card names: the model the request starts with. */
@@ -852,7 +861,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         chatError = null
         // No network: say so at once instead of waiting minutes for a timeout.
         if (!AiChat.online(this)) {
-            chatError = "Нет интернета на магнитоле. Вопрос сохранён — нажмите «Повторить», когда связь появится."
+            chatError = "Нет интернета. Вопрос сохранён — нажмите «Повторить», когда связь появится."
             refreshChat()
             return
         }
@@ -899,7 +908,6 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
                 result.onSuccess {
                     chatState.messages += com.obdlogger.core.ChatMessage("assistant", it)
                     AiChat.save(this, chatState)
-                    AiChat.countPro(this, used)
                     prefs.edit().putString(Prefs.AI_LAST_MODEL, used).apply()
                 }
                 result.onFailure { if (it !is AiChat.Cancelled) chatError = it.message ?: it.toString() }
@@ -1136,9 +1144,9 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     override fun setAiOrModel(i: Int) = AiChat.setOrModel(this, AiChat.OR_MODELS[i].first)
     override fun aiModel(): Int = if (AiChat.thinking(this)) 0 else 1
     override fun setAiModel(i: Int) = AiChat.setThinking(this, AiChat.MODES[i].second)
-    override fun aiProLimit(): Int = AiChat.PRO_CHOICES.indexOf(AiChat.proLimit(this)).coerceAtLeast(0)
-    override fun setAiProLimit(i: Int) = AiChat.setProLimit(this, AiChat.PRO_CHOICES[i])
-    override fun aiProUsed(): Int = AiChat.proUsed(this)
+    override fun aiProLimit(): Int = 0
+    override fun setAiProLimit(i: Int) {}
+    override fun aiProUsed(): Int = 0
 
     // ---- «Как обычно у вашей машины» ----
 

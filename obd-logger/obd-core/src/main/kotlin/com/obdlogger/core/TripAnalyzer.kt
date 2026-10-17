@@ -371,12 +371,19 @@ object TripAnalyzer {
         put(Metric.INTAKE_AIR, median(raw("intake_air_c").filterNotNull()))
 
         // Dips: warm engine, closed throttle, (almost) standing, rpm well below this trip's idle — counted as events.
+        // pullingAway: speed is rising from ~0 — clutch engagement on a manual, not a real dip.
+        fun pullingAway(i: Int): Boolean {
+            val spd = speed[i] ?: return false
+            if (spd < 1.0) return false
+            val lookback = minOf(i, 3)
+            return (1..lookback).any { (speed[i - it] ?: 99.0) < 2.0 }
+        }
         val dipRpm = dipBelow(metrics[Metric.IDLE_RPM])
         var dips = 0
         var inDip = false
         for (i in rows.indices) {
             val r = rpm[i]
-            val dip = r != null && r in 250.0..dipRpm && (coolant[i] ?: 0.0) >= WARM_C && closed(i) && (speed[i] ?: 0.0) <= 20
+            val dip = r != null && r in 250.0..dipRpm && (coolant[i] ?: 0.0) >= WARM_C && closed(i) && (speed[i] ?: 0.0) <= 20 && !pullingAway(i)
             if (dip && !inDip) dips++
             inDip = dip
         }

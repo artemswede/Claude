@@ -136,8 +136,6 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             com.obdlogger.app.AiChat.OR_MODELS.mapIndexed { i, m -> m.second to i }, h.aiOrModel()) { h.setAiOrModel(it) }
         segment("Режим ответа", "«Думающий» (по умолчанию): глубокое рассуждение; переключается и в чате — «Глубоко / Быстро»",
             com.obdlogger.app.AiChat.MODES.mapIndexed { i, m -> m.first to i }, h.aiModel()) { h.setAiModel(it) }
-        segment("Gemini Pro в день", "свой сервер: первые вопросы дня — Pro (сильнее, дольше), потом Flash · сегодня ${h.aiProUsed()}",
-            com.obdlogger.app.AiChat.PRO_CHOICES.mapIndexed { i, n -> (if (n == 0) "выкл" else "$n") to i }, h.aiProLimit()) { h.setAiProLimit(it) }
 
         section("Файлы")
         segment("Хранение", "Загрузки / OBD-Logger · ${h.storageText()}", listOf("30 дней" to 30, "90 дней" to 90, "Всегда" to 0), h.keepDays()) { h.setKeepDays(it) }

@@ -176,6 +176,8 @@ class HomeView(
     private var leftKey: String? = null
     /** «Пересчитать» under the AI's opinion. */
     var onAiRefresh: () -> Unit = {}
+    /** Dismiss a finding or AI opinion by kind (kind = "ai" for AI opinion). */
+    var onDismiss: (kind: String) -> Unit = {}
     /** «Как считает Бортач ›»: the scripted version instead of the AI's. */
     private var scripted = false
     private var lastModel: HomeModel? = null
@@ -188,14 +190,14 @@ class HomeView(
         // Rebuilt only when what it says changes: rebuilding every second under the finger
         // swallowed taps on «Подробнее» and the buttons.
         val ai = m.ai?.takeIf { !scripted && (m.state == HomeState.VERSION || m.state == HomeState.CALM) }
-        val key = listOf(m.state, ai?.headline, ai?.trip, scripted, m.ai != null, t?.name, t?.top?.headline, t?.top?.confidence, t?.top?.why?.map { it.value }, t?.dtcs,
-            t?.durationMin?.toInt(), t?.warmIdleSec?.div(15)?.toInt(), m.past?.name, m.unseen, s.link, s.engine, s.linkText, s.engineText, m.liveMode, m.diagLabel).toString()
+        val key = listOf(m.state, ai?.headline, ai?.trip, scripted, m.ai != null, t?.name, m.effectiveTop?.headline, m.effectiveTop?.confidence, m.effectiveTop?.why?.map { it.value }, t?.dtcs,
+            t?.durationMin?.toInt(), t?.warmIdleSec?.div(15)?.toInt(), m.past?.name, m.unseen, s.link, s.engine, s.linkText, s.engineText, m.liveMode, m.diagLabel, m.dismissed).toString()
         val rebuild = key != leftKey
         leftKey = key
         if (rebuild) leftCol.removeAllViews()
         if (rebuild && ai != null) aiOpinion(ai)
         else if (rebuild) when (m.state) {
-            HomeState.VERSION -> version(t!!.top!!)
+            HomeState.VERSION -> version(m.effectiveTop ?: t!!.top!!)
             HomeState.CALM -> calm(m)
             HomeState.DTC -> dtc(m)
             HomeState.COLLECTING -> collecting(m)
@@ -285,8 +287,20 @@ class HomeView(
     /** Headline that never takes more than two lines: shrinks from h-xl down to h-m. */
     private fun headline(s: String): View = FitText(context, s, sc.hxl, sc.hm, 2, p.t1)
 
+    private fun dismissRow(tagText: String, kind: String, tagColor: Int = p.t2): View {
+        val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        addTo(row, tag(tagText, tagColor), 0, 1f)
+        addTo(row, context.text("✕", sc.p, p.t2).apply {
+            gravity = Gravity.CENTER
+            setPadding(dp(12), dp(4), dp(12), dp(4))
+            contentDescription = "Убрать"
+            setOnClickListener { onDismiss(kind) }
+        }.tap())
+        return row
+    }
+
     private fun version(f: Finding) {
-        gap(tag("Есть версия"), 0)
+        gap(dismissRow("Есть версия", f.kind), 0)
         gap(headline(f.headline), 12)
         f.urgency?.let { gap(context.text(it, sc.pl * 0.85f, p.t2, lineHeight = sc.pl * 1.15f), 12) }
         gap(Confidence(context, f.confidence, sc, p), 14)
@@ -301,7 +315,7 @@ class HomeView(
 
     /** «Мнение ИИ»: the same slots as the version — the AI wrote the meaning, the layout is ours. */
     private fun aiOpinion(o: com.obdlogger.app.AiOpinion.Opinion) {
-        gap(tag("Мнение ИИ · после ${com.obdlogger.app.TripIndex.title(o.trip).lowercase()}", p.acc), 0)
+        gap(dismissRow("Мнение ИИ · после ${com.obdlogger.app.TripIndex.title(o.trip).lowercase()}", "ai", p.acc), 0)
         gap(headline(o.headline), 12)
         o.urgency.takeIf { it.isNotBlank() }?.let { gap(context.text(it, sc.pl * 0.85f, p.t2, lineHeight = sc.pl * 1.15f), 12) }
         gap(Confidence(context, o.confidence, sc, p), 14)
@@ -324,9 +338,15 @@ class HomeView(
     }
 
     private fun calm(m: HomeModel) {
-        gap(tag("Всё спокойно", p.acc), 0)
-        gap(headline("Отклонений не найдено"), 12)
-        gap(context.text("Поездка разобрана по всем режимам — смесь, холостой и зарядка в норме.", sc.pl, p.t2, lineHeight = sc.pl * 1.35f), 12)
+        if (m.dismissed.isNotEmpty()) {
+            gap(tag("Всё проверено", p.acc), 0)
+            gap(headline("Версии рассмотрены"), 12)
+            gap(context.text("Вы просмотрели все найденные отклонения. Запишите ещё поездку для новых данных.", sc.pl, p.t2, lineHeight = sc.pl * 1.35f), 12)
+        } else {
+            gap(tag("Всё спокойно", p.acc), 0)
+            gap(headline("Отклонений не найдено"), 12)
+            gap(context.text("Поездка разобрана по всем режимам — смесь, холостой и зарядка в норме.", sc.pl, p.t2, lineHeight = sc.pl * 1.35f), 12)
+        }
         val t = m.trip ?: return
         t.metrics[Metric.IDLE_TRIM_B1]?.let { gap(evidence("Коррекция на холостом", TripAnalyzer.pct(it), false, false, small = true), 14) }
         t.metrics[Metric.IDLE_RPM]?.let { gap(evidence("Обороты холостого", "${it.toInt()}", false, false, small = true), 0) }

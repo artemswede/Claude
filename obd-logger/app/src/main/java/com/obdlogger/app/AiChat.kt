@@ -78,37 +78,10 @@ object AiChat {
     fun thinking(ctx: Context): Boolean = Prefs.of(ctx).getString(Prefs.AI_MODEL, "think") != "fast"
     fun setThinking(ctx: Context, on: Boolean) = Prefs.of(ctx).edit().putString(Prefs.AI_MODEL, if (on) "think" else "fast").apply()
 
-    // ---- Pro first: the first N questions of the day go to Gemini Pro (own server), then Flash ----
+    // ---- Tier: always try Pro first; the proxy falls back to Flash on 429 ----
 
-    /** Pro answers a day (Gemini's free Pro limit is small); 0 — never Pro. */
-    val PRO_CHOICES = listOf(0, 5, 10, 15, 20)
-    fun proLimit(ctx: Context): Int = Prefs.of(ctx).getInt(Prefs.AI_PRO_LIMIT, 15)
-    fun setProLimit(ctx: Context, n: Int) = Prefs.of(ctx).edit().putInt(Prefs.AI_PRO_LIMIT, n).apply()
-
-    /** «20261014» — or null while the head unit's clock is wrong (2007): the count then is not reset. */
-    private fun today(): String? {
-        val c = java.util.Calendar.getInstance()
-        if (c.get(java.util.Calendar.YEAR) < 2020) return null
-        return "%04d%02d%02d".format(c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1, c.get(java.util.Calendar.DAY_OF_MONTH))
-    }
-
-    /** Pro answers already given today. */
-    fun proUsed(ctx: Context): Int {
-        val p = Prefs.of(ctx)
-        val day = today() ?: return p.getInt(Prefs.AI_PRO_COUNT, 0)
-        return if (p.getString(Prefs.AI_PRO_DAY, null) == day) p.getInt(Prefs.AI_PRO_COUNT, 0) else 0
-    }
-
-    /** The tier for the own server: Pro while today's count is under the limit and the deep mode is on. */
-    fun tier(ctx: Context): String = if (thinking(ctx) && proUsed(ctx) < proLimit(ctx)) "pro" else "flash"
-
-    /** After an answer: counts it when the server says it came from Pro. */
-    fun countPro(ctx: Context, model: String) {
-        if (!model.contains("-pro")) return
-        val p = Prefs.of(ctx)
-        val day = today() ?: p.getString(Prefs.AI_PRO_DAY, null) ?: ""
-        p.edit().putString(Prefs.AI_PRO_DAY, day).putInt(Prefs.AI_PRO_COUNT, proUsed(ctx) + 1).apply()
-    }
+    /** The tier for the own server: always Pro (proxy handles 429 → Flash). */
+    fun tier(ctx: Context): String = "pro"
 
     /** «gemini/gemini-2.5-pro» → «Gemini Pro»; «…flash-lite» → «Gemini Flash-Lite». */
     fun modelName(model: String): String {
@@ -373,13 +346,13 @@ object AiChat {
 
     private fun rephrase(key: String, e: IOException): IOException = when (e) {
         is java.net.UnknownHostException ->
-            IOException(if (proxied(key)) "Магнитола не видит свой сервер: проверьте интернет и адрес в Настройках." else "Нет интернета: магнитола не видит сервер ИИ.")
+            IOException(if (proxied(key)) "Не удалось подключиться к серверу (${e.message.orEmpty()}). Проверьте интернет и адрес в Настройках." else "Нет интернета: устройство не видит сервер ИИ.")
         is java.net.SocketTimeoutException ->
             IOException(if (proxied(key)) "Свой сервер долго не отвечает. Повторите вопрос." else "DeepSeek долго не отвечает. Повторите вопрос.")
         is javax.net.ssl.SSLException ->
-            IOException("Не удалось установить защищённое соединение (часто — неверная дата на магнитоле). ${e.message.orEmpty()}")
+            IOException("Не удалось установить защищённое соединение (часто — неверная дата на устройстве). ${e.message.orEmpty()}")
         is java.net.ConnectException, is java.net.NoRouteToHostException ->
-            IOException("Нет связи с сервером ИИ: проверьте интернет на магнитоле.")
+            IOException("Нет связи с сервером ИИ (${e.message.orEmpty()}). Проверьте интернет на устройстве.")
         else -> e
     }
 
