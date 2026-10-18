@@ -2147,8 +2147,9 @@ class Component extends DCLogic {
 
 
   pollAPI() {
-    fetch('/api/agr?action=units').then(r => r.json()).then(units => {
-      if (!Array.isArray(units) || !units.length) return;
+    fetch('/api/agr?report=trackers').then(r => r.json()).then(raw => {
+      const units = Array.isArray(raw) ? raw : (raw && raw.list ? raw.list : []);
+      if (!units.length) return;
       this.lastPoll = Date.now(); this.apiOK = true;
       if (!this.P || !this.P.length) { this.pendingUnits = units; return; }
       const GEO = {latN:56.4345, latS:56.4175, lonW:38.1375, lonE:38.1565, svgW:900, svgH:1200};
@@ -2167,24 +2168,28 @@ class Component extends DCLogic {
       const existing = new Map(this.trucks.map(t => [t.plate, t]));
       const seen = new Set();
       units.forEach((u, idx) => {
-        if (!u.lat || !u.lng) return;
+        const s = u.state || u;
+        const lat = s.lat || u.lat, lng = s.lng || u.lng;
+        if (!lat || !lng) return;
         const plate = (u.name || u.number || 'Unit' + idx).replace(/\s+/g, '');
         seen.add(plate);
-        const sv = toSVG(u.lat, u.lng);
+        const speed = s.speed != null ? s.speed : (u.speed || 0);
+        const course = s.course != null ? s.course : u.course;
+        const sv = toSVG(lat, lng);
         const node = snap(sv.x, sv.y);
         let t = existing.get(plate);
         if (!t) {
-          t = { id: this.trucks.length, plate, model: u.model || '', kind: 'semi',
+          t = { id: this.trucks.length, plate, model: u.model || u.hw_type || '', kind: 'semi',
             label: (plate.match(/\d{3}/) || [plate.slice(0,3)])[0],
-            v: u.speed || 0, vL: 12, vE: 30, noise: 1, nT: 0, loadedTruth: false,
+            v: speed, vL: 12, vE: 30, noise: 1, nT: 0, loadedTruth: false,
             cls: null, state: 'idle', timer: 0, at: null, trail: [], trT: 0,
-            hd: u.course ? u.course * Math.PI / 180 : 0, stable: 0, out: false, atExit: false,
+            hd: course ? course * Math.PI / 180 : 0, stable: 0, out: false, atExit: false,
             x: sv.x, y: sv.y, node: node >= 0 ? node : 0, apiDriven: true, path: null, tg: null };
           this.trucks.push(t);
         }
-        t.apiSpeed = u.speed || 0;
-        t.v = u.speed || 0;
-        if (u.course !== undefined) t.hd = u.course * Math.PI / 180;
+        t.apiSpeed = speed;
+        t.v = speed;
+        if (course !== undefined) t.hd = course * Math.PI / 180;
         t.targetX = sv.x; t.targetY = sv.y;
         const newNode = node >= 0 ? node : t.node;
         if (newNode !== t.node && newNode >= 0 && t.node >= 0 && this.adj && this.adj.length) {
@@ -2194,8 +2199,8 @@ class Component extends DCLogic {
         } else if (node >= 0) { t.node = node; }
         const lb = this.props.loadedBelow ?? 15, eb = this.props.emptyAbove ?? 20;
         if (t.kind !== 'car') {
-          if (t.v > eb) t.cls = 'empty';
-          else if (t.v < lb && t.v < 3) t.cls = 'loaded';
+          if (speed > eb) t.cls = 'empty';
+          else if (speed < lb && speed < 3) t.cls = 'loaded';
         }
         t.atExit = node < 0; t.out = node < 0;
       });
