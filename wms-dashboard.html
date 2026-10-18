@@ -1971,12 +1971,12 @@ window.ROAD_NET = {"edges":[],"cells":[[858,838,9],[793,251,8],[988,1073,8],[767
             <path d="{{ world.heat.b }}" style="fill:none;stroke:#ff7a1a;stroke-width:2.5;opacity:0.6;stroke-linecap:round"></path>
             <path d="{{ world.heat.c }}" style="fill:none;stroke:#ff3d14;stroke-width:3;opacity:0.7;stroke-linecap:round"></path>
           </g>
-          <path d="{{ world.road.c1 }}" style="fill:none;stroke:{{ c.roadEdge }};stroke-width:9;stroke-linecap:round;stroke-linejoin:round"></path>
-          <path d="{{ world.road.c2 }}" style="fill:none;stroke:{{ c.roadEdge }};stroke-width:12;stroke-linecap:round;stroke-linejoin:round"></path>
-          <path d="{{ world.road.c3 }}" style="fill:none;stroke:{{ c.roadEdge }};stroke-width:15;stroke-linecap:round;stroke-linejoin:round"></path>
-          <path d="{{ world.road.c1 }}" style="fill:none;stroke:{{ c.road }};stroke-width:6;stroke-linecap:round;stroke-linejoin:round"></path>
-          <path d="{{ world.road.c2 }}" style="fill:none;stroke:{{ c.road }};stroke-width:9;stroke-linecap:round;stroke-linejoin:round"></path>
-          <path d="{{ world.road.c3 }}" style="fill:none;stroke:{{ c.road }};stroke-width:12;stroke-linecap:round;stroke-linejoin:round"></path>
+          <path d="{{ world.road.c1 }}" style="fill:none;stroke:{{ c.roadEdge }};stroke-width:6;stroke-linecap:round;stroke-linejoin:round"></path>
+          <path d="{{ world.road.c2 }}" style="fill:none;stroke:{{ c.roadEdge }};stroke-width:8;stroke-linecap:round;stroke-linejoin:round"></path>
+          <path d="{{ world.road.c3 }}" style="fill:none;stroke:{{ c.roadEdge }};stroke-width:11;stroke-linecap:round;stroke-linejoin:round"></path>
+          <path d="{{ world.road.c1 }}" style="fill:none;stroke:{{ c.road }};stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round"></path>
+          <path d="{{ world.road.c2 }}" style="fill:none;stroke:{{ c.road }};stroke-width:5;stroke-linecap:round;stroke-linejoin:round"></path>
+          <path d="{{ world.road.c3 }}" style="fill:none;stroke:{{ c.road }};stroke-width:8;stroke-linecap:round;stroke-linejoin:round"></path>
           <sc-for list="{{ bldgs }}" as="b" hint-placeholder-count="6">
             <g>
               <rect x="{{ b.sx }}" y="{{ b.sy }}" width="{{ b.w }}" height="{{ b.h }}" rx="8" style="fill:{{ c.shadow }};opacity:0.25"></rect>
@@ -2248,24 +2248,43 @@ class Component extends DCLogic {
         }
         return ch;
       };
+      const rdp = (pts, eps) => {
+        if (pts.length <= 2) return pts;
+        let mx = 0, mi = 0;
+        const [sx, sy] = pts[0], [ex, ey] = pts[pts.length - 1];
+        const dx = ex - sx, dy = ey - sy, len = Math.hypot(dx, dy);
+        for (let i = 1; i < pts.length - 1; i++) {
+          const d = len > 0 ? Math.abs(dy * pts[i][0] - dx * pts[i][1] + ex * sy - ey * sx) / len : Math.hypot(pts[i][0] - sx, pts[i][1] - sy);
+          if (d > mx) { mx = d; mi = i; }
+        }
+        if (mx > eps) { const l = rdp(pts.slice(0, mi + 1), eps), r = rdp(pts.slice(mi), eps); return l.slice(0, -1).concat(r); }
+        return [pts[0], pts[pts.length - 1]];
+      };
+      const smoothPath = (pts) => {
+        if (pts.length < 2) return '';
+        if (pts.length === 2) return 'M' + f1(pts[0][0]) + ' ' + f1(pts[0][1]) + 'L' + f1(pts[1][0]) + ' ' + f1(pts[1][1]);
+        let d = 'M' + f1(pts[0][0]) + ' ' + f1(pts[0][1]);
+        for (let i = 0; i < pts.length - 1; i++) {
+          const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+          d += 'C' + f1(p1[0] + (p2[0] - p0[0]) / 6) + ' ' + f1(p1[1] + (p2[1] - p0[1]) / 6) + ','
+             + f1(p2[0] - (p3[0] - p1[0]) / 6) + ' ' + f1(p2[1] - (p3[1] - p1[1]) / 6) + ','
+             + f1(p2[0]) + ' ' + f1(p2[1]);
+        }
+        return d;
+      };
+      const addChain = (ch) => {
+        const pts = ch.map(c => [j.cells[c][0], j.cells[c][1]]);
+        const sim = rdp(pts, 2.5);
+        const mw = Math.max(...ch.map(c => j.cells[c][2]));
+        const k = mw < 4 ? 'c1' : mw < 7 ? 'c2' : 'c3';
+        road[k] += sim.length >= 3 ? smoothPath(sim) : 'M' + f1(sim[0][0]) + ' ' + f1(sim[0][1]) + 'L' + f1(sim[sim.length - 1][0]) + ' ' + f1(sim[sim.length - 1][1]);
+      };
       for (let ci = 0; ci < j.cells.length; ci++) {
         if (cadj[ci].length === 0 || cadj[ci].length === 2) continue;
-        for (const nb of cadj[ci]) { if (!ve.has(ek(ci, nb))) {
-          const ch = traceChain(ci, nb);
-          const mw = Math.max(...ch.map(c => j.cells[c][2]));
-          const k = mw < 4 ? 'c1' : mw < 7 ? 'c2' : 'c3';
-          road[k] += 'M' + f1(j.cells[ch[0]][0]) + ' ' + f1(j.cells[ch[0]][1]);
-          for (let q = 1; q < ch.length; q++) road[k] += 'L' + f1(j.cells[ch[q]][0]) + ' ' + f1(j.cells[ch[q]][1]);
-        }}
+        for (const nb of cadj[ci]) { if (!ve.has(ek(ci, nb))) addChain(traceChain(ci, nb)); }
       }
       for (let ci = 0; ci < j.cells.length; ci++) {
-        for (const nb of cadj[ci]) { if (!ve.has(ek(ci, nb))) {
-          const ch = traceChain(ci, nb);
-          const mw = Math.max(...ch.map(c => j.cells[c][2]));
-          const k = mw < 4 ? 'c1' : mw < 7 ? 'c2' : 'c3';
-          road[k] += 'M' + f1(j.cells[ch[0]][0]) + ' ' + f1(j.cells[ch[0]][1]);
-          for (let q = 1; q < ch.length; q++) road[k] += 'L' + f1(j.cells[ch[q]][0]) + ' ' + f1(j.cells[ch[q]][1]);
-        }}
+        for (const nb of cadj[ci]) { if (!ve.has(ek(ci, nb))) addChain(traceChain(ci, nb)); }
       }
     }
     const comp = new Int32Array(P.length).fill(-1), sizes = []; let nc = 0;
