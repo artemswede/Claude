@@ -1,6 +1,7 @@
 {
   "version": 2,
   "rewrites": [
-    { "source": "/api/agr", "destination": "/api/agr" }
+    { "source": "/api/agr", "destination": "/api/agr" },
+    { "source": "/", "destination": "/wms-dashboard.html" }
   ]
 }
