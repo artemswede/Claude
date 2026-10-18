@@ -1963,20 +1963,20 @@ window.ROAD_NET = {"edges":[],"cells":[[858,838,9],[793,251,8],[988,1073,8],[767
             <g><circle cx="{{ tr.sx }}" cy="{{ tr.sy }}" r="{{ tr.r }}" style="fill:{{ c.shadow }};opacity:0.22"></circle><circle cx="{{ tr.x }}" cy="{{ tr.y }}" r="{{ tr.r }}" style="fill:{{ c.tree1 }}"></circle><circle cx="{{ tr.hx }}" cy="{{ tr.hy }}" r="{{ tr.hr }}" style="fill:{{ c.tree2 }}"></circle></g>
           </sc-for>
           <rect x="{{ world.yard.x }}" y="{{ world.yard.y }}" width="{{ world.yard.w }}" height="{{ world.yard.h }}" rx="24" style="fill:{{ c.yard }};stroke:{{ c.fence }};stroke-width:2;stroke-dasharray:7 5"></rect>
+          <g style="display:{{ heatDisplay }}">
+            <path d="{{ world.heat.a }}" style="fill:none;stroke:#ffb020;stroke-width:6;opacity:0.15;stroke-linecap:round"></path>
+            <path d="{{ world.heat.b }}" style="fill:none;stroke:#ff7a1a;stroke-width:7;opacity:0.18;stroke-linecap:round"></path>
+            <path d="{{ world.heat.c }}" style="fill:none;stroke:#ff3d14;stroke-width:8;opacity:0.22;stroke-linecap:round"></path>
+            <path d="{{ world.heat.a }}" style="fill:none;stroke:#ffb020;stroke-width:2;opacity:0.5;stroke-linecap:round"></path>
+            <path d="{{ world.heat.b }}" style="fill:none;stroke:#ff7a1a;stroke-width:2.5;opacity:0.6;stroke-linecap:round"></path>
+            <path d="{{ world.heat.c }}" style="fill:none;stroke:#ff3d14;stroke-width:3;opacity:0.7;stroke-linecap:round"></path>
+          </g>
           <path d="{{ world.road.c1 }}" style="fill:none;stroke:{{ c.roadEdge }};stroke-width:9;stroke-linecap:round;stroke-linejoin:round"></path>
           <path d="{{ world.road.c2 }}" style="fill:none;stroke:{{ c.roadEdge }};stroke-width:12;stroke-linecap:round;stroke-linejoin:round"></path>
           <path d="{{ world.road.c3 }}" style="fill:none;stroke:{{ c.roadEdge }};stroke-width:15;stroke-linecap:round;stroke-linejoin:round"></path>
           <path d="{{ world.road.c1 }}" style="fill:none;stroke:{{ c.road }};stroke-width:6;stroke-linecap:round;stroke-linejoin:round"></path>
           <path d="{{ world.road.c2 }}" style="fill:none;stroke:{{ c.road }};stroke-width:9;stroke-linecap:round;stroke-linejoin:round"></path>
           <path d="{{ world.road.c3 }}" style="fill:none;stroke:{{ c.road }};stroke-width:12;stroke-linecap:round;stroke-linejoin:round"></path>
-          <g style="display:{{ heatDisplay }}">
-            <path d="{{ world.heat.a }}" style="fill:none;stroke:#ffb020;stroke-width:11;opacity:0.22;stroke-linecap:round"></path>
-            <path d="{{ world.heat.b }}" style="fill:none;stroke:#ff7a1a;stroke-width:13;opacity:0.26;stroke-linecap:round"></path>
-            <path d="{{ world.heat.c }}" style="fill:none;stroke:#ff3d14;stroke-width:15;opacity:0.3;stroke-linecap:round"></path>
-            <path d="{{ world.heat.a }}" style="fill:none;stroke:#ffb020;stroke-width:3;stroke-linecap:round"></path>
-            <path d="{{ world.heat.b }}" style="fill:none;stroke:#ff7a1a;stroke-width:4;stroke-linecap:round"></path>
-            <path d="{{ world.heat.c }}" style="fill:none;stroke:#ff3d14;stroke-width:5.5;stroke-linecap:round"></path>
-          </g>
           <sc-for list="{{ bldgs }}" as="b" hint-placeholder-count="6">
             <g>
               <rect x="{{ b.sx }}" y="{{ b.sy }}" width="{{ b.w }}" height="{{ b.h }}" rx="8" style="fill:{{ c.shadow }};opacity:0.25"></rect>
@@ -2125,7 +2125,7 @@ window.ROAD_NET = {"edges":[],"cells":[[858,838,9],[793,251,8],[988,1073,8],[767
 <script type="text/x-dc" data-dc-script data-props="{&quot;variant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;mix&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;mix&quot;,&quot;dark&quot;],&quot;section&quot;:&quot;Вид&quot;},&quot;loadedBelow&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:15,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:3,&quot;max&quot;:40,&quot;unit&quot;:&quot;км/ч&quot;,&quot;section&quot;:&quot;Пороги скорости&quot;},&quot;emptyAbove&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:20,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:5,&quot;max&quot;:60,&quot;unit&quot;:&quot;км/ч&quot;,&quot;section&quot;:&quot;Пороги скорости&quot;},&quot;simSpeed&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:0.5,&quot;max&quot;:4,&quot;step&quot;:0.5,&quot;section&quot;:&quot;Симуляция&quot;}}">
 class Component extends DCLogic {
   trucks = []; B = []; stops = []; W = null; bb = { x: 0, y: 0, w: 960, h: 620 }; outX = 355; emptyW = { road: { c1: '', c2: '', c3: '' }, heat: { a: '', b: '', c: '' }, pipes: [], trees: [], yard: { x: 0, y: 0, w: 0, h: 0 } };
-  state = { variant: null, tab: 'map', sub: 'cars', q: '', sel: null, k: 1, tx: 0, ty: 0, heat: true, stops: false, trail: true, w: 1000, h: 700, vw: 1200, tick: 0 };
+  state = { variant: null, tab: 'map', sub: 'cars', q: '', sel: null, k: 1, tx: 0, ty: 0, heat: false, stops: false, trail: true, w: 1000, h: 700, vw: 1200, tick: 0 };
   mapRef = React.createRef();
   ptrs = new Map(); moved = 0; userMoved = false; events = []; lastPoll = Date.now();
 
