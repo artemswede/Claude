@@ -122,4 +122,8 @@ object Prefs {
 
     fun theme(ctx: Context): String = of(ctx).getString(THEME, "auto") ?: "auto"
     fun setTheme(ctx: Context, v: String) = of(ctx).edit().putString(THEME, v).apply()
+
+    const val LANGUAGE = "language"
+    fun language(ctx: Context): String = of(ctx).getString(LANGUAGE, "ru") ?: "ru"
+    fun setLanguage(ctx: Context, v: String) = of(ctx).edit().putString(LANGUAGE, v).apply()
 }

@@ -56,6 +56,9 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         fun themeIndex(): Int = 0
         fun setThemeIndex(i: Int) {}
         fun openCodes() {}
+        fun openMode06() {}
+        fun languageIndex(): Int = 0
+        fun setLanguageIndex(i: Int) {}
         /** AI chat: the DeepSeek key («sk-…ab12» / «не задан») and the model. */
         fun aiKeyText(): String = "не задан"
         fun editAiKey() {}
@@ -114,6 +117,7 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         toggle("Метки водителя", "необязательно: разбор работает без них. Кнопка «Метка» в уведомлении во время записи", h.marksOn()) { h.setMarks(it) }
 
         chevron("Коды ошибок ЭБУ", "прочитать со стоп-кадром, посмотреть причины, сбросить") { h.openCodes() }
+        chevron("Мониторы ЭБУ (Mode 06)", "результаты бортовых проверок: кислородные датчики, катализатор, EGR") { h.openMode06() }
 
         section("Фон и запуск")
         toggle("Запускать при включении планшета", "после включения или перезагрузки Бортач сам ждёт запуска двигателя — открывать приложение не нужно", h.bootOn()) { h.setBoot(it) }
@@ -123,6 +127,8 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         section("Экран")
         segment("Тема", "внешний вид приложения",
             listOf("Светлая" to 0, "Тёмная" to 1, "По времени" to 2), h.themeIndex()) { h.setThemeIndex(it) }
+        segment("Язык / Language", "интерфейс приложения",
+            listOf("Русский" to 0, "English" to 1), h.languageIndex()) { h.setLanguageIndex(it) }
         segment("Размер интерфейса", "крупнее — больше кнопки и текст · ${h.screenText()}",
             com.obdlogger.app.UiScale.LEVELS.map { it.second to Math.round(it.first * 100) }, h.uiScale()) { h.setUiScale(it) }
 

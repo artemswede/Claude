@@ -51,6 +51,8 @@ object LoggerState {
         /** Saved report of that read (dtc_<time>.txt) and the outcome of a reset, if one was done. */
         val dtcReportFile: String? = null,
         val dtcResult: String? = null,
+        val mode06Busy: String? = null,
+        val mode06: com.obdlogger.core.Mode06Snapshot? = null,
     )
 
     private val main = Handler(Looper.getMainLooper())

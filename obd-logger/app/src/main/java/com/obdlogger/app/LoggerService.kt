@@ -62,6 +62,7 @@ class LoggerService : Service() {
     @Volatile private var checkStopRequested = false
     /** Codes screen: [ACTION_DTC_READ] or [ACTION_DTC_CLEAR], done between poll cycles. */
     @Volatile private var dtcRequest: String? = null
+    @Volatile private var mode06Request = false
     @Volatile private var recording = false
     @Volatile private var autoMode = false
     @Volatile private var socket: BluetoothSocket? = null
@@ -108,6 +109,10 @@ class LoggerService : Service() {
             ACTION_DTC_READ, ACTION_DTC_CLEAR -> {
                 dtcRequest = intent.action
                 LoggerState.update { it.copy(dtcBusy = "Жду связи с ЭБУ…", dtcResult = null) }
+            }
+            ACTION_MODE06_READ -> {
+                mode06Request = true
+                LoggerState.update { it.copy(mode06Busy = "Жду связи с ЭБУ…") }
             }
             // Restarted by the system after being killed: note it and resume auto mode if it is on.
             null -> {
@@ -327,6 +332,7 @@ class LoggerService : Service() {
                     status("Автозапись: зажигание включено, жду запуска двигателя")
                     // Ignition on, engine off: the right moment to read or clear codes.
                     handleDtc(s)
+                    handleMode06(s)
                     pause(5_000)
                 }
             }
@@ -405,6 +411,7 @@ class LoggerService : Service() {
         var check: CheckRun? = null
         while (!stopRequested) {
             handleDtc(s)
+            handleMode06(s)
             if (checkRequested && check == null) {
                 checkRequested = false
                 checkStopRequested = false
@@ -742,6 +749,20 @@ class LoggerService : Service() {
         }
     }
 
+    private fun handleMode06(s: ObdSession) {
+        if (!mode06Request) return
+        mode06Request = false
+        LoggerState.update { it.copy(mode06Busy = "Читаю мониторы Mode 06…") }
+        var done = false
+        try {
+            val snap = s.readMode06()
+            LoggerState.update { it.copy(mode06Busy = null, mode06 = snap) }
+            done = true
+        } finally {
+            if (!done) LoggerState.update { it.copy(mode06Busy = null) }
+        }
+    }
+
     private fun dtcSummary(d: DtcSnapshot): String {
         fun codes(list: List<String>?) = when {
             list == null -> "—"
@@ -866,6 +887,7 @@ class LoggerService : Service() {
         const val ACTION_CHECK_STOP = "com.obdlogger.CHECK_STOP"
         const val ACTION_DTC_READ = "com.obdlogger.DTC_READ"
         const val ACTION_DTC_CLEAR = "com.obdlogger.DTC_CLEAR"
+        const val ACTION_MODE06_READ = "com.obdlogger.MODE06_READ"
         const val EXTRA_ADDRESS = "address"
         const val EXTRA_CHECK = "check"
         const val EXTRA_VEHICLE = "vehicle"

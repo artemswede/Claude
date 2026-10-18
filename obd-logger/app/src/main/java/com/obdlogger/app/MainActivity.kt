@@ -52,7 +52,7 @@ import com.obdlogger.core.Hypotheses
 import com.obdlogger.core.Hypothesis
 import java.io.File
 
-class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions, VersionActions, CheckActions, com.obdlogger.app.ui.DtcActions, com.obdlogger.app.ui.ChatActions, com.obdlogger.app.ui.BaselineActions {
+class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions, VersionActions, CheckActions, com.obdlogger.app.ui.DtcActions, com.obdlogger.app.ui.Mode06Actions, com.obdlogger.app.ui.ChatActions, com.obdlogger.app.ui.BaselineActions {
     private lateinit var shell: Shell
     private lateinit var home: HomeView
     private lateinit var settings: SettingsView
@@ -100,6 +100,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         CrashLog.install(this)
+        com.obdlogger.core.Strings.setLocale(Prefs.language(this))
         Bt.theme = resolveTheme()
         shell = Shell(this)
         setContentView(shell.root)
@@ -680,6 +681,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         val top = list.removeLastOrNull() ?: return false
         if (top === checkView) checkView = null
         if (top === dtcView) dtcView = null
+        if (top === mode06View) mode06View = null
         if (top === baselineView) baselineView = null
         val box = shell.containers.getValue(shell.page)
         val under = list.lastOrNull() ?: box.getChildAt(0)
@@ -1223,6 +1225,28 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
 
     override fun shareCodes(path: String) = share(listOf(File(path)), "Бортач: коды ошибок")
 
+    // ---- Mode 06 monitors ----
+
+    private var mode06View: com.obdlogger.app.ui.Mode06View? = null
+
+    override fun openMode06() {
+        if (mode06View != null) return
+        val v = com.obdlogger.app.ui.Mode06View(this, shell.sc, this)
+        mode06View = v
+        v.bind(LoggerState.snapshot)
+        push(if (shell.page == Shell.Page.RECORD) Shell.Page.OVERVIEW else shell.page, v)
+        val s = LoggerState.snapshot
+        if (s.running && s.link == Lamp.OK && s.mode06 == null) readMode06()
+    }
+
+    override fun closeMode06() {
+        pop()
+    }
+
+    override fun readMode06() {
+        startService(LoggerService.intent(this, LoggerService.ACTION_MODE06_READ))
+    }
+
     private fun resolveTheme(): Bt.Palette {
         val pref = Prefs.theme(this)
         return when (pref) {
@@ -1243,6 +1267,15 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         val v = when (i) { 0 -> "light"; 1 -> "dark"; else -> "auto" }
         Prefs.setTheme(this, v)
         Bt.theme = resolveTheme()
+        recreate()
+    }
+
+    override fun languageIndex(): Int = if (Prefs.language(this) == "en") 1 else 0
+
+    override fun setLanguageIndex(i: Int) {
+        val lang = if (i == 1) "en" else "ru"
+        Prefs.setLanguage(this, lang)
+        com.obdlogger.core.Strings.setLocale(lang)
         recreate()
     }
 
@@ -1525,6 +1558,7 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     private fun render(s: LoggerState.Snapshot) {
         shell.render(s)
         dtcView?.bind(s)
+        mode06View?.bind(s)
         if (shell.page == Shell.Page.TRIPS) refreshTrips()
         if (shell.page == Shell.Page.SETTINGS) refreshSettings()
         if (s.recording) {

@@ -185,6 +185,28 @@ class ObdSession(private val elm: ElmIo, private val resetDelayMs: Long = 1_000)
         return FreezeFrame(cause, values)
     }
 
+    fun readMode06(): Mode06Snapshot? {
+        val raw00 = query("0600", 5_000) ?: return null
+        if (ElmResponse.messages(raw00).none { it.size >= 6 && it.u(0) == 0x46 }) return null
+        val supported = mutableSetOf<Int>()
+        var base = 0x00
+        while (base <= 0xE0) {
+            val raw = if (base == 0x00) raw00 else query("06%02X".format(base), 5_000) ?: break
+            val mids = Mode06Parser.supportedMids(base, raw)
+            supported.addAll(mids)
+            if (base + 0x20 !in supported) break
+            base += 0x20
+        }
+        if (supported.isEmpty()) return null
+        val results = mutableListOf<Mode06Result>()
+        for (mid in supported.sorted()) {
+            if (mid % 0x20 == 0) continue
+            val raw = query("06%02X".format(mid), 3_000) ?: continue
+            results.addAll(Mode06Parser.parse(raw, mid, isCan))
+        }
+        return Mode06Snapshot(results)
+    }
+
     /**
      * Mode 04: clears stored and pending codes, the freeze frame and the readiness
      * monitors, and turns the MIL off. True if the ECU confirmed (44).
