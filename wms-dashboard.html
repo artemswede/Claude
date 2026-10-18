@@ -2223,10 +2223,11 @@ class Component extends DCLogic {
     this.P = P; this.adj = adj;
     if (!j.edges.length) {
       const RADIUS = 12, BK = 13, grid = new Map(), cellNodes = [];
-      j.cells.forEach(([x, y, w]) => {
-        const i = nodeOf(x, y); P[i].n = Math.max(P[i].n, w); cellNodes.push(i);
+      const cadj = [];
+      j.cells.forEach(([x, y, w], ci) => {
+        const i = nodeOf(x, y); P[i].n = Math.max(P[i].n, w); cellNodes.push(i); cadj.push([]);
         const bk = (Math.floor(x/BK)) + ',' + (Math.floor(y/BK));
-        if (!grid.has(bk)) grid.set(bk, []); grid.get(bk).push({i, x, y});
+        if (!grid.has(bk)) grid.set(bk, []); grid.get(bk).push({i, x, y, ci});
       });
       j.cells.forEach(([x1, y1, w1], ci) => {
         const bx = Math.floor(x1/BK), by = Math.floor(y1/BK), ni = cellNodes[ci];
@@ -2238,12 +2239,43 @@ class Component extends DCLogic {
             const d = Math.hypot(nb.x - x1, nb.y - y1);
             if (d <= RADIUS) {
               adj[ni].push({ j: nb.i, d }); adj[nb.i].push({ j: ni, d });
-              const ww = Math.max(P[ni].n, P[nb.i].n), k = ww < 4 ? 'c1' : ww < 7 ? 'c2' : 'c3';
-              road[k] += 'M' + f1(P[ni].x) + ' ' + f1(P[ni].y) + 'L' + f1(nb.x) + ' ' + f1(nb.y);
+              cadj[ci].push(nb.ci); cadj[nb.ci].push(ci);
             }
           }
         }
       });
+      const ve = new Set();
+      const ek = (a,b) => a < b ? a * 8192 + b : b * 8192 + a;
+      const traceChain = (s, n) => {
+        const ch = [s, n]; ve.add(ek(s, n));
+        let cur = n, prev = s;
+        while (true) {
+          if (cadj[cur].length !== 2) break;
+          const cands = cadj[cur].filter(c => { return c !== prev && !ve.has(ek(cur, c)); });
+          if (cands.length !== 1) break;
+          const nx = cands[0]; ve.add(ek(cur, nx)); ch.push(nx); prev = cur; cur = nx;
+        }
+        return ch;
+      };
+      for (let ci = 0; ci < j.cells.length; ci++) {
+        if (cadj[ci].length === 0 || cadj[ci].length === 2) continue;
+        for (const nb of cadj[ci]) { if (!ve.has(ek(ci, nb))) {
+          const ch = traceChain(ci, nb);
+          const mw = Math.max(...ch.map(c => j.cells[c][2]));
+          const k = mw < 4 ? 'c1' : mw < 7 ? 'c2' : 'c3';
+          road[k] += 'M' + f1(j.cells[ch[0]][0]) + ' ' + f1(j.cells[ch[0]][1]);
+          for (let q = 1; q < ch.length; q++) road[k] += 'L' + f1(j.cells[ch[q]][0]) + ' ' + f1(j.cells[ch[q]][1]);
+        }}
+      }
+      for (let ci = 0; ci < j.cells.length; ci++) {
+        for (const nb of cadj[ci]) { if (!ve.has(ek(ci, nb))) {
+          const ch = traceChain(ci, nb);
+          const mw = Math.max(...ch.map(c => j.cells[c][2]));
+          const k = mw < 4 ? 'c1' : mw < 7 ? 'c2' : 'c3';
+          road[k] += 'M' + f1(j.cells[ch[0]][0]) + ' ' + f1(j.cells[ch[0]][1]);
+          for (let q = 1; q < ch.length; q++) road[k] += 'L' + f1(j.cells[ch[q]][0]) + ' ' + f1(j.cells[ch[q]][1]);
+        }}
+      }
     }
     const comp = new Int32Array(P.length).fill(-1), sizes = []; let nc = 0;
     const label = () => { comp.fill(-1); nc = 0; sizes.length = 0; for (let i = 0; i < P.length; i++) if (comp[i] < 0) { const st = [i]; comp[i] = nc; let c = 0; while (st.length) { const u = st.pop(); c++; for (const { j: v } of adj[u]) if (comp[v] < 0) { comp[v] = nc; st.push(v); } } sizes.push(c); nc++; } };
@@ -2338,8 +2370,8 @@ class Component extends DCLogic {
   focus(t) { this.userMoved = true; this.setState(s => { const k = Math.max(s.k, 1.6); return { sel: t.id, tab: 'map', k, tx: s.w / 2 - t.x * k, ty: s.h / 2 - t.y * k }; }); }
 
   theme(v) {
-    const map = { grass: '#c3e3a4', yard: '#efece4', fence: '#b3ae9f', road: '#9aa1ad', roadEdge: '#eceef2', shadow: '#2b3a20', tree1: '#7cc062', tree2: '#97d67b', label: '#2a2622', haloMap: '#efece4', pipe: '#b9bec7', pipeEdge: '#7d838e', pill: '#ffffff', pillText: '#0b0b0c' };
-    const mapDark = { grass: '#0c0d0e', yard: '#131315', fence: '#3a3b40', road: '#2a2b31', roadEdge: '#3b3c43', shadow: '#000000', tree1: '#16221a', tree2: '#1c2c20', label: '#f1efe9', haloMap: '#131315', pipe: '#34363d', pipeEdge: '#55585f', pill: '#0b0b0c', pillText: '#f5f5f4' };
+    const map = { grass: '#c3e3a4', yard: '#efece4', fence: '#b3ae9f', road: '#d5d3cc', roadEdge: '#b0ada4', shadow: '#2b3a20', tree1: '#7cc062', tree2: '#97d67b', label: '#2a2622', haloMap: '#efece4', pipe: '#b9bec7', pipeEdge: '#7d838e', pill: '#ffffff', pillText: '#0b0b0c' };
+    const mapDark = { grass: '#0c0d0e', yard: '#131315', fence: '#3a3b40', road: '#2a2b31', roadEdge: '#1a1b20', shadow: '#000000', tree1: '#16221a', tree2: '#1c2c20', label: '#f1efe9', haloMap: '#131315', pipe: '#34363d', pipeEdge: '#55585f', pill: '#0b0b0c', pillText: '#f5f5f4' };
     const uiL = { uiBg: '#ffffff', card: '#f4f3ef', line: '#e8e6e0', text: '#0b0b0c', sub: '#5f5f66', chip: 'rgba(255,255,255,0.92)' };
     const uiD = { uiBg: '#0a0a0b', card: '#161618', line: '#26262b', text: '#f5f5f4', sub: '#9a9aa2', chip: 'rgba(14,14,16,0.9)' };
     return v === 'light' ? { ...map, ...uiL } : v === 'mix' ? { ...map, ...uiD } : { ...mapDark, ...uiD };
