@@ -1989,15 +1989,6 @@ window.ROAD_NET = {"edges":[],"cells":[[858,838,9],[793,251,8],[988,1073,8],[767
           <sc-for list="{{ world.pipes }}" as="p" hint-placeholder-count="0">
             <g><circle cx="{{ p.x }}" cy="{{ p.y }}" r="6" style="fill:{{ c.pipe }};stroke:{{ c.pipeEdge }};stroke-width:1"></circle><circle cx="{{ p.x }}" cy="{{ p.y }}" r="2.6" style="fill:{{ c.yard }}"></circle></g>
           </sc-for>
-          <g style="display:{{ stopsDisplay }}">
-            <sc-for list="{{ stopsView }}" as="s" hint-placeholder-count="6">
-              <g>
-                <circle cx="{{ s.x }}" cy="{{ s.y }}" r="{{ s.r }}" style="fill:#ff4b1f;fill-opacity:0.18;stroke:#ff4b1f;stroke-width:1.5"></circle>
-                <circle cx="{{ s.x }}" cy="{{ s.y }}" r="3" style="fill:#ff4b1f"></circle>
-                
-              </g>
-            </sc-for>
-          </g>
           <g style="display:{{ trailDisplay }}">
             <sc-for list="{{ trucks }}" as="t" hint-placeholder-count="0">
               <polyline points="{{ t.trail }}" style="fill:none;stroke:{{ t.stCol }};stroke-width:2.5;opacity:0.6;stroke-linecap:round;stroke-linejoin:round"></polyline>
@@ -2023,7 +2014,6 @@ window.ROAD_NET = {"edges":[],"cells":[[858,838,9],[793,251,8],[988,1073,8],[767
       </svg>
       <div style="position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;overflow:hidden">
         <sc-for list="{{ bLabels }}" as="l" hint-placeholder-count="0"><div style="position:absolute;left:{{ l.x }}px;top:{{ l.y }}px;transform:translate(-50%,-50%);white-space:nowrap;font-weight:700;font-size:{{ l.fs }}px;color:{{ c.label }};text-shadow:0 0 3px {{ l.halo }}">{{ l.text }}</div></sc-for>
-        <div style="display:{{ stopsDisplay }}"><sc-for list="{{ sLabels }}" as="l" hint-placeholder-count="0"><div style="position:absolute;left:{{ l.x }}px;top:{{ l.y }}px;transform:translate(-50%,-50%);white-space:nowrap;font-weight:600;font-size:11px;color:{{ c.label }};text-shadow:0 0 3px {{ c.haloMap }},0 0 3px {{ c.haloMap }}">{{ l.text }}</div></sc-for></div>
         <sc-for list="{{ tLabels }}" as="l" hint-placeholder-count="0"><div onClick="{{ l.click }}" style="position:absolute;left:{{ l.x }}px;top:{{ l.y }}px;transform:translate(-50%,-50%);pointer-events:auto;cursor:pointer;white-space:nowrap;height:18px;padding:0 7px;border-radius:9px;display:flex;align-items:center;background:{{ c.pill }};color:{{ c.pillText }};border:1.5px solid {{ l.stCol }};font-family:'JetBrains Mono',monospace;font-weight:700;font-size:10px">{{ l.label }}</div></sc-for>
         <sc-if value="{{ loading }}" hint-placeholder-val="{{ true }}"><div style="position:absolute;left:0;top:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;color:{{ c.label }};font-size:14px;font-weight:600">Загрузка карты…</div></sc-if>
       </div>
@@ -2117,7 +2107,7 @@ window.ROAD_NET = {"edges":[],"cells":[[858,838,9],[793,251,8],[988,1073,8],[767
 
   <div style="display:{{ navDisplay }};flex:none;height:64px;border-top:1px solid {{ c.line }};background:{{ c.uiBg }}">
     <sc-for list="{{ nav }}" as="n" hint-placeholder-count="3">
-      <div onClick="{{ n.click }}" style="cursor:pointer;flex:1;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:{{ n.fg }};border-top:3px solid {{ n.bt }};margin-top:-1px">{{ n.label }}</div>
+      <div onClick="{{ n.click }}" style="cursor:pointer;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;font-weight:600;color:{{ n.fg }};border-top:3px solid {{ n.bt }};margin-top:-1px"><svg width="22" height="22" viewBox="0 0 24 24" style="fill:{{ n.fg }}"><path d="{{ n.icon }}"></path></svg>{{ n.label }}</div>
     </sc-for>
   </div>
 </div>
@@ -2151,6 +2141,7 @@ class Component extends DCLogic {
       const units = Array.isArray(raw) ? raw : (raw && raw.list ? raw.list : []);
       if (!units.length) return;
       this.lastPoll = Date.now(); this.apiOK = true;
+      if (!this.apiPrev) { this.apiPrev = true; this.trucks = this.trucks.filter(t => t.apiDriven); }
       if (!this.P || !this.P.length) { this.pendingUnits = units; return; }
       const GEO = {latN:56.4345, latS:56.4175, lonW:38.1375, lonE:38.1565, svgW:900, svgH:1200};
       const toSVG = (lat, lng) => ({
@@ -2409,7 +2400,7 @@ class Component extends DCLogic {
       return { plate: t.plate, model: t.model, speed: Math.round(t.v) + ' км/ч', load: loadT(t), stCol: STC[s], bg: on ? (dark || vname === 'mix' ? '#241510' : '#fff1ec') : c.card, bd: on ? '#ff4b1f' : 'transparent', sub: c.sub, chipBg: ld ? '#ff4b1f' : em ? (dark || vname === 'mix' ? '#2a2a30' : '#e4e1d8') : 'transparent', chipFg: ld ? '#0b0b0c' : c.text, click: () => this.focus(t) }; });
     const cnt = { all: this.trucks.length, in: 0, move: 0, idle: 0 };
     this.trucks.forEach(t => { const s = stateOf(t); if (s !== 'out') cnt.in++; if (s === 'move') cnt.move++; if (s === 'idle') cnt.idle++; });
-    const stats = [{ label: 'Всего', v: cnt.all, dot: c.sub }, { label: 'На территории', v: cnt.in, dot: '#ff4b1f' }, { label: 'Движется', v: cnt.move, dot: '#22c55e' }, { label: 'Стоит', v: cnt.idle, dot: '#f5b400' }];
+    const stats = [{ label: 'Всего ТС', v: cnt.all, dot: c.sub }, { label: 'В пути', v: cnt.move, dot: '#22c55e' }, { label: 'Стоянка', v: cnt.idle, dot: '#f5b400' }, { label: 'На заводе', v: cnt.in, dot: '#ff4b1f' }];
     const mini = stats.map(s => ({ ...s, label: '' }));
     const tm = ts => new Date(ts).toLocaleTimeString('ru-RU');
     const events = this.events.map(e => ({ text: e.text, time: tm(e.t), col: e.col, line: c.line, sub: c.sub }));
@@ -2421,7 +2412,7 @@ class Component extends DCLogic {
     const mkL = (key, label) => { const on = st[key]; return { label, bg: on ? '#ff4b1f' : c.chip, fg: on ? '#0b0b0c' : c.text, toggle: () => this.setState({ [key]: !on }) }; };
     return {
       c, bLabels, sLabels, tLabels, loading: !this.W, world: this.W || this.emptyW, trucks, bldgs, stopsView, rows, stats: stats, events, popup, q: st.q,
-      gps: { color: gc, text: `GPS · ${age} с назад` },
+      gps: { color: gc, text: this.apiOK ? (age < 15 ? 'GPS: сейчас' : `GPS · ${age} с назад`) : 'GPS · нет связи' },
       variants: vs.map(([id, label]) => ({ label, pad: wide ? 14 : 9, bg: vname === id ? '#ff4b1f' : 'transparent', fg: vname === id ? '#0b0b0c' : c.sub, pick: () => this.setState({ variant: id }) })),
       layers: [mkL('heat', 'Тепловая карта'), mkL('trail', 'Следы')],
       viewTf: `translate(${st.tx.toFixed(1)} ${st.ty.toFixed(1)}) scale(${st.k.toFixed(3)})`, mapRef: this.mapRef,
@@ -2433,7 +2424,7 @@ class Component extends DCLogic {
       statCols: wide ? 'repeat(2,minmax(0,1fr))' : 'repeat(4,minmax(0,1fr))', subTabsDisplay: wide ? 'flex' : 'none', subA: sp(st.sub === 'cars'), subB: sp(st.sub === 'events'),
       subCars: () => this.setState({ sub: 'cars' }), subEvents: () => this.setState({ sub: 'events' }), showCars: listMode === 'cars', showEvents: listMode === 'events',
       onQ: (e) => this.setState({ q: e.target.value }),
-      navDisplay: wide ? 'none' : 'flex', nav: [['map', 'Карта'], ['cars', 'Машины'], ['events', 'События']].map(([id, label]) => ({ label, fg: tab === id ? c.text : c.sub, bt: tab === id ? '#ff4b1f' : 'transparent', click: () => this.setState({ tab: id }) }))
+      navDisplay: wide ? 'none' : 'flex', nav: [['map', 'Карта', 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z'], ['cars', 'Машины', 'M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z'], ['events', 'Рейсы', 'M12 2L4.5 20.3l.7.7L12 18l6.8 3 .7-.7z']].map(([id, label, icon]) => ({ label, icon, fg: tab === id ? c.text : c.sub, bt: tab === id ? '#ff4b1f' : 'transparent', click: () => this.setState({ tab: id }) }))
     };
   }
 }
