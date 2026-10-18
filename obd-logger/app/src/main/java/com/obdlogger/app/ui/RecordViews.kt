@@ -85,8 +85,10 @@ class TileView(ctx: Context, private val p: Bt.Palette) : View(ctx) {
     private var staleAt: Long? = null
     private var ageSec = 0L
     var onLongPick: (String) -> Unit = {}
+    var onTap: (String) -> Unit = {}
 
     init {
+        setOnClickListener { if (code.isNotEmpty()) onTap(code) }
         setOnLongClickListener { onLongPick(code); true }
         isLongClickable = true
     }

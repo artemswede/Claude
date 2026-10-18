@@ -41,6 +41,8 @@ interface ChatActions {
     fun retry() {}
     /** «Отменить» while waiting: the request is dropped, the question stays with «Повторить». */
     fun cancelAnswer() {}
+    /** «Быстро»: cancel the current request and retry with thinking=false / tier=flash. */
+    fun retryFast() {}
     /** «Глубоко / Быстро» in the chat's bar. */
     fun deep(): Boolean = true
     fun setDeep(on: Boolean) {}
@@ -115,7 +117,7 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
             contentDescription = "Ещё"
             setOnClickListener { v ->
                 val m = android.widget.PopupMenu(ctx, v)
-                m.menu.add(0, 1, 1, "Поиск гипотез — глубокое исследование")
+                m.menu.add(0, 1, 1, "Глубокий анализ двигателя")
                 m.menu.add(0, 2, 2, "Ключ ИИ или свой сервер…")
                 m.setOnMenuItemClickListener { when (it.itemId) { 1 -> actions.runResearch(); 2 -> actions.editAiKey() }; true }
                 m.show()
@@ -159,7 +161,7 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
         val s = ((android.os.SystemClock.elapsedRealtime() - w.since) / 1000).coerceAtLeast(0)
         val t = "%d:%02d".format(s / 60, s % 60)
         val head = listOf(w.stage, t, w.model).filter { it.isNotBlank() }.joinToString(" · ")
-        return if (s >= 90) "$head\nДолго — можно отменить и спросить в режиме «Быстро»." else head
+        return head
     }
 
     override fun onDetachedFromWindow() {
@@ -219,11 +221,11 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
             addTo(list, ctx.text("Спросите голосом или текстом. Примеры — нажмите, чтобы спросить:", sc.p, p.t2), dp(16))
             val chips = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
             listOf(
-                "Что сейчас с машиной?",
-                "Почему такая версия и как её проверить?",
+                "Что с машиной?",
+                "Есть ли проблемы?",
                 "Объясни коды ошибок",
-                "Что записать в следующей поездке?",
-                "Стало ли лучше за последние поездки?",
+                "Сравни последние поездки",
+                "Что проверить на ТО?",
             ).forEach { q ->
                 addTo(chips, ctx.text(q, sc.p, p.acc, 600).apply {
                     setPadding(dp(14), 0, dp(14), 0)
@@ -232,7 +234,7 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
                 }.tap(), dp(8))
             }
             addTo(list, HorizontalScrollView(ctx).apply { addView(chips); isHorizontalScrollBarEnabled = false }, dp(8))
-            addTo(list, ctx.button("🔬  Поиск гипотез — глубокое исследование", sc, p, primary = false) { if (hasKey) actions.runResearch() else actions.editAiKey() }.apply {
+            addTo(list, ctx.button("🔬  Глубокий анализ двигателя", sc, p, primary = false) { if (hasKey) actions.runResearch() else actions.editAiKey() }.apply {
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(sc.btnH))
             }, dp(12), width = ViewGroup.LayoutParams.WRAP_CONTENT)
         }
@@ -281,7 +283,8 @@ class ChatView(ctx: Context, private val sc: Bt.Scale, private val actions: Chat
             val r = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             r.addView(d, LinearLayout.LayoutParams(dp(44), dp(24)))
             addTo(r, t, 0, 1f)
-            addTo(r, ctx.button("Отменить", sc, p, primary = false) { actions.cancelAnswer() }, 0, width = ViewGroup.LayoutParams.WRAP_CONTENT)
+            addTo(r, ctx.button("Быстро", sc, p, primary = true) { actions.retryFast() }, dp(4), width = ViewGroup.LayoutParams.WRAP_CONTENT)
+            addTo(r, ctx.button("Отменить", sc, p, primary = false) { actions.cancelAnswer() }, dp(4), width = ViewGroup.LayoutParams.WRAP_CONTENT)
             addTo(list, card(r, p, dp(14), dp(8), p.line2), dp(12))
             d.start()
             postDelayed(tick, 1000)

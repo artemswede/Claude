@@ -138,6 +138,7 @@ class RecordView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
             for (c in 0 until cols) {
                 val t = TileView(context, p)
+                t.onTap = { code -> showOverlay(listOf(code)) }
                 t.onLongPick = { code -> tileMenu(code) }
                 tiles += t
                 row.addView(t, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply { if (c > 0) leftMargin = gap })
