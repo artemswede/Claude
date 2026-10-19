@@ -1972,12 +1972,12 @@ window.ROAD_NET = {"edges":[],"cells":[[858,838,9],[793,251,8],[988,1073,8],[767
             <path d="{{ world.heat.b }}" style="fill:none;stroke:#ff7a1a;stroke-width:2.5;opacity:0.6;stroke-linecap:round"></path>
             <path d="{{ world.heat.c }}" style="fill:none;stroke:#ff3d14;stroke-width:3;opacity:0.7;stroke-linecap:round"></path>
           </g>
-          <path d="{{ world.road.c1 }}" style="fill:none;stroke:{{ c.roadEdge }};stroke-width:10;stroke-linecap:round"></path>
-          <path d="{{ world.road.c2 }}" style="fill:none;stroke:{{ c.roadEdge }};stroke-width:12;stroke-linecap:round"></path>
-          <path d="{{ world.road.c3 }}" style="fill:none;stroke:{{ c.roadEdge }};stroke-width:14;stroke-linecap:round"></path>
-          <path d="{{ world.road.c1 }}" style="fill:none;stroke:{{ c.road }};stroke-width:8;stroke-linecap:round"></path>
-          <path d="{{ world.road.c2 }}" style="fill:none;stroke:{{ c.road }};stroke-width:10;stroke-linecap:round"></path>
-          <path d="{{ world.road.c3 }}" style="fill:none;stroke:{{ c.road }};stroke-width:12;stroke-linecap:round"></path>
+          <path d="{{ world.road.c1 }}" style="fill:none;stroke:{{ c.roadEdge }};stroke-width:8;stroke-linecap:round"></path>
+          <path d="{{ world.road.c2 }}" style="fill:none;stroke:{{ c.roadEdge }};stroke-width:10;stroke-linecap:round"></path>
+          <path d="{{ world.road.c3 }}" style="fill:none;stroke:{{ c.roadEdge }};stroke-width:13;stroke-linecap:round"></path>
+          <path d="{{ world.road.c1 }}" style="fill:none;stroke:{{ c.road }};stroke-width:5;stroke-linecap:round"></path>
+          <path d="{{ world.road.c2 }}" style="fill:none;stroke:{{ c.road }};stroke-width:7;stroke-linecap:round"></path>
+          <path d="{{ world.road.c3 }}" style="fill:none;stroke:{{ c.road }};stroke-width:10;stroke-linecap:round"></path>
           <sc-for list="{{ bldgs }}" as="b" hint-placeholder-count="6">
             <g>
               <rect x="{{ b.sx }}" y="{{ b.sy }}" width="{{ b.w }}" height="{{ b.h }}" rx="8" style="fill:{{ c.shadow }};opacity:0.25"></rect>
@@ -2140,9 +2140,10 @@ class Component extends DCLogic {
   pollAPI() {
     fetch('/api/agr?report=trackers').then(r => r.json()).then(raw => {
       const units = Array.isArray(raw) ? raw : (raw && raw.list ? raw.list : []);
-      if (!units.length) return;
       this.lastPoll = Date.now(); this.apiOK = true;
-      if (!this.apiPrev) { this.apiPrev = true; this.trucks = this.trucks.filter(t => t.apiDriven); }
+      if (!units.length) return;
+      const validUnits = units.filter(u => { const s = u.state || u; return (s.lat || u.lat) && (s.lng || u.lng); });
+      if (!this.apiPrev && validUnits.length >= 3) { this.apiPrev = true; this.trucks = []; }
       if (!this.P || !this.P.length) { this.pendingUnits = units; return; }
       const GEO = {latN:56.4345, latS:56.4175, lonW:38.1375, lonE:38.1565, svgW:900, svgH:1200};
       const toSVG = (lat, lng) => ({
@@ -2163,7 +2164,7 @@ class Component extends DCLogic {
         const s = u.state || u;
         const lat = s.lat || u.lat, lng = s.lng || u.lng;
         if (!lat || !lng) return;
-        const plate = (u.name || u.number || 'Unit' + idx).replace(/\s+/g, '');
+        const plate = (u.label || u.name || u.tracker_label || u.number || u.source?.device_id || 'Unit' + idx).replace(/\s+/g, '');
         seen.add(plate);
         const speed = s.speed != null ? s.speed : (u.speed || 0);
         const course = s.course != null ? s.course : u.course;
@@ -2214,12 +2215,11 @@ class Component extends DCLogic {
     j.cells.forEach(([x, y, n]) => { heat[n < 4 ? 'a' : n < 7 ? 'b' : 'c'] += 'M' + x + ' ' + y + 'h0'; });
     this.P = P; this.adj = adj;
     if (!j.edges.length) {
-      const RADIUS = 12, BK = 13, grid = new Map(), cellNodes = [];
+      const RADIUS = 12, BK = 13, grid = new Map(), cellNodes = [], cellW = [];
       j.cells.forEach(([x, y, w], ci) => {
-        const i = nodeOf(x, y); P[i].n = Math.max(P[i].n, w); cellNodes.push(i);
+        const i = nodeOf(x, y); P[i].n = Math.max(P[i].n, w); cellNodes.push(i); cellW.push(w);
         const bk = (Math.floor(x/BK)) + ',' + (Math.floor(y/BK));
-        if (!grid.has(bk)) grid.set(bk, []); grid.get(bk).push({i, x, y, ci});
-        road[w < 4 ? 'c1' : w < 7 ? 'c2' : 'c3'] += 'M' + x + ' ' + y + 'h0';
+        if (!grid.has(bk)) grid.set(bk, []); grid.get(bk).push({i, x, y, ci, w});
       });
       j.cells.forEach(([x1, y1, w1], ci) => {
         const bx = Math.floor(x1/BK), by = Math.floor(y1/BK), ni = cellNodes[ci];
@@ -2229,7 +2229,11 @@ class Component extends DCLogic {
           for (const nb of nbs) {
             if (nb.i <= ni) continue;
             const d = Math.hypot(nb.x - x1, nb.y - y1);
-            if (d <= RADIUS) { adj[ni].push({ j: nb.i, d }); adj[nb.i].push({ j: ni, d }); }
+            if (d <= RADIUS) {
+              adj[ni].push({ j: nb.i, d }); adj[nb.i].push({ j: ni, d });
+              const w = Math.max(w1, nb.w), k = w < 4 ? 'c1' : w < 7 ? 'c2' : 'c3';
+              road[k] += 'M' + x1 + ' ' + y1 + 'L' + nb.x + ' ' + nb.y;
+            }
           }
         }
       });
