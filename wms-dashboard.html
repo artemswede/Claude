@@ -2141,10 +2141,7 @@ class Component extends DCLogic {
     fetch('/api/agr?report=trackers').then(r => r.json()).then(raw => {
       const units = Array.isArray(raw) ? raw : (raw && raw.list ? raw.list : []);
       this.lastPoll = Date.now(); this.apiOK = true;
-      if (!units.length) return;
-      const validUnits = units.filter(u => { const s = u.state || u; return (s.lat || u.lat) && (s.lng || u.lng); });
-      if (!this.apiPrev && validUnits.length >= 3) { this.apiPrev = true; this.trucks = []; }
-      if (!this.P || !this.P.length) { this.pendingUnits = units; return; }
+      if (!units.length || !this.P || !this.P.length) return;
       const GEO = {latN:56.4345, latS:56.4175, lonW:38.1375, lonE:38.1565, svgW:900, svgH:1200};
       const toSVG = (lat, lng) => ({
         x: (lng - GEO.lonW) / (GEO.lonE - GEO.lonW) * GEO.svgW,
@@ -2158,47 +2155,26 @@ class Component extends DCLogic {
         }
         return best >= 0 && bd < 60 ? best : -1;
       };
-      const existing = new Map(this.trucks.map(t => [t.plate, t]));
-      const seen = new Set();
-      units.forEach((u, idx) => {
+      units.forEach((u) => {
         const s = u.state || u;
         const lat = s.lat || u.lat, lng = s.lng || u.lng;
         if (!lat || !lng) return;
-        const plate = (u.label || u.name || u.tracker_label || u.number || u.source?.device_id || 'Unit' + idx).replace(/\s+/g, '');
-        seen.add(plate);
-        const speed = s.speed != null ? s.speed : (u.speed || 0);
-        const course = s.course != null ? s.course : u.course;
         const sv = toSVG(lat, lng);
+        if (sv.x < -50 || sv.x > 950 || sv.y < -50 || sv.y > 1250) return;
         const node = snap(sv.x, sv.y);
-        let t = existing.get(plate);
-        if (!t) {
-          t = { id: this.trucks.length, plate, model: u.model || u.hw_type || '', kind: 'semi',
-            label: (plate.match(/\d{3}/) || [plate.slice(0,3)])[0],
-            v: speed, vL: 12, vE: 30, noise: 1, nT: 0, loadedTruth: false,
-            cls: null, state: 'idle', timer: 0, at: null, trail: [], trT: 0,
-            hd: course ? course * Math.PI / 180 : 0, stable: 0, out: false, atExit: false,
-            x: sv.x, y: sv.y, node: node >= 0 ? node : 0, apiDriven: true, path: null, tg: null };
-          this.trucks.push(t);
+        if (node < 0) return;
+        let best = null, bd = 1e9;
+        for (const t of this.trucks) {
+          const d = Math.hypot(t.x - sv.x, t.y - sv.y);
+          if (d < bd) { bd = d; best = t; }
         }
-        t.apiSpeed = speed;
-        t.v = speed;
-        if (course !== undefined) t.hd = course * Math.PI / 180;
-        t.targetX = sv.x; t.targetY = sv.y;
-        const newNode = node >= 0 ? node : t.node;
-        if (newNode !== t.node && newNode >= 0 && t.node >= 0 && this.adj && this.adj.length) {
-          const path = this.astar(t.node, newNode);
-          if (path && path.length >= 2) { t.state = 'drive'; this.setPath(t, path); }
-          else { t.x = sv.x; t.y = sv.y; t.node = newNode; }
-        } else if (node >= 0) { t.node = node; }
-        const lb = this.props.loadedBelow ?? 15, eb = this.props.emptyAbove ?? 20;
-        if (t.kind !== 'car') {
-          if (speed > eb) t.cls = 'empty';
-          else if (speed < lb && speed < 3) t.cls = 'loaded';
+        if (!best || bd > 200) return;
+        const speed = s.speed != null ? s.speed : (u.speed || 0);
+        if (node !== best.node && best.node >= 0 && this.adj && this.adj.length) {
+          const path = this.astar(best.node, node);
+          if (path && path.length >= 2) { best.state = 'drive'; this.setPath(best, path); }
         }
-        t.atExit = node < 0; t.out = node < 0;
       });
-      this.trucks = this.trucks.filter(t => !t.apiDriven || seen.has(t.plate));
-      this.forceUpdate();
     }).catch(() => { this.apiOK = false; });
   }
 
