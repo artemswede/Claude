@@ -679,6 +679,7 @@ class LoggerService : Service() {
 
     /** Auto mode brings the app to the front when a trip starts (needs «поверх других окон» on Android 10+). */
     private fun openUi() {
+        if (Prefs.headless(this)) return
         val allowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || Compat.canOverlay(this)
         if (!allowed) return
         try {
@@ -887,6 +888,7 @@ class LoggerService : Service() {
         const val ACTION_CHECK_STOP = "com.obdlogger.CHECK_STOP"
         const val ACTION_DTC_READ = "com.obdlogger.DTC_READ"
         const val ACTION_DTC_CLEAR = "com.obdlogger.DTC_CLEAR"
+        const val ACTION_PAUSE = "com.obdlogger.PAUSE"
         const val ACTION_MODE06_READ = "com.obdlogger.MODE06_READ"
         const val EXTRA_ADDRESS = "address"
         const val EXTRA_CHECK = "check"

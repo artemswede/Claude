@@ -53,6 +53,8 @@ object LoggerState {
         val dtcResult: String? = null,
         val mode06Busy: String? = null,
         val mode06: com.obdlogger.core.Mode06Snapshot? = null,
+        val aiLamp: Lamp = Lamp.OFF,
+        val aiText: String = "",
     )
 
     private val main = Handler(Looper.getMainLooper())

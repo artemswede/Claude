@@ -167,73 +167,78 @@ class ChartBar(
     private fun pick() {
         val overlay = lanes.overlayMode
         val all = lanes.columns().filter { it != "time" && it != "t_s" && it != "marker" && !it.startsWith("pid01_") }
-        // Checked first (in the order they were ticked), then the rest in the usual order.
         val checked = ArrayList(if (overlay) lanes.overlay.filter { it in all } else visible(all))
         val order = checked + all.filter { it !in checked }
-        val box = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(8), dp(16), dp(4)) }
-        val sets = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val caption = context.text("", sc.cap, p.t2)
-        val full = context.text("Наложение заполнено: 6 из 6. Чтобы добавить датчик, снимите отметку с другого.", sc.cap, p.amb, 600)
+        val box = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(8)) }
+        val caption = context.text("", sc.p, p.t2)
+        val full = context.text("Наложение заполнено: 6 из 6. Снимите отметку, чтобы добавить другой.", sc.p, p.amb, 600).apply { setPadding(0, dp(4), 0, dp(4)) }
         val list = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         val rows = HashMap<String, TextView>()
+        val presetDescriptions = mapOf(
+            "Смесь" to "коррекция, расход воздуха, лямбда, обороты",
+            "Зарядка" to "аккумулятор, обороты, нагрузка",
+            "Температуры" to "антифриз, воздух на впуске, скорость",
+            "Холостой" to "обороты, воздух, опережение, коррекция",
+        )
         fun render() {
             val limit = overlay && checked.size >= Series.MAX
-            caption.text = if (overlay) "Наложение · до ${Series.MAX} датчиков · отмечено ${checked.size}" else "Дорожки · отмечено ${checked.size} · с 7-го — без цвета, только дорожка"
+            caption.text = if (overlay) "Отмечено ${checked.size} из ${Series.MAX}" else "Отмечено ${checked.size}"
             full.visibility = if (limit) View.VISIBLE else View.GONE
             for (code in order) {
                 val tv = rows[code] ?: continue
                 val k = checked.indexOf(code)
-                val mark = when {
-                    k < 0 -> "☐"
-                    k < Series.MAX -> "☑"
-                    else -> "☑"
-                }
-                val shape = if (k in 0 until Series.MAX) Series.glyph(k) else if (k >= 0) "–" else " "
+                val mark = if (k < 0) "☐" else "☑"
+                val shape = if (k in 0 until Series.MAX) " ${Series.glyph(k)}" else ""
                 val v = lanes.last(code).takeIf { !it.isNaN() }?.let { "  ${Num.fmt(code, it)} ${SensorNames.unit(code)}" }.orEmpty()
-                val only = if (k >= Series.MAX) "  · без цвета · только дорожка" else ""
-                tv.text = "$mark  $shape  ${SensorNames.label(code)}$v$only"
-                tv.setTextColor(if (k in 0 until Series.MAX) p.t1 else p.t2)
+                tv.text = "$mark$shape  ${SensorNames.label(code)}$v"
+                tv.setTextColor(if (k >= 0) p.t1 else p.t2)
                 tv.alpha = if (limit && k < 0) 0.4f else 1f
             }
         }
-        fun preset(name: String, codes: List<String>, ms: Long?) = context.text(name, sc.p, p.acc, 600).apply {
-            setPadding(dp(14), 0, dp(14), 0)
-            background = roundRect(p.accT, dp(20).toFloat())
-            setOnClickListener {
-                checked.clear()
-                checked.addAll(codes.filter { it in all }.let { if (overlay) it.take(Series.MAX) else it })
-                ms?.let { lanes.windowMs = it }
-                render()
-            }
-        }.tap()
-        for (pr in builtIn() + saved()) addTo(sets, preset(pr.name, pr.codes, pr.windowMs), dp(6), width = ViewGroup.LayoutParams.WRAP_CONTENT)
-        addTo(sets, context.text("+ Свой", sc.p, p.t1, 600).apply {
-            setPadding(dp(14), 0, dp(14), 0)
-            background = roundRect(p.s1, dp(20).toFloat(), dp(1), p.line2)
-            setOnClickListener { saveDialog(checked.toList()) }
-        }.tap(), dp(6), width = ViewGroup.LayoutParams.WRAP_CONTENT)
-        addTo(box, context.label("Наборы", sc, p))
-        addTo(box, HorizontalScrollView(context).apply { addView(sets); isHorizontalScrollBarEnabled = false }, dp(4))
-        addTo(box, caption, dp(10))
-        addTo(box, full, dp(4))
-        for (code in order) {
-            val tv = context.text("", if (sc.phone) 15f else 16f, p.t1, 500, maxLines = 1).apply {
-                minHeight = dp(48)
+        val presets = builtIn() + saved()
+        for (pr in presets) {
+            val desc = presetDescriptions[pr.name] ?: pr.codes.take(4).joinToString(", ") { SensorNames.label(it) }
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
+                minimumHeight = dp(56)
+                setPadding(dp(16), dp(8), dp(16), dp(8))
+                background = roundRect(p.s1, dp(14).toFloat(), dp(1), p.line2)
+                setOnClickListener {
+                    checked.clear()
+                    checked.addAll(pr.codes.filter { it in all }.let { if (overlay) it.take(Series.MAX) else it })
+                    pr.windowMs?.let { lanes.windowMs = it }
+                    render()
+                }
+            }.tap()
+            val left = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+            addTo(left, context.text(pr.name, sc.hs, p.t1, 600))
+            addTo(left, context.text(desc, sc.cap, p.t3), dp(2))
+            row.addView(left, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addTo(row, context.text("›", 20f, p.t3))
+            addTo(box, row, dp(6))
+        }
+        addTo(box, caption, dp(12))
+        addTo(box, full)
+        for (code in order) {
+            val tv = context.text("", if (sc.phone) 16f else 17f, p.t1, 500, maxLines = 1).apply {
+                minimumHeight = dp(52)
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(4), 0, dp(4), 0)
                 setOnClickListener {
                     if (code in checked) checked.remove(code)
                     else if (!(overlay && checked.size >= Series.MAX)) checked.add(code)
                     render()
                 }
-            }
+            }.tap()
             rows[code] = tv
             addTo(list, tv)
             addTo(list, hline(context, p.line))
         }
         render()
         val scroll = ScrollView(context).apply { addView(list) }
-        box.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(if (sc.phone) 420 else 220)).apply { topMargin = dp(6) })
-        AlertDialog.Builder(context)
+        box.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(if (sc.phone) 360 else 200)).apply { topMargin = dp(6) })
+        val dlg = AlertDialog.Builder(context)
             .setTitle(if (overlay) "Датчики на наложении" else "Дорожки на экране")
             .setView(box)
             .setPositiveButton("Готово") { _, _ ->
@@ -247,6 +252,12 @@ class ChartBar(
             }
             .setNegativeButton("Отмена", null)
             .show()
+        dlg.getButton(AlertDialog.BUTTON_POSITIVE)?.apply {
+            setTextColor(p.bg)
+            background = roundRect(p.acc, dp(12).toFloat())
+            setPadding(dp(24), dp(8), dp(24), dp(8))
+            minimumHeight = dp(48)
+        }
     }
 
     // ---- «⋯» ----

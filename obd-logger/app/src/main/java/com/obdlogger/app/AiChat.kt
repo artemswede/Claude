@@ -281,7 +281,7 @@ object AiChat {
             c.requestMethod = "POST"
             c.connectTimeout = 15_000
             // The own server waits for the model up to 5 minutes (Vercel maxDuration).
-            c.readTimeout = if (own) 310_000 else 180_000
+            c.readTimeout = if (own) 120_000 else 180_000
             c.doOutput = true
             c.setRequestProperty("Content-Type", if (own) "application/octet-stream" else "application/json")
             c.setRequestProperty("Authorization", "Bearer ${key.removePrefix(PROXY)}")
@@ -354,6 +354,40 @@ object AiChat {
         is java.net.ConnectException, is java.net.NoRouteToHostException ->
             IOException("Нет связи с сервером ИИ (${e.message.orEmpty()}). Проверьте интернет на устройстве.")
         else -> e
+    }
+
+    fun ping(ctx: Context): Pair<Lamp, String> {
+        val key = key(ctx)
+        if (key.isEmpty()) return Lamp.OFF to "ИИ не настроен"
+        if (!online(ctx)) return Lamp.FAIL to "нет интернета"
+        return try {
+            val own = proxied(key)
+            val url = if (own) proxyUrl else if (openRouter(key)) OPENROUTER else "$BASE/chat/completions"
+            if (url.isEmpty()) return Lamp.FAIL to "адрес сервера не задан"
+            val body = JSONObject()
+                .put("model", if (own) "auto" else if (openRouter(key)) orModel(ctx) else "deepseek-chat")
+                .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", "ping")))
+                .put("max_tokens", 1).put("stream", false)
+            val c = URL(url).openConnection() as HttpURLConnection
+            c.requestMethod = "POST"
+            c.connectTimeout = 10_000
+            c.readTimeout = 15_000
+            c.doOutput = true
+            c.setRequestProperty("Content-Type", "application/json")
+            c.setRequestProperty("Authorization", "Bearer ${key.removePrefix(PROXY)}")
+            c.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            val code = c.responseCode
+            if (code in 200..299) Lamp.OK to "ИИ на связи"
+            else if (code == 401) Lamp.FAIL to "ключ не подходит"
+            else if (code == 429) Lamp.OK to "ИИ на связи (лимит — повторите позже)"
+            else Lamp.FAIL to "сервер ответил $code"
+        } catch (e: java.net.UnknownHostException) {
+            Lamp.FAIL to "сервер недоступен"
+        } catch (e: java.net.SocketTimeoutException) {
+            Lamp.FAIL to "сервер не отвечает"
+        } catch (e: Exception) {
+            Lamp.FAIL to (e.message ?: "ошибка связи")
+        }
     }
 
     /** Markdown the model likes (**bold**, # headers) as plain readable text. */

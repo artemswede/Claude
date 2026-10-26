@@ -69,6 +69,8 @@ class Shell(private val activity: Activity) {
     private val lamp2 = View(ctx)
     /** Third lamp: the trip is being written — green and blinking while rows arrive. */
     private val lamp3 = View(ctx)
+    /** Fourth lamp: AI connectivity. */
+    private val lamp4 = View(ctx)
     private val blink = android.animation.ObjectAnimator.ofFloat(lamp3, View.ALPHA, 1f, 0.25f).apply {
         duration = 600
         repeatMode = android.animation.ValueAnimator.REVERSE
@@ -76,6 +78,7 @@ class Shell(private val activity: Activity) {
     }
     private val upd = ctx.text("", sc.sbarFont - 1, p.t3, maxLines = 1)
     private val divider = View(ctx)
+    private val divider2 = View(ctx)
     private val nav = LinearLayout(ctx)
     private val navItems = LinkedHashMap<Page, LinearLayout>()
     /** One container per page; pages are built by the activity. */
@@ -117,10 +120,12 @@ class Shell(private val activity: Activity) {
         }
         lampPill.addView(divider, LinearLayout.LayoutParams(ctx.dp(1), ctx.dp(22)).apply { leftMargin = ctx.dp(12) })
         lampPill.addView(lamp3, LinearLayout.LayoutParams(ctx.dp(sc.lamp), ctx.dp(sc.lamp)).apply { leftMargin = ctx.dp(12) })
+        lampPill.addView(divider2, LinearLayout.LayoutParams(ctx.dp(1), ctx.dp(22)).apply { leftMargin = ctx.dp(12) })
+        lampPill.addView(lamp4, LinearLayout.LayoutParams(ctx.dp(sc.lamp), ctx.dp(sc.lamp)).apply { leftMargin = ctx.dp(12) })
         rec.gravity = Gravity.CENTER
         recUnit.gravity = Gravity.CENTER
         lampPill.addView(column(ctx, 0, rec, recUnit).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { leftMargin = ctx.dp(8) })
-        lampPill.contentDescription = "Лампы: двигатель, связь с ЭБУ, запись — подробнее"
+        lampPill.contentDescription = "Лампы: двигатель, связь с ЭБУ, запись, ИИ — подробнее"
         lampPill.setOnClickListener { showLampTip() }
         addTo(bar, lampPill, ctx.dp(10))
         // «обновлено N с назад» is in the lamp tip; short screens keep the room for the rest.
@@ -229,6 +234,7 @@ class Shell(private val activity: Activity) {
         recUnit.setTextColor(p.t2)
         info.setTextColor(p.t2)
         divider.setBackgroundColor(p.line2)
+        divider2.setBackgroundColor(p.line2)
         upd.setTextColor(p.t3)
         lampPill.background = roundRect(p.s1, ctx.dp(999).toFloat())
         dtcChip.background = roundRect(p.redT, ctx.dp(999).toFloat())
@@ -275,6 +281,10 @@ class Shell(private val activity: Activity) {
         lamp3.background = roundRect(lampColor(writing), ctx.dp(sc.lamp).toFloat())
         lamp3.visibility = if (s.recording) View.VISIBLE else View.GONE
         divider.visibility = lamp3.visibility
+        lamp4.background = roundRect(lampColor(s.aiLamp), ctx.dp(sc.lamp).toFloat())
+        val showAi = s.aiLamp != Lamp.OFF
+        lamp4.visibility = if (showAi) View.VISIBLE else View.GONE
+        divider2.visibility = if (showAi || s.recording) View.VISIBLE else View.GONE
         if (writing == Lamp.OK) {
             if (!blink.isStarted) blink.start()
         } else {
@@ -336,6 +346,7 @@ class Shell(private val activity: Activity) {
             writeLamp(s) == Lamp.OK -> "пишется: ${s.rows} строк, последняя ${ago} с назад"
             else -> "запись открыта, но строк нет уже ${ago} с"
         })
+        if (s.aiLamp != Lamp.OFF) line(s.aiLamp, "ИИ-ассистент", s.aiText)
         val cap = listOfNotNull(
             s.protocol.takeIf { it.isNotBlank() },
             if (s.cycleMs > 0) "1 строка / %.1f с".format(s.cycleMs / 1000.0) else null,

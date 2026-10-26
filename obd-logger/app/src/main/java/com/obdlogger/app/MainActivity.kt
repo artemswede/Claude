@@ -178,6 +178,15 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         loadDevices()
         setup?.refresh()
         if (shell.page == Shell.Page.OVERVIEW) refreshHome()
+        pingAi()
+    }
+
+    private fun pingAi() {
+        LoggerState.update { it.copy(aiLamp = Lamp.WAIT, aiText = "проверяю…") }
+        Thread {
+            val (lamp, text) = AiChat.ping(this)
+            LoggerState.update { it.copy(aiLamp = lamp, aiText = text) }
+        }.start()
     }
 
     // ---- SetupView.Host (first run) ----
@@ -363,6 +372,8 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
 
     override fun bootOn() = Prefs.boot(this)
     override fun setBoot(on: Boolean) = prefs.edit().putBoolean(Prefs.BOOT, on).apply()
+    override fun headlessOn() = Prefs.headless(this)
+    override fun setHeadless(on: Boolean) = prefs.edit().putBoolean(Prefs.HEADLESS, on).apply()
     override fun extendedOn() = Prefs.extended(this)
     override fun setExtended(on: Boolean) = prefs.edit().putBoolean(Prefs.EXTENDED, on).apply()
     override fun marksOn() = Prefs.marks(this)
@@ -542,6 +553,15 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
     }
 
     override fun shareCrashes() = share(CrashLog.files(this).take(5), "Бортач: отчёт об ошибке")
+
+    override fun updateApp() {
+        try {
+            startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                android.net.Uri.parse("https://github.com/artemswede/Claude/releases/tag/bortach-latest")))
+        } catch (_: Exception) {
+            Toast.makeText(this, "Не удалось открыть браузер", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     override fun readiness(): List<Pair<String, Boolean>> = listOf(
         "Адаптер выбран" to (Prefs.device(this) != null),
@@ -1028,6 +1048,16 @@ class MainActivity : Activity(), SettingsView.Host, SetupView.Host, TripActions,
         val key = AiChat.key(this)
         if (key.isEmpty()) return editAiKey()
         if (chatBusy != null || chatState.messages.lastOrNull()?.role != "user") return
+        chatError = null
+        answer(key)
+    }
+
+    override fun retryFast() {
+        cancelAnswer()
+        AiChat.setThinking(this, false)
+        val key = AiChat.key(this)
+        if (key.isEmpty()) return
+        if (chatState.messages.lastOrNull()?.role != "user") return
         chatError = null
         answer(key)
     }

@@ -77,6 +77,9 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         fun aiProLimit(): Int = 3
         fun setAiProLimit(i: Int) {}
         fun aiProUsed(): Int = 0
+        fun updateApp() {}
+        fun headlessOn(): Boolean = false
+        fun setHeadless(on: Boolean) {}
     }
 
     private val p = Bt.theme
@@ -121,6 +124,8 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
 
         section("Фон и запуск")
         toggle("Запускать при включении планшета", "после включения или перезагрузки Бортач сам ждёт запуска двигателя — открывать приложение не нужно", h.bootOn()) { h.setBoot(it) }
+        toggle("Не открывать экран при записи", "только фоновая запись — экран не включится при запуске двигателя", h.headlessOn()) { h.setHeadless(it) }
+        chevron("Запись вручную", h.manualText()) { h.toggleManual() }
         chevron("Не ограничивать в фоне", h.batteryText()) { h.askBattery() }
         chevron("Открывать при запуске двигателя", h.overlayText()) { h.askOverlay() }
 
@@ -133,7 +138,7 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
             com.obdlogger.app.UiScale.LEVELS.map { it.second to Math.round(it.first * 100) }, h.uiScale()) { h.setUiScale(it) }
 
         section("ИИ-чат")
-        chevron("Свой сервер (без VPN)", "${h.proxyText()} · Vercel-посредник, ключ ИИ хранится на нём") { h.editProxy() }
+        chevron("Свой сервер (без VPN)", "${h.proxyText()} · Vercel / Cloudflare, ключ ИИ хранится на нём") { h.editProxy() }
         chevron("Ключ API (OpenRouter или DeepSeek)", "${h.aiKeyText()} · хранится только на этом устройстве") { h.editAiKey() }
         segment("Сырые данные для ИИ", "последние поездки целиком (~50 тыс. токенов на 45 минут) — ИИ видит каждый замер; расчёты связей идут всегда",
             listOf("нет" to 0, "1 поездка" to 1, "2 поездки" to 2, "все 6" to 3), h.aiRawTrips()) { h.setAiRawTrips(it) }
@@ -149,10 +154,8 @@ class SettingsView(ctx: Context, private val sc: Bt.Scale) : FrameLayout(ctx) {
         chevron("Скопировать все записи в Загрузки", "если приложение закрывали во время записи") { h.exportAll() }
         if (h.canShareLast()) chevron("Поделиться последней записью", "CSV, разбор и журнал — в мессенджер или почту") { h.shareLast() }
 
-        section("Вручную")
-        chevron("Запись вручную", h.manualText()) { h.toggleManual() }
-
         section("О приложении")
+        chevron("Скачать обновление", "открыть страницу загрузки на GitHub") { h.updateApp() }
         h.crashText()?.let { chevron("Отправить отчёт об ошибке", it) { h.shareCrashes() } }
         addTo(list, context.text("Бортач ${h.version()}", sc.p, p.t3).apply { setPadding(0, dp(14), 0, 0) })
     }

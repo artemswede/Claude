@@ -1,0 +1,7 @@
+name = "bortach-proxy"
+main = "src/worker.js"
+compatibility_date = "2024-09-01"
+
+# Secrets (set via `wrangler secret put`):
+#   PROXY_TOKEN        — пароль для Бортача
+#   OPENROUTER_API_KEY — ключ OpenRouter (sk-or-…)

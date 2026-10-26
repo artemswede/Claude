@@ -49,6 +49,8 @@ object Prefs {
     const val PANEL_HIDDEN = "panel_hidden"
     /** Colour theme: "dark", "light" or "auto" (dark between 21:00–07:00). */
     const val THEME = "theme"
+    /** Headless: don't open UI when a trip starts, just record in the background. */
+    const val HEADLESS = "headless"
 
     fun of(ctx: Context): SharedPreferences = ctx.getSharedPreferences("settings", Context.MODE_PRIVATE)
     fun device(ctx: Context): String? = of(ctx).getString(DEVICE, null)
@@ -119,6 +121,8 @@ object Prefs {
         val set = dismissed(ctx, trip) + kind
         of(ctx).edit().putString("dismissed_$trip", org.json.JSONArray(set.toList()).toString()).apply()
     }
+
+    fun headless(ctx: Context): Boolean = of(ctx).getBoolean(HEADLESS, false)
 
     fun theme(ctx: Context): String = of(ctx).getString(THEME, "auto") ?: "auto"
     fun setTheme(ctx: Context, v: String) = of(ctx).edit().putString(THEME, v).apply()
